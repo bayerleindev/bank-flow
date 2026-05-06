@@ -65,6 +65,7 @@ class LedgerPostingCreatedConsumerIntegrationTests {
 	@BeforeEach
 	void setUp() throws Exception {
 		createTopicIfNeeded();
+		jdbcTemplate.update("DELETE FROM account_holds");
 		jdbcTemplate.update("DELETE FROM account_balance_entries");
 		jdbcTemplate.update("DELETE FROM processed_ledger_entries");
 		jdbcTemplate.update("DELETE FROM account_balances");

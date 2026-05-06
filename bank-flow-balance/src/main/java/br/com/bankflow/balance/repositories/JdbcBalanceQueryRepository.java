@@ -19,7 +19,7 @@ public class JdbcBalanceQueryRepository implements BalanceQueryRepository {
 	@Override
 	public Optional<AccountBalance> findBalance(long accountId) {
 		List<AccountBalance> balances = jdbcTemplate.query("""
-				SELECT account_id, currency, posted_minor, updated_at
+				SELECT account_id, currency, posted_minor, held_minor, updated_at
 				FROM account_balances
 				WHERE account_id = ?
 				""",
@@ -27,6 +27,7 @@ public class JdbcBalanceQueryRepository implements BalanceQueryRepository {
 						rs.getLong("account_id"),
 						rs.getString("currency"),
 						rs.getLong("posted_minor"),
+						rs.getLong("held_minor"),
 						rs.getLong("updated_at")
 				),
 				accountId

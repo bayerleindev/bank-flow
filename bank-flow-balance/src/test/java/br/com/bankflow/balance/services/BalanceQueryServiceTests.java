@@ -25,6 +25,8 @@ class BalanceQueryServiceTests {
 		assertEquals(1001L, balance.accountId());
 		assertEquals("BRL", balance.currency());
 		assertEquals(12_500L, balance.postedMinor());
+		assertEquals(2_500L, balance.heldMinor());
+		assertEquals(10_000L, balance.availableMinor());
 	}
 
 	@Test
@@ -81,7 +83,7 @@ class BalanceQueryServiceTests {
 		@Override
 		public Optional<AccountBalance> findBalance(long accountId) {
 			if (accountId == 1001L) {
-				return Optional.of(new AccountBalance(1001L, "BRL", 12_500L, 1_777_777_777_000L));
+				return Optional.of(new AccountBalance(1001L, "BRL", 12_500L, 2_500L, 1_777_777_777_000L));
 			}
 			return Optional.empty();
 		}

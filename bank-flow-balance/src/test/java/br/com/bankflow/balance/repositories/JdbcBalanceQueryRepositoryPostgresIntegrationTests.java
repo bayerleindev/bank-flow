@@ -60,6 +60,7 @@ class JdbcBalanceQueryRepositoryPostgresIntegrationTests {
 	}
 
 	private void insertFixture() {
+		jdbcTemplate.update("DELETE FROM account_holds");
 		jdbcTemplate.update("DELETE FROM account_balance_entries");
 		jdbcTemplate.update("DELETE FROM account_balances");
 		jdbcTemplate.update("""

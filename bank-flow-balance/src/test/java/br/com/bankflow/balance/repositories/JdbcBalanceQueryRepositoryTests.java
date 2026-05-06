@@ -16,6 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @SpringBootTest
 @Sql(statements = {
+		"DELETE FROM account_holds",
 		"DELETE FROM account_balance_entries",
 		"DELETE FROM account_balances",
 		"INSERT INTO account_balances (account_id, currency, posted_minor, updated_at) VALUES (1001, 'BRL', 12500, 1777777777000)",

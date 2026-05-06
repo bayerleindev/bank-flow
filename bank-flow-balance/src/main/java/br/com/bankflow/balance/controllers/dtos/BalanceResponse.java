@@ -7,6 +7,8 @@ public record BalanceResponse(
 		@JsonProperty("account_id") long accountId,
 		String currency,
 		@JsonProperty("posted_minor") long postedMinor,
+		@JsonProperty("held_minor") long heldMinor,
+		@JsonProperty("available_minor") long availableMinor,
 		@JsonProperty("updated_at") long updatedAt
 ) {
 	public static BalanceResponse from(AccountBalance balance) {
@@ -14,6 +16,8 @@ public record BalanceResponse(
 				balance.accountId(),
 				balance.currency(),
 				balance.postedMinor(),
+				balance.heldMinor(),
+				balance.availableMinor(),
 				balance.updatedAt()
 		);
 	}
