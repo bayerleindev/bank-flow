@@ -20,7 +20,7 @@ public class KafkaHealthIndicator implements HealthIndicator {
 
 	public KafkaHealthIndicator(
 			@Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
-			@Value("${bank-flow.health.kafka.timeout-ms}") long timeoutMs
+			@Value("${bank-flow.health.kafka.timeout-ms:2000}") long timeoutMs
 	) {
 		this.bootstrapServers = bootstrapServers;
 		this.timeoutMs = timeoutMs;

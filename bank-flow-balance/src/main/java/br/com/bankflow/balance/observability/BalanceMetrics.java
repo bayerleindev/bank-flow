@@ -20,6 +20,7 @@ public class BalanceMetrics {
 				.description("Kafka messages received by bank-flow-balance")
 				.tag("topic", record.topic())
 				.tag("result", "received")
+				.tag("exception", "none")
 				.register(meterRegistry)
 				.increment();
 	}
@@ -42,10 +43,12 @@ public class BalanceMetrics {
 		sample.stop(Timer.builder("bank_flow_balance_projection_duration")
 				.description("Ledger posting projection duration")
 				.tag("result", result.name().toLowerCase())
+				.tag("exception", "none")
 				.register(meterRegistry));
 		Counter.builder("bank_flow_balance_projection_total")
 				.description("Ledger posting projections by result")
 				.tag("result", result.name().toLowerCase())
+				.tag("exception", "none")
 				.register(meterRegistry)
 				.increment();
 		meterRegistry.summary("bank_flow_balance_projection_lines")
