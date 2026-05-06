@@ -93,19 +93,6 @@ public class JdbcAccountHoldRepository implements AccountHoldRepository {
 	}
 
 	private boolean closeHeld(String holdId, AccountHoldStatus targetStatus, long updatedAt) {
-		int updatedBalance = jdbcTemplate.update("""
-				UPDATE account_balances balance
-				SET held_minor = balance.held_minor - hold.amount_minor,
-				    updated_at = ?
-				FROM account_holds hold
-				WHERE hold.hold_id = ?
-				  AND hold.status = 'HELD'
-				  AND balance.account_id = hold.account_id
-				  AND balance.currency = hold.currency
-				""", updatedAt, holdId);
-		if (updatedBalance != 1) {
-			return false;
-		}
 		int updatedHold = jdbcTemplate.update("""
 				UPDATE account_holds
 				SET status = ?,
@@ -113,7 +100,17 @@ public class JdbcAccountHoldRepository implements AccountHoldRepository {
 				WHERE hold_id = ?
 				  AND status = 'HELD'
 				""", targetStatus.name(), updatedAt, holdId);
-		return updatedHold == 1;
+		if (updatedHold != 1) {
+			return false;
+		}
+		int updatedBalance = jdbcTemplate.update("""
+				UPDATE account_balances
+				SET held_minor = held_minor - (SELECT amount_minor FROM account_holds WHERE hold_id = ?),
+				    updated_at = ?
+				WHERE account_id = (SELECT account_id FROM account_holds WHERE hold_id = ?)
+				  AND currency = (SELECT currency FROM account_holds WHERE hold_id = ?)
+				""", holdId, updatedAt, holdId, holdId);
+		return updatedBalance == 1;
 	}
 
 	private AccountHold mapHold(ResultSet rs, int rowNum) throws SQLException {

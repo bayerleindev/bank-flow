@@ -10,6 +10,8 @@ O `bank-flow-balance` e um read model: ele nao decide se uma transferencia deve 
 - Validar se o evento esta consistente para projecao de saldo.
 - Garantir idempotencia na projecao por `entry_id` e `external_id`.
 - Atualizar `account_balances` com saldo postado em minor units.
+- Reservar saldo disponivel com holds transacionais.
+- Capturar ou liberar holds apos conclusao/falha do fluxo de transferencia.
 - Armazenar linhas historicas em `account_balance_entries`.
 - Expor APIs HTTP para consulta de saldo e extrato.
 - Expor health checks e metricas operacionais.
@@ -17,7 +19,7 @@ O `bank-flow-balance` e um read model: ele nao decide se uma transferencia deve 
 ## Fora de escopo
 
 - Criar contas contabeis.
-- Decidir aprovacao de transferencias.
+- Decidir aprovacao final de transferencias.
 - Gerar postings double-entry.
 - Decidir ou executar estornos.
 - Ser fonte de verdade contabil.
@@ -60,6 +62,17 @@ bank-flow-ledger
               ├── registra idempotencia em processed_ledger_entries
               ├── grava linhas em account_balance_entries
               └── atualiza saldo em account_balances
+```
+
+Fluxo de hold:
+
+```text
+bank-flow-transfer
+  └── POST /holds
+        └── bank-flow-balance
+              ├── valida comando de reserva
+              ├── cria account_holds com status HELD
+              └── incrementa held_minor se available_minor for suficiente
 ```
 
 ## Topico consumido
@@ -160,6 +173,7 @@ CREATE TABLE account_balances (
     account_id BIGINT PRIMARY KEY,
     currency VARCHAR(3) NOT NULL,
     posted_minor BIGINT NOT NULL DEFAULT 0,
+    held_minor BIGINT NOT NULL DEFAULT 0,
     updated_at BIGINT NOT NULL
 );
 ```
@@ -169,6 +183,8 @@ Campos:
 - `account_id`: identificador numerico da conta contabil gerado pelo ledger.
 - `currency`: moeda ISO de 3 caracteres.
 - `posted_minor`: saldo postado em minor units, por exemplo centavos para BRL.
+- `held_minor`: saldo reservado/bloqueado por holds ativos.
+- `available_minor`: campo derivado na API, calculado como `posted_minor - held_minor`.
 - `updated_at`: timestamp numerico da ultima atualizacao.
 
 ### account_balance_entries
@@ -205,6 +221,34 @@ CREATE TABLE processed_ledger_entries (
 ```
 
 Tambem existe indice unico em `external_id`.
+
+### account_holds
+
+Tabela de reservas de saldo.
+
+```sql
+CREATE TABLE account_holds (
+    hold_id VARCHAR(36) PRIMARY KEY,
+    transfer_id VARCHAR(128) NOT NULL,
+    account_id BIGINT NOT NULL,
+    amount_minor BIGINT NOT NULL,
+    currency VARCHAR(3) NOT NULL,
+    status VARCHAR(32) NOT NULL,
+    reason VARCHAR(128) NOT NULL,
+    expires_at BIGINT NOT NULL,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL
+);
+```
+
+Estados possiveis:
+
+- `HELD`: saldo reservado.
+- `CAPTURED`: hold fechado apos a transferencia ser postada no ledger.
+- `RELEASED`: hold liberado porque a transferencia falhou/cancelou antes da postagem.
+- `EXPIRED`: reservado para rotina futura de expiracao automatica.
+
+`transfer_id` possui indice unico. Isso torna a criacao de hold idempotente por transferencia.
 
 ## Idempotencia
 
@@ -262,6 +306,8 @@ Resposta:
   "account_id": 1778026147200000,
   "currency": "BRL",
   "posted_minor": -269069,
+  "held_minor": 0,
+  "available_minor": -269069,
   "updated_at": 1778098839069
 }
 ```
@@ -295,6 +341,8 @@ Resposta:
     "account_id": 1778026147200000,
     "currency": "BRL",
     "posted_minor": -269069,
+    "held_minor": 0,
+    "available_minor": -269069,
     "updated_at": 1778098839069
   },
   "lines": [
@@ -325,6 +373,78 @@ curl -s "http://localhost:8082/balances/1778026147200000/statement?limit=2&curso
 ```
 
 Quando `next_cursor` vier `null`, nao ha proxima pagina.
+
+### POST /holds
+
+Cria uma reserva de saldo para uma transferencia.
+
+Exemplo:
+
+```bash
+curl -s -X POST http://localhost:8082/holds \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transfer_id": "transfer-123",
+    "account_id": 1778098782365000000,
+    "amount_minor": 1000,
+    "currency": "BRL",
+    "reason": "TRANSFER",
+    "expires_at": 4102444800000
+  }'
+```
+
+Resposta:
+
+```json
+{
+  "hold_id": "cc7b34f3-a11a-4674-856c-c02f22d1fc35",
+  "transfer_id": "transfer-123",
+  "account_id": 1778098782365000000,
+  "amount_minor": 1000,
+  "currency": "BRL",
+  "status": "HELD",
+  "reason": "TRANSFER",
+  "expires_at": 4102444800000,
+  "created_at": 1778101782961,
+  "updated_at": 1778101782961
+}
+```
+
+Semantica:
+
+- Valida se `expires_at` esta no futuro.
+- Insere um hold `HELD`.
+- Incrementa `held_minor` apenas se `posted_minor - held_minor >= amount_minor`.
+- Se saldo disponivel for insuficiente, retorna `409`.
+- Se o mesmo `transfer_id` for enviado novamente, retorna o hold existente e nao reserva saldo novamente.
+
+### POST /holds/{hold_id}/capture
+
+Fecha um hold depois que a transferencia foi postada no ledger.
+
+```bash
+curl -s -X POST http://localhost:8082/holds/cc7b34f3-a11a-4674-856c-c02f22d1fc35/capture
+```
+
+Efeito:
+
+- muda status de `HELD` para `CAPTURED`;
+- decrementa `held_minor`;
+- falha com `409` se o hold ja estiver fechado.
+
+### POST /holds/{hold_id}/release
+
+Libera um hold quando a transferencia falha ou e cancelada antes da postagem.
+
+```bash
+curl -s -X POST http://localhost:8082/holds/cc7b34f3-a11a-4674-856c-c02f22d1fc35/release
+```
+
+Efeito:
+
+- muda status de `HELD` para `RELEASED`;
+- decrementa `held_minor`;
+- falha com `409` se o hold ja estiver fechado.
 
 ### Cursor do extrato
 
@@ -376,6 +496,19 @@ Exemplo de saldo inexistente:
   "status": 404,
   "title": "Balance not found",
   "account_id": 123
+}
+```
+
+Exemplo de saldo insuficiente:
+
+```json
+{
+  "detail": "Available balance is lower than requested amount",
+  "status": 409,
+  "title": "Insufficient funds",
+  "account_id": 123,
+  "amount_minor": 1000,
+  "currency": "BRL"
 }
 ```
 
@@ -580,6 +713,12 @@ Consultar saldos no Postgres:
 docker compose exec -T db psql -U myuser -d bank_flow -c "SELECT * FROM account_balances LIMIT 10;"
 ```
 
+Consultar holds:
+
+```bash
+docker compose exec -T db psql -U myuser -d bank_flow -c "SELECT * FROM account_holds ORDER BY created_at DESC LIMIT 10;"
+```
+
 Consultar extrato projetado:
 
 ```bash
@@ -600,21 +739,26 @@ http://localhost:8081/ui/clusters/bankflow/all-topics/ledger-posting-created.DLT
 
 ## Semantica de saldo
 
-Atualmente o servico projeta apenas:
+Atualmente o servico trabalha com:
 
 ```text
 posted_minor
+held_minor
+available_minor = posted_minor - held_minor
 ```
 
 `posted_minor` representa o saldo contabil confirmado pelo ledger. Ele pode ser positivo ou negativo dependendo das linhas postadas para a conta.
 
+`held_minor` representa saldo reservado para operacoes em andamento, como transferencias que ja foram aceitas pelo transfer-service mas ainda nao foram confirmadas/fechadas.
+
+`available_minor` representa o saldo utilizavel para novas reservas.
+
 O servico ainda nao modela:
 
 - `pending_minor`
-- `available_minor`
 - `blocked_minor`
 
-Esses campos exigem eventos especificos de autorizacao, reserva, captura, cancelamento ou liberacao. Enquanto o ledger publica apenas postings confirmados, o balance deve continuar tratando o saldo como saldo postado.
+`pending_minor` e `blocked_minor` exigem eventos especificos de autorizacao, bloqueio regulatorio, disputa ou outros fluxos operacionais.
 
 ## Decisoes importantes
 
