@@ -122,6 +122,7 @@ Prepare as tabelas do immudb quando necessario:
 
 ```text
 scripts/immudb/001_create_ledger_tables.sql
+scripts/immudb/002_seed_settlement_accounts.sql
 ```
 
 ## Testes

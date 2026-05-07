@@ -9,6 +9,7 @@ Servico responsavel por orquestrar transferencias entre contas digitais. Ele usa
 - Criar hold no `bank-flow-balance`.
 - Chamar PSP e aguardar webhook.
 - Em PSP `CONFIRMED`, publicar comando para o ledger via outbox.
+- Receber transferencias de outras instituicoes via webhook inbound.
 - Consumir `ledger-posting-created`, capturar hold e marcar `COMPLETED`.
 - Em PSP `FAILED`, liberar hold e marcar `FAILED`.
 
@@ -30,6 +31,12 @@ POST /webhooks/psp/transfers CONFIRMED
   -> ledger publica ledger-posting-created
   -> transfer captura hold
   -> marca COMPLETED
+
+POST /webhooks/external-institutions/transfers
+  -> valida destination digital_account_id
+  -> usa conta contabil de liquidacao como origem
+  -> grava ledger.transfer_posted no outbox
+  -> marca POSTING_REQUESTED
 ```
 
 ## API
@@ -71,6 +78,24 @@ curl -s -X POST http://localhost:8083/webhooks/psp/transfers \
 
 Status aceitos no webhook: `CONFIRMED` e `FAILED`.
 
+Webhook inbound de outras instituicoes:
+
+```bash
+curl -s -X POST http://localhost:8083/webhooks/external-institutions/transfers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source_institution_code": "260",
+    "source_institution_name": "Instituicao Externa",
+    "external_transfer_id": "evt-123",
+    "destination_digital_account_id": "530743d7-9663-453f-9ef5-3c68ec4f7929",
+    "amount_minor": 2500,
+    "currency": "BRL",
+    "description": "Transferencia recebida"
+  }'
+```
+
+Idempotencia inbound: `source_institution_code` + `external_transfer_id`.
+
 ## Status
 
 - `RECEIVED`: transferencia registrada.
@@ -86,6 +111,8 @@ Status aceitos no webhook: `CONFIRMED` e `FAILED`.
 Topico publicado: `ledger-movements`
 
 Chave: `source_digital_account_id`
+
+No inbound externo, a chave e a origem usam a conta de liquidacao `00000000-0000-0000-0000-000000000100`.
 
 Payload:
 

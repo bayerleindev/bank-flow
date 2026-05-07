@@ -9,6 +9,7 @@ import br.com.bankflow.transfer.clients.psp.PspClient;
 import br.com.bankflow.transfer.clients.psp.PspPaymentResponse;
 import br.com.bankflow.transfer.clients.psp.PspPaymentStatus;
 import br.com.bankflow.transfer.domain.CreateTransferCommand;
+import br.com.bankflow.transfer.domain.ExternalInboundTransferCommand;
 import br.com.bankflow.transfer.domain.LedgerPostingCreatedEvent;
 import br.com.bankflow.transfer.domain.OutboxEvent;
 import br.com.bankflow.transfer.domain.PspWebhookCommand;
@@ -31,6 +32,8 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class TransferOrchestrationServiceTests {
+	private static final UUID EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000100");
+
 	private final FakeTransferRepository repository = new FakeTransferRepository();
 	private final FakeOutboxEventRepository outboxRepository = new FakeOutboxEventRepository();
 	private final FakeAccountClient accountClient = new FakeAccountClient();
@@ -118,6 +121,47 @@ class TransferOrchestrationServiceTests {
 		assertEquals(TransferStatus.FAILED, failed.status());
 		assertEquals("PSP_REJECTED", failed.failureReason());
 		assertEquals(1, balanceClient.releasedHolds);
+	}
+
+	@Test
+	void receivesExternalInboundTransferAndRequestsLedgerPostingWithoutHold() {
+		Transfer transfer = service.receiveExternalInboundTransfer(new ExternalInboundTransferCommand(
+				"external-inbound:260:evt-123",
+				"260",
+				"External Bank",
+				"evt-123",
+				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b2"),
+				2_500L,
+				"BRL",
+				"PIX recebido"
+		));
+
+		assertEquals(TransferStatus.POSTING_REQUESTED, transfer.status());
+		assertEquals(EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID, transfer.sourceDigitalAccountId());
+		assertEquals("SETTLEMENT_EXTERNAL_INBOUND_BRL", transfer.sourceAccount());
+		assertEquals(0, balanceClient.createdHolds);
+		assertEquals(1, outboxRepository.events.size());
+		assertEquals(EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID.toString(), outboxRepository.events.getFirst().eventKey());
+	}
+
+	@Test
+	void returnsExistingExternalInboundTransferForSameSourceEvent() {
+		ExternalInboundTransferCommand command = new ExternalInboundTransferCommand(
+				"external-inbound:260:evt-123",
+				"260",
+				"External Bank",
+				"evt-123",
+				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b2"),
+				2_500L,
+				"BRL",
+				"PIX recebido"
+		);
+
+		Transfer first = service.receiveExternalInboundTransfer(command);
+		Transfer duplicate = service.receiveExternalInboundTransfer(command);
+
+		assertEquals(first.transferId(), duplicate.transferId());
+		assertEquals(1, outboxRepository.events.size());
 	}
 
 	private CreateTransferCommand command(String idempotencyKey) {

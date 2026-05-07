@@ -28,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LedgerMovementServiceTests {
 	private static final UUID SOURCE_DIGITAL_ACCOUNT_ID = UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b1");
 	private static final UUID DESTINATION_DIGITAL_ACCOUNT_ID = UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b2");
+	private static final UUID EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000100");
 
 	@Test
 	void createsExactlyOneEntryAndTwoBalancedLinesUsingLedgerAccountIds() throws Exception {
@@ -98,6 +99,21 @@ class LedgerMovementServiceTests {
 		assertEquals(1, publisher.calls);
 	}
 
+	@Test
+	void postsExternalInboundTransferFromSettlementAccountToCustomerAccount() throws Exception {
+		InMemoryLedgerPostingRepository postingRepository = new InMemoryLedgerPostingRepository();
+		LedgerMovementService service = newService(new FixedLedgerAccountRepository(), postingRepository, new CapturingLedgerPostingPublisher());
+
+		service.postTransfer(externalInboundTransferEvent());
+
+		LedgerPosting posting = postingRepository.savedPostings.getFirst();
+		assertEquals(90_001L, posting.lines().get(0).accountId());
+		assertEquals("DEBIT", posting.lines().get(0).direction());
+		assertEquals(10_002L, posting.lines().get(1).accountId());
+		assertEquals("CREDIT", posting.lines().get(1).direction());
+		assertTrue(posting.entry().metadata().contains("\"debit_account_code\":\"SETTLEMENT_EXTERNAL_INBOUND_BRL\""));
+	}
+
 	private LedgerMovementService newService(
 			FixedLedgerAccountRepository accountRepository,
 			InMemoryLedgerPostingRepository postingRepository,
@@ -125,6 +141,18 @@ class LedgerMovementServiceTests {
 		);
 	}
 
+	private TransferPostedEvent externalInboundTransferEvent() {
+		return new TransferPostedEvent(
+				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872c0"),
+				EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID,
+				"SETTLEMENT_EXTERNAL_INBOUND_BRL",
+				DESTINATION_DIGITAL_ACCOUNT_ID,
+				"98765-4",
+				2_500L,
+				"BRL"
+		);
+	}
+
 	private static class FixedLedgerAccountRepository implements LedgerAccountRepository {
 		private final OptionalLong sourceAccountId;
 		private final OptionalLong destinationAccountId;
@@ -145,6 +173,9 @@ class LedgerMovementServiceTests {
 
 		@Override
 		public OptionalLong findAccountIdByDigitalAccountId(UUID ownerId) {
+			if (EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID.equals(ownerId)) {
+				return OptionalLong.of(90_001L);
+			}
 			if (SOURCE_DIGITAL_ACCOUNT_ID.equals(ownerId)) {
 				return sourceAccountId;
 			}

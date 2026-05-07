@@ -1,7 +1,7 @@
 name: Deploy ledger
 
 on:
-  workflow_call: # Permite que este workflow seja chamado por outro
+  workflow_call:
     inputs:
       ambiente:
         required: true

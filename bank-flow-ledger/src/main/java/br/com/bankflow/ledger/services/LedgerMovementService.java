@@ -18,11 +18,14 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 public class LedgerMovementService {
 	private static final Logger log = LoggerFactory.getLogger(LedgerMovementService.class);
 	private static final long REVERSAL_OF_ENTRY_ID = 0L;
+	private static final UUID EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000100");
+	private static final String EXTERNAL_INBOUND_SETTLEMENT_ACCOUNT_CODE = "SETTLEMENT_EXTERNAL_INBOUND_BRL";
 
 	private final LedgerAccountRepository ledgerAccountRepository;
 	private final LedgerPostingRepository ledgerPostingRepository;
@@ -157,9 +160,16 @@ public class LedgerMovementService {
 				"destination_account", event.destinationAccount(),
 				"amount_cents", event.amountCents(),
 				"currency", event.currency(),
-				"debit_account_code", "CUSTOMER_ACCOUNT_%s".formatted(event.sourceDigitalAccountId()),
-				"credit_account_code", "CUSTOMER_ACCOUNT_%s".formatted(event.destinationDigitalAccountId())
+				"debit_account_code", accountCodeFor(event.sourceDigitalAccountId()),
+				"credit_account_code", accountCodeFor(event.destinationDigitalAccountId())
 		));
+	}
+
+	private String accountCodeFor(UUID digitalAccountId) {
+		if (EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID.equals(digitalAccountId)) {
+			return EXTERNAL_INBOUND_SETTLEMENT_ACCOUNT_CODE;
+		}
+		return "CUSTOMER_ACCOUNT_%s".formatted(digitalAccountId);
 	}
 
 	private long findAccountId(TransferPostedEvent event, boolean source) {

@@ -1,7 +1,7 @@
 name: Orquestrador Principal
 
 on:
-  workflow_dispatch: # Adiciona o botão "Run workflow" na aba Actions
+  workflow_dispatch:
     inputs:
       target_env:
         description: 'Ambiente de Deploy'

@@ -9,6 +9,7 @@ import br.com.bankflow.transfer.clients.psp.PspClient;
 import br.com.bankflow.transfer.clients.psp.PspPaymentResponse;
 import br.com.bankflow.transfer.clients.psp.PspPaymentStatus;
 import br.com.bankflow.transfer.domain.CreateTransferCommand;
+import br.com.bankflow.transfer.domain.ExternalInboundTransferCommand;
 import br.com.bankflow.transfer.domain.LedgerPostingCreatedEvent;
 import br.com.bankflow.transfer.domain.OutboxEvent;
 import br.com.bankflow.transfer.domain.PspWebhookCommand;
@@ -38,6 +39,8 @@ public class TransferOrchestrationService {
 	private static final Logger log = LoggerFactory.getLogger(TransferOrchestrationService.class);
 	private static final Duration HOLD_TTL = Duration.ofMinutes(15);
 	private static final String LEDGER_TRANSFER_POSTED_EVENT = "ledger.transfer_posted";
+	private static final UUID EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000100");
+	private static final String EXTERNAL_INBOUND_SETTLEMENT_ACCOUNT = "SETTLEMENT_EXTERNAL_INBOUND_BRL";
 
 	private final TransferRepository transferRepository;
 	private final OutboxEventRepository outboxEventRepository;
@@ -99,6 +102,12 @@ public class TransferOrchestrationService {
 		command.validate();
 		return transferRepository.findByIdempotencyKey(command.idempotencyKey())
 				.orElseGet(() -> orchestrateNewTransfer(command));
+	}
+
+	public Transfer receiveExternalInboundTransfer(ExternalInboundTransferCommand command) {
+		command.validate();
+		return transferRepository.findByIdempotencyKey(command.idempotencyKey())
+				.orElseGet(() -> requestLedgerPosting(createExternalInboundTransfer(command)));
 	}
 
 	@Transactional
@@ -212,6 +221,21 @@ public class TransferOrchestrationService {
 		Transfer transfer = transferRepository.create(UUID.randomUUID(), command, sourceAccount, destinationAccount, clock.millis());
 		transferBusinessMetrics.recordTransferCreated();
 		return transfer;
+	}
+
+	@Transactional
+	protected Transfer createExternalInboundTransfer(ExternalInboundTransferCommand command) {
+		AccountResponse destinationAccount = accountClient.getAccount(command.destinationDigitalAccountId());
+		destinationAccount.validateActive("destination");
+		CreateTransferCommand transferCommand = new CreateTransferCommand(
+				command.idempotencyKey(),
+				EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID,
+				command.destinationDigitalAccountId(),
+				command.amountMinor(),
+				command.currency(),
+				command.description()
+		);
+		return createReceivedTransfer(transferCommand, EXTERNAL_INBOUND_SETTLEMENT_ACCOUNT, destinationAccount.account());
 	}
 
 	@Transactional
