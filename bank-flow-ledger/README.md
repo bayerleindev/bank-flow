@@ -4,7 +4,7 @@ Servico responsavel por manter o livro contabil double-entry do Bank Flow. Ele c
 
 ## Responsabilidades
 
-- Criar contas contabeis a partir de eventos `account-created`.
+- Criar contas contabeis a partir de eventos `account-created` publicados pelo `bank-flow-accounts`.
 - Processar comandos `ledger-movements` gerados pelo transfer-service.
 - Gerar postings double-entry balanceados.
 - Persistir postings de forma idempotente por `external_id`.
@@ -41,7 +41,7 @@ bank-flow-transfer outbox
 
 Consumidos:
 
-- `account-created`, chave `owner_id`.
+- `account-created`, chave `owner_id`, publicado pelo `bank-flow-accounts`.
 - `ledger-movements`, chave `source_owner_id`.
 - `ledger-reversals`, chave `original_external_id`.
 

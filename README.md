@@ -1,8 +1,21 @@
 # Bank Flow Backend
 
-Este diretorio contem tres servicos Spring Boot que implementam o fluxo de transferencias, ledger contabil e projecao de saldo do Bank Flow.
+Este diretorio contem quatro servicos Spring Boot que implementam abertura de contas, transferencias, ledger contabil e projecao de saldo do Bank Flow.
 
 ## Servicos
+
+### bank-flow-accounts
+
+Cria contas digitais. Ele recebe dados cadastrais, chama um BaaS para efetivar a conta, salva `branch` e `account` retornados pelo BaaS e publica `account-created` via outbox para o ledger criar a conta contabil.
+
+Responsabilidades principais:
+
+- `POST /accounts`: cria conta com `Idempotency-Key`.
+- Chama BaaS em modo `mock` ou `http`.
+- Publica `account-created` no Kafka quando a conta fica `ACTIVE`.
+- `GET /accounts/{account_id}`: consulta a conta criada.
+
+Leia mais em [bank-flow-accounts/README.md](bank-flow-accounts/README.md).
 
 ### bank-flow-transfer
 
@@ -44,6 +57,22 @@ Responsabilidades principais:
 Leia mais em [bank-flow-balance/README.md](bank-flow-balance/README.md).
 
 ## Como os Servicos Interagem
+
+Fluxo de criacao de conta:
+
+```text
+client
+  └── POST /accounts
+        └── bank-flow-accounts
+              ├── valida cadastro
+              ├── chama BaaS
+              ├── salva branch/account
+              └── publica account-created via outbox
+
+account-created
+  └── bank-flow-ledger
+        └── cria ledger_account para o owner_id
+```
 
 Fluxo de transferencia bem-sucedida:
 
@@ -87,7 +116,7 @@ PSP FAILED
 
 | Topico | Produtor | Consumidor | Chave |
 | --- | --- | --- | --- |
-| `account-created` | scripts/outros sistemas | `bank-flow-ledger` | `owner_id` |
+| `account-created` | `bank-flow-accounts` | `bank-flow-ledger` | `owner_id` |
 | `ledger-movements` | `bank-flow-transfer` | `bank-flow-ledger` | `source_owner_id` |
 | `ledger-reversals` | scripts/outros sistemas | `bank-flow-ledger` | `original_external_id` |
 | `ledger-posting-created` | `bank-flow-ledger` | `bank-flow-balance`, `bank-flow-transfer` | `external_id` |
@@ -114,6 +143,11 @@ docker compose up -d db kafka kafka-init kafka-ui immudb
 Em terminais separados:
 
 ```bash
+cd bank-flow-accounts
+./gradlew bootRun
+```
+
+```bash
 cd bank-flow-balance
 ./gradlew bootRun
 ```
@@ -132,6 +166,7 @@ Portas padrao:
 
 | Servico | Porta |
 | --- | --- |
+| `bank-flow-accounts` | `8084` |
 | `bank-flow-balance` | `8082` |
 | `bank-flow-transfer` | `8083` |
 | `bank-flow-ledger` | sem API HTTP publica |
@@ -141,7 +176,8 @@ Portas padrao:
 Rodar testes por modulo:
 
 ```bash
-cd bank-flow-balance && ./gradlew test
+cd bank-flow-accounts && ./gradlew test
+cd ../bank-flow-balance && ./gradlew test
 cd ../bank-flow-ledger && ./gradlew test
 cd ../bank-flow-transfer && ./gradlew test
 ```
@@ -170,6 +206,7 @@ python3 scripts/produce_ledger_reversals.py
 
 PostgreSQL usa o database `bank_flow`.
 
+- `bank-flow-accounts` usa o schema `accounts`.
 - `bank-flow-balance` cria tabelas no schema configurado pelo modulo de balance.
 - `bank-flow-transfer` usa o schema `transfer`.
 - `bank-flow-ledger` usa immudb para `ledger_accounts`, `ledger_entries` e `ledger_entry_lines`.
