@@ -31,8 +31,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 		"spring.kafka.producer.value-serializer=org.apache.kafka.common.serialization.StringSerializer"
 })
 @Testcontainers
-class LedgerPostingCreatedConsumerIntegrationTests {
-	private static final String TOPIC = "ledger-posting-created-it";
+	class LedgerPostingCreatedConsumerIntegrationTests {
+		private static final String TOPIC = "ledger-posting-created-it";
+		private static final UUID SOURCE_DIGITAL_ACCOUNT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+		private static final UUID DESTINATION_DIGITAL_ACCOUNT_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
 
 	@Container
 	private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(
@@ -81,16 +83,16 @@ class LedgerPostingCreatedConsumerIntegrationTests {
 
 		assertEquals(1, count("SELECT COUNT(*) FROM processed_ledger_entries WHERE external_id = ?", externalId));
 		assertEquals(2, count("SELECT COUNT(*) FROM account_balance_entries WHERE external_id = ?", externalId));
-		assertEquals(-1500L, balance(1001L));
-		assertEquals(1500L, balance(2002L));
+			assertEquals(-1500L, balance(SOURCE_DIGITAL_ACCOUNT_ID));
+			assertEquals(1500L, balance(DESTINATION_DIGITAL_ACCOUNT_ID));
 
 		kafkaTemplate.send(TOPIC, externalId, payload).get();
 		Thread.sleep(500L);
 
 		assertEquals(1, count("SELECT COUNT(*) FROM processed_ledger_entries WHERE external_id = ?", externalId));
 		assertEquals(2, count("SELECT COUNT(*) FROM account_balance_entries WHERE external_id = ?", externalId));
-		assertEquals(-1500L, balance(1001L));
-		assertEquals(1500L, balance(2002L));
+			assertEquals(-1500L, balance(SOURCE_DIGITAL_ACCOUNT_ID));
+			assertEquals(1500L, balance(DESTINATION_DIGITAL_ACCOUNT_ID));
 	}
 
 	private void createTopicIfNeeded() throws Exception {
@@ -120,11 +122,11 @@ class LedgerPostingCreatedConsumerIntegrationTests {
 		return count == null ? 0 : count;
 	}
 
-	private long balance(long accountId) {
+	private long balance(UUID digitalAccountId) {
 		Long balance = jdbcTemplate.queryForObject(
-				"SELECT posted_minor FROM account_balances WHERE account_id = ?",
+				"SELECT posted_minor FROM account_balances WHERE digital_account_id = ?",
 				Long.class,
-				accountId
+				digitalAccountId
 		);
 		return balance == null ? 0L : balance;
 	}
@@ -143,10 +145,11 @@ class LedgerPostingCreatedConsumerIntegrationTests {
 				  "metadata": "{}",
 				  "lines": [
 				    {
-				      "line_id": 9101,
-				      "entry_id": 9001,
-				      "account_id": 1001,
-				      "direction": "DEBIT",
+					      "line_id": 9101,
+					      "entry_id": 9001,
+					      "account_id": 1001,
+					      "digital_account_id": "%s",
+					      "direction": "DEBIT",
 				      "amount_minor": 1500,
 				      "signed_amount_minor": -1500,
 				      "currency": "BRL",
@@ -154,10 +157,11 @@ class LedgerPostingCreatedConsumerIntegrationTests {
 				      "created_at": 1778000000100
 				    },
 				    {
-				      "line_id": 9102,
-				      "entry_id": 9001,
-				      "account_id": 2002,
-				      "direction": "CREDIT",
+					      "line_id": 9102,
+					      "entry_id": 9001,
+					      "account_id": 2002,
+					      "digital_account_id": "%s",
+					      "direction": "CREDIT",
 				      "amount_minor": 1500,
 				      "signed_amount_minor": 1500,
 				      "currency": "BRL",
@@ -166,6 +170,6 @@ class LedgerPostingCreatedConsumerIntegrationTests {
 				    }
 				  ]
 				}
-				""".formatted(externalId);
+					""".formatted(externalId, SOURCE_DIGITAL_ACCOUNT_ID, DESTINATION_DIGITAL_ACCOUNT_ID);
 	}
 }

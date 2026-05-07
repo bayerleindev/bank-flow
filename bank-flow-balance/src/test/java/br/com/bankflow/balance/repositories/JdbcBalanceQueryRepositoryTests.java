@@ -21,10 +21,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 		"DELETE FROM account_balance_entries",
 		"DELETE FROM account_balances",
 		"INSERT INTO account_balances (account_id, digital_account_id, currency, posted_minor, updated_at) VALUES (1001, '11111111-1111-1111-1111-111111111111', 'BRL', 12500, 1777777777000)",
-		"INSERT INTO account_balance_entries (line_id, entry_id, account_id, digital_account_id, external_id, entry_type, direction, amount_minor, signed_amount_minor, currency, description, occurred_at, created_at) VALUES (1, 9, 1001, '11111111-1111-1111-1111-111111111111', 'transfer-0', 'TRANSFER', 'CREDIT', 5000, 5000, 'BRL', 'Transfer transfer-0', 100, 110)",
-		"INSERT INTO account_balance_entries (line_id, entry_id, account_id, digital_account_id, external_id, entry_type, direction, amount_minor, signed_amount_minor, currency, description, occurred_at, created_at) VALUES (2, 10, 1001, '11111111-1111-1111-1111-111111111111', 'transfer-1', 'TRANSFER', 'CREDIT', 7500, 7500, 'BRL', 'Transfer transfer-1', 200, 210)",
-		"INSERT INTO account_balance_entries (line_id, entry_id, account_id, digital_account_id, external_id, entry_type, direction, amount_minor, signed_amount_minor, currency, description, occurred_at, created_at) VALUES (3, 11, 1001, '11111111-1111-1111-1111-111111111111', 'transfer-2', 'TRANSFER', 'CREDIT', 1000, 1000, 'BRL', 'Transfer transfer-2', 200, 211)"
-})
+			"INSERT INTO account_balance_entries (line_id, entry_id, account_id, digital_account_id, ledger_account_id, external_id, entry_type, direction, amount_minor, signed_amount_minor, currency, description, occurred_at, created_at) VALUES (1, 9, 1001, '11111111-1111-1111-1111-111111111111', 1001, 'transfer-0', 'TRANSFER', 'CREDIT', 5000, 5000, 'BRL', 'Transfer transfer-0', 100, 110)",
+			"INSERT INTO account_balance_entries (line_id, entry_id, account_id, digital_account_id, ledger_account_id, external_id, entry_type, direction, amount_minor, signed_amount_minor, currency, description, occurred_at, created_at) VALUES (2, 10, 1001, '11111111-1111-1111-1111-111111111111', 1001, 'transfer-1', 'TRANSFER', 'CREDIT', 7500, 7500, 'BRL', 'Transfer transfer-1', 200, 210)",
+			"INSERT INTO account_balance_entries (line_id, entry_id, account_id, digital_account_id, ledger_account_id, external_id, entry_type, direction, amount_minor, signed_amount_minor, currency, description, occurred_at, created_at) VALUES (3, 11, 1001, '11111111-1111-1111-1111-111111111111', 1001, 'transfer-2', 'TRANSFER', 'CREDIT', 1000, 1000, 'BRL', 'Transfer transfer-2', 200, 211)"
+	})
 class JdbcBalanceQueryRepositoryTests {
 	private static final UUID DIGITAL_ACCOUNT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
 

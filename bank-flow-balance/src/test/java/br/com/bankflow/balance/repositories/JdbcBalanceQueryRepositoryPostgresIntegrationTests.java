@@ -78,11 +78,11 @@ class JdbcBalanceQueryRepositoryPostgresIntegrationTests {
 
 	private void insertLine(long lineId, long entryId, long occurredAt) {
 		jdbcTemplate.update("""
-				INSERT INTO account_balance_entries (
-					line_id, entry_id, account_id, digital_account_id, external_id, entry_type, direction, amount_minor,
-					signed_amount_minor, currency, description, occurred_at, created_at
-				) VALUES (?, ?, 1001, ?, ?, 'TRANSFER', 'CREDIT', 1000, 1000, 'BRL', 'Postgres IT', ?, ?)
-				""",
+					INSERT INTO account_balance_entries (
+						line_id, entry_id, account_id, digital_account_id, ledger_account_id, external_id, entry_type, direction, amount_minor,
+						signed_amount_minor, currency, description, occurred_at, created_at
+					) VALUES (?, ?, 1001, ?, 1001, ?, 'TRANSFER', 'CREDIT', 1000, 1000, 'BRL', 'Postgres IT', ?, ?)
+					""",
 				lineId,
 				entryId,
 				DIGITAL_ACCOUNT_ID,
