@@ -3,6 +3,7 @@ package br.com.bankflow.balance.services;
 import br.com.bankflow.balance.domain.AccountHold;
 import br.com.bankflow.balance.domain.AccountHoldStatus;
 import br.com.bankflow.balance.domain.CreateAccountHoldCommand;
+import br.com.bankflow.balance.observability.BalanceMetrics;
 import br.com.bankflow.balance.repositories.AccountHoldRepository;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -14,10 +15,12 @@ import java.util.UUID;
 @Service
 public class AccountHoldService {
 	private final AccountHoldRepository accountHoldRepository;
+	private final BalanceMetrics balanceMetrics;
 	private final Clock clock;
 
-	public AccountHoldService(AccountHoldRepository accountHoldRepository, Clock clock) {
+	public AccountHoldService(AccountHoldRepository accountHoldRepository, BalanceMetrics balanceMetrics, Clock clock) {
 		this.accountHoldRepository = accountHoldRepository;
+		this.balanceMetrics = balanceMetrics;
 		this.clock = clock;
 	}
 
@@ -57,6 +60,7 @@ public class AccountHoldService {
 		if (!reserved) {
 			throw new InsufficientFundsException(command.digitalAccountId(), command.amountMinor(), command.currency());
 		}
+		balanceMetrics.recordHoldCreated();
 		return hold;
 	}
 
@@ -75,7 +79,11 @@ public class AccountHoldService {
 		if (!closed) {
 			throw new AccountHoldStateException(hold.holdId(), hold.status());
 		}
-		return accountHoldRepository.findByHoldId(holdId)
+		AccountHold closedHold = accountHoldRepository.findByHoldId(holdId)
 				.orElseThrow(() -> new AccountHoldNotFoundException(holdId));
+		if (targetStatus == AccountHoldStatus.CAPTURED) {
+			balanceMetrics.recordHoldCaptured();
+		}
+		return closedHold;
 	}
 }

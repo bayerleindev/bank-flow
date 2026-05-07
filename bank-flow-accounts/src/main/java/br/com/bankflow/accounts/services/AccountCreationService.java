@@ -8,11 +8,14 @@ import br.com.bankflow.accounts.domain.AccountCreatedEvent;
 import br.com.bankflow.accounts.domain.AccountStatus;
 import br.com.bankflow.accounts.domain.CreateAccountCommand;
 import br.com.bankflow.accounts.domain.OutboxEvent;
+import br.com.bankflow.accounts.observability.AccountBusinessMetrics;
 import br.com.bankflow.accounts.repositories.AccountRepository;
 import br.com.bankflow.accounts.repositories.OutboxEventRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +30,7 @@ public class AccountCreationService {
 	private final OutboxEventRepository outboxEventRepository;
 	private final BaasClient baasClient;
 	private final ObjectMapper objectMapper;
+	private final AccountBusinessMetrics accountBusinessMetrics;
 	private final Clock clock;
 	private final String accountCreatedTopic;
 
@@ -36,12 +40,34 @@ public class AccountCreationService {
 			BaasClient baasClient,
 			ObjectMapper objectMapper,
 			Clock clock,
+			String accountCreatedTopic
+	) {
+		this(
+				accountRepository,
+				outboxEventRepository,
+				baasClient,
+				objectMapper,
+				new AccountBusinessMetrics(new SimpleMeterRegistry(), outboxEventRepository),
+				clock,
+				accountCreatedTopic
+		);
+	}
+
+	@Autowired
+	public AccountCreationService(
+			AccountRepository accountRepository,
+			OutboxEventRepository outboxEventRepository,
+			BaasClient baasClient,
+			ObjectMapper objectMapper,
+			AccountBusinessMetrics accountBusinessMetrics,
+			Clock clock,
 			@Value("${bank-flow.kafka.topics.account-created}") String accountCreatedTopic
 	) {
 		this.accountRepository = accountRepository;
 		this.outboxEventRepository = outboxEventRepository;
 		this.baasClient = baasClient;
 		this.objectMapper = objectMapper;
+		this.accountBusinessMetrics = accountBusinessMetrics;
 		this.clock = clock;
 		this.accountCreatedTopic = accountCreatedTopic;
 	}
@@ -72,6 +98,7 @@ public class AccountCreationService {
 		);
 		if (updated.status() == AccountStatus.ACTIVE) {
 			createAccountCreatedOutbox(updated);
+			accountBusinessMetrics.recordAccountCreated();
 		}
 		return updated;
 	}

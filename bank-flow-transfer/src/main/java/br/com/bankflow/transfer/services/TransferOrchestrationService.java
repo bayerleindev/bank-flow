@@ -16,12 +16,15 @@ import br.com.bankflow.transfer.domain.PspWebhookStatus;
 import br.com.bankflow.transfer.domain.Transfer;
 import br.com.bankflow.transfer.domain.TransferPostedCommand;
 import br.com.bankflow.transfer.domain.TransferStatus;
+import br.com.bankflow.transfer.observability.TransferBusinessMetrics;
 import br.com.bankflow.transfer.repositories.OutboxEventRepository;
 import br.com.bankflow.transfer.repositories.TransferRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +45,7 @@ public class TransferOrchestrationService {
 	private final BalanceClient balanceClient;
 	private final PspClient pspClient;
 	private final ObjectMapper objectMapper;
+	private final TransferBusinessMetrics transferBusinessMetrics;
 	private final Clock clock;
 	private final String ledgerMovementsTopic;
 
@@ -53,6 +57,31 @@ public class TransferOrchestrationService {
 			PspClient pspClient,
 			ObjectMapper objectMapper,
 			Clock clock,
+			String ledgerMovementsTopic
+	) {
+		this(
+				transferRepository,
+				outboxEventRepository,
+				accountClient,
+				balanceClient,
+				pspClient,
+				objectMapper,
+				new TransferBusinessMetrics(new SimpleMeterRegistry(), outboxEventRepository),
+				clock,
+				ledgerMovementsTopic
+		);
+	}
+
+	@Autowired
+	public TransferOrchestrationService(
+			TransferRepository transferRepository,
+			OutboxEventRepository outboxEventRepository,
+			AccountClient accountClient,
+			BalanceClient balanceClient,
+			PspClient pspClient,
+			ObjectMapper objectMapper,
+			TransferBusinessMetrics transferBusinessMetrics,
+			Clock clock,
 			@Value("${bank-flow.kafka.topics.ledger-movements}") String ledgerMovementsTopic
 	) {
 		this.transferRepository = transferRepository;
@@ -61,6 +90,7 @@ public class TransferOrchestrationService {
 		this.balanceClient = balanceClient;
 		this.pspClient = pspClient;
 		this.objectMapper = objectMapper;
+		this.transferBusinessMetrics = transferBusinessMetrics;
 		this.clock = clock;
 		this.ledgerMovementsTopic = ledgerMovementsTopic;
 	}
@@ -84,12 +114,14 @@ public class TransferOrchestrationService {
 		}
 		if (command.status() == PspWebhookStatus.FAILED) {
 			releaseHoldIfPresent(transfer);
-			return transferRepository.updateStatus(
+			Transfer failed = transferRepository.updateStatus(
 					transfer.transferId(),
 					TransferStatus.FAILED,
 					command.failureReason() == null ? "PSP_FAILED" : command.failureReason(),
 					clock.millis()
 			);
+			transferBusinessMetrics.recordTransferFailed("psp_webhook");
+			return failed;
 		}
 		log.info("psp payment confirmed transferId={} pspPaymentId={}",
 				transfer.transferId(),
@@ -101,6 +133,7 @@ public class TransferOrchestrationService {
 				null,
 				clock.millis()
 		);
+		transferBusinessMetrics.recordTransferPspConfirmed();
 		return requestLedgerPosting(confirmed);
 	}
 
@@ -125,12 +158,14 @@ public class TransferOrchestrationService {
 			throw new IllegalStateException("transfer must be POSTING_REQUESTED before completion");
 		}
 		captureHoldIfPresent(transfer);
-		return transferRepository.updateStatus(
+		Transfer completed = transferRepository.updateStatus(
 				transfer.transferId(),
 				TransferStatus.COMPLETED,
 				null,
 				clock.millis()
 		);
+		transferBusinessMetrics.recordTransferCompleted();
+		return completed;
 	}
 
 	private Transfer orchestrateNewTransfer(CreateTransferCommand command) {
@@ -153,7 +188,9 @@ public class TransferOrchestrationService {
 			PspPaymentResponse payment = pspClient.createPayment(transfer);
 			if (payment.status() == PspPaymentStatus.FAILED) {
 				releaseHoldIfPresent(transfer);
-				return updateFailed(transfer.transferId(), payment.failureReason() == null ? "PSP_FAILED" : payment.failureReason());
+				Transfer failed = updateFailed(transfer.transferId(), payment.failureReason() == null ? "PSP_FAILED" : payment.failureReason());
+				transferBusinessMetrics.recordTransferFailed("psp_create_payment");
+				return failed;
 			}
 			return updatePspPayment(
 					transfer.transferId(),
@@ -165,13 +202,16 @@ public class TransferOrchestrationService {
 		} catch (RuntimeException exception) {
 			releaseHoldIfPresent(transfer);
 			updateFailed(transfer.transferId(), exception.getClass().getSimpleName());
+			transferBusinessMetrics.recordTransferFailed(exception.getClass().getSimpleName());
 			throw exception;
 		}
 	}
 
 	@Transactional
 	protected Transfer createReceivedTransfer(CreateTransferCommand command, String sourceAccount, String destinationAccount) {
-		return transferRepository.create(UUID.randomUUID(), command, sourceAccount, destinationAccount, clock.millis());
+		Transfer transfer = transferRepository.create(UUID.randomUUID(), command, sourceAccount, destinationAccount, clock.millis());
+		transferBusinessMetrics.recordTransferCreated();
+		return transfer;
 	}
 
 	@Transactional

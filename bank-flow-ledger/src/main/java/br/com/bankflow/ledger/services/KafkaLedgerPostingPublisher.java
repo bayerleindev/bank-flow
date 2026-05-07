@@ -3,6 +3,7 @@ package br.com.bankflow.ledger.services;
 import br.com.bankflow.ledger.domain.LedgerEntry;
 import br.com.bankflow.ledger.domain.LedgerEntryLine;
 import br.com.bankflow.ledger.domain.LedgerPosting;
+import br.com.bankflow.ledger.observability.LedgerBusinessMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -12,6 +13,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
@@ -20,15 +22,21 @@ import java.util.concurrent.ExecutionException;
 public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 	private final KafkaTemplate<String, String> kafkaTemplate;
 	private final ObjectMapper objectMapper;
+	private final LedgerBusinessMetrics ledgerBusinessMetrics;
+	private final Clock clock;
 	private final String topic;
 
 	public KafkaLedgerPostingPublisher(
 			KafkaTemplate<String, String> kafkaTemplate,
 			ObjectMapper objectMapper,
+			LedgerBusinessMetrics ledgerBusinessMetrics,
+			Clock clock,
 			@Value("${bank-flow.kafka.topics.ledger-posting-created}") String topic
 	) {
 		this.kafkaTemplate = kafkaTemplate;
 		this.objectMapper = objectMapper;
+		this.ledgerBusinessMetrics = ledgerBusinessMetrics;
+		this.clock = clock;
 		this.topic = topic;
 	}
 
@@ -42,6 +50,11 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 
 		try {
 			kafkaTemplate.send(record).get();
+			ledgerBusinessMetrics.recordLedgerPostingCreated(posting.entry().entryType());
+			ledgerBusinessMetrics.recordLedgerPostingLatency(
+					clock.millis() - posting.entry().occurredAt(),
+					posting.entry().entryType()
+			);
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
 			throw new IllegalStateException("interrupted while publishing ledger posting event", exception);

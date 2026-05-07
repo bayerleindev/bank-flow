@@ -58,6 +58,29 @@ public class JdbcOutboxEventRepository implements OutboxEventRepository {
 	}
 
 	@Override
+	public long countPending() {
+		Long count = jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)
+				FROM outbox_events
+				WHERE status = 'PENDING'
+				""", Long.class);
+		return count == null ? 0 : count;
+	}
+
+	@Override
+	public double oldestPendingEventAgeSeconds(long nowMillis) {
+		Long oldestCreatedAt = jdbcTemplate.queryForObject("""
+				SELECT MIN(created_at)
+				FROM outbox_events
+				WHERE status = 'PENDING'
+				""", Long.class);
+		if (oldestCreatedAt == null) {
+			return 0;
+		}
+		return Math.max(0, nowMillis - oldestCreatedAt) / 1000.0;
+	}
+
+	@Override
 	public void markPublished(UUID eventId, long publishedAt) {
 		jdbcTemplate.update("""
 				UPDATE outbox_events

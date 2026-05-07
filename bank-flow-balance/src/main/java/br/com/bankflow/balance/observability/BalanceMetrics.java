@@ -68,4 +68,18 @@ public class BalanceMetrics {
 				.register(meterRegistry)
 				.increment();
 	}
+
+	public void recordHoldCreated() {
+		Counter.builder("balance_holds_created")
+				.description("Balance holds created")
+				.register(meterRegistry)
+				.increment();
+	}
+
+	public void recordHoldCaptured() {
+		Counter.builder("balance_holds_captured")
+				.description("Balance holds captured")
+				.register(meterRegistry)
+				.increment();
+	}
 }

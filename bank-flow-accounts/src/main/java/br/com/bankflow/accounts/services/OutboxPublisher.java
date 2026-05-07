@@ -1,6 +1,7 @@
 package br.com.bankflow.accounts.services;
 
 import br.com.bankflow.accounts.domain.OutboxEvent;
+import br.com.bankflow.accounts.observability.AccountBusinessMetrics;
 import br.com.bankflow.accounts.repositories.OutboxEventRepository;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.internals.RecordHeader;
@@ -17,17 +18,20 @@ import java.util.concurrent.ExecutionException;
 public class OutboxPublisher {
 	private final OutboxEventRepository outboxEventRepository;
 	private final KafkaTemplate<String, String> kafkaTemplate;
+	private final AccountBusinessMetrics accountBusinessMetrics;
 	private final Clock clock;
 	private final int batchSize;
 
 	public OutboxPublisher(
 			OutboxEventRepository outboxEventRepository,
 			KafkaTemplate<String, String> kafkaTemplate,
+			AccountBusinessMetrics accountBusinessMetrics,
 			Clock clock,
 			@Value("${bank-flow.outbox.publisher.batch-size}") int batchSize
 	) {
 		this.outboxEventRepository = outboxEventRepository;
 		this.kafkaTemplate = kafkaTemplate;
+		this.accountBusinessMetrics = accountBusinessMetrics;
 		this.clock = clock;
 		this.batchSize = batchSize;
 	}
@@ -49,9 +53,11 @@ public class OutboxPublisher {
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
 			outboxEventRepository.markFailed(event.eventId(), exception.getMessage());
+			accountBusinessMetrics.recordOutboxPublishFailure(event.topic(), event.eventType());
 			throw new IllegalStateException("interrupted while publishing outbox event", exception);
 		} catch (ExecutionException exception) {
 			outboxEventRepository.markFailed(event.eventId(), exception.getMessage());
+			accountBusinessMetrics.recordOutboxPublishFailure(event.topic(), event.eventType());
 		}
 	}
 }
