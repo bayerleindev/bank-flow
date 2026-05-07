@@ -1,19 +1,26 @@
-name: Deploy ledger
+name: Ledger Tests
 
 on:
   workflow_call:
-    inputs:
-      ambiente:
-        required: true
-        type: string
-        default: 'staging'
-    secrets:
-      TOKEN_SECRET:
-        required: false
+  workflow_dispatch:
 
 jobs:
-  deploy:
+  test:
+    name: bank-flow-ledger
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bank-flow-ledger
     steps:
-      - name: Executando Deploy
-        run: echo "Deploying to ${{ inputs.ambiente }}"
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Run tests
+        run: ./gradlew test

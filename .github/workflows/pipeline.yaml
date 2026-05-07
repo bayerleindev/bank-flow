@@ -1,19 +1,33 @@
-name: Orquestrador Principal
+name: Bank Flow Services
 
 on:
   workflow_dispatch:
     inputs:
-      target_env:
-        description: 'Ambiente de Deploy'
+      service:
+        description: "Servico para testar"
         required: true
-        default: 'staging'
+        default: "all"
         type: choice
         options:
-          - staging
-          - production
+          - all
+          - accounts
+          - balance
+          - transfer
+          - ledger
 
 jobs:
-  ledger-pipeline:
+  accounts:
+    if: ${{ inputs.service == 'all' || inputs.service == 'accounts' }}
+    uses: ./.github/workflows/accounts-pipeline.yaml
+
+  balance:
+    if: ${{ inputs.service == 'all' || inputs.service == 'balance' }}
+    uses: ./.github/workflows/balance-pipeline.yaml
+
+  transfer:
+    if: ${{ inputs.service == 'all' || inputs.service == 'transfer' }}
+    uses: ./.github/workflows/transfer-pipeline.yaml
+
+  ledger:
+    if: ${{ inputs.service == 'all' || inputs.service == 'ledger' }}
     uses: ./.github/workflows/ledger-pipeline.yaml
-    with:
-      ambiente: ${{ github.event.inputs.target_env }}
