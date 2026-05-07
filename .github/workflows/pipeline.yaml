@@ -1,0 +1,17 @@
+name: Orquestrador Principal
+
+on:
+  workflow_dispatch: # Adiciona o botão "Run workflow" na aba Actions
+    inputs:
+      target_env:
+        description: 'Ambiente de Deploy'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  ledger-pipeline:
+    uses: ./bank-flow-ledger/.github/workflows/pipeline.yaml
