@@ -61,7 +61,7 @@ flowchart LR
     ledger -->|create CUSTOMER_ACCOUNT_*| immudb
 
     user -->|POST /transfers| transfer
-    transfer -->|GET /accounts/{digital_account_id}| accounts
+    transfer -->|GET account by digital_account_id| accounts
     transfer -->|POST /holds| balance
     balance --> pgBalance
     transfer -->|create payment| psp
