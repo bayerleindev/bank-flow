@@ -1,118 +1,121 @@
 # bank-flow-ledger
 
-Servico responsavel por manter o livro contabil double-entry do Bank Flow. Ele consome comandos de conta, transferencia e estorno, persiste postings no immudb e publica eventos `ledger-posting-created` para read models como o `bank-flow-balance` e para orquestradores como o `bank-flow-transfer`.
+Servico responsavel pelo livro contabil double-entry. Ele consome eventos e comandos com `digital_account_id`, resolve/cria contas contabeis internas e persiste postings no immudb.
+
+Somente este servico manipula o `account_id` numerico contabil.
 
 ## Responsabilidades
 
-- Criar contas contabeis a partir de eventos `account-created` publicados pelo `bank-flow-accounts`.
-- Processar comandos `ledger-movements` gerados pelo transfer-service.
-- Gerar postings double-entry balanceados.
-- Persistir postings de forma idempotente por `external_id`.
-- Processar estornos por `ledger-reversals`.
-- Publicar `ledger-posting-created` apos persistencia bem-sucedida.
+- Consumir `account-created` e criar conta contabil para o `digital_account_id`.
+- Consumir `ledger-movements` e criar postings de transferencia.
+- Consumir `ledger-reversals` e criar estornos.
+- Persistir entries/lines no immudb de forma idempotente.
+- Publicar `ledger-posting-created` com linhas contendo `account_id` e `digital_account_id`.
 
-## Arquitetura
-
-Pacotes principais:
+## Fluxo
 
 ```text
-br.com.bankflow.ledger
-├── configs       # Kafka, Jackson, Clock, immudb
-├── consumers     # consumidores Kafka
-├── domain        # eventos, contas, entries e lines
-├── repositories  # persistencia no immudb
-└── services      # criacao de contas, movimentos e estornos
+account-created
+  -> ledger cria ledger_account interno
+
+ledger-movements
+  -> valida chave source_digital_account_id
+  -> resolve source/destination ledger account_id
+  -> cria debit/credit lines
+  -> persiste no immudb
+  -> publica ledger-posting-created
 ```
 
-Fluxo de transferencia:
-
-```text
-bank-flow-transfer outbox
-  └── ledger-movements
-        └── bank-flow-ledger
-              ├── valida chave source_digital_account_id
-              ├── resolve contas contabeis por digital_account_id
-              ├── cria debit/credit lines
-              ├── persiste posting no immudb
-              └── publica ledger-posting-created
-```
-
-## Topicos Kafka
+## Kafka
 
 Consumidos:
 
-- `account-created`, chave `digital_account_id`, publicado pelo `bank-flow-accounts`.
-- `ledger-movements`, chave `source_digital_account_id`.
-- `ledger-reversals`, chave `original_external_id`.
+- `account-created`, chave `digital_account_id`
+- `ledger-movements`, chave `source_digital_account_id`
+- `ledger-reversals`, chave `original_external_id`
 
 Publicado:
 
-- `ledger-posting-created`, chave `external_id`.
+- `ledger-posting-created`, chave `external_id`
 
-DLTs esperadas:
+## Contratos
 
-- `account-created.DLT`
-- `ledger-movements.DLT`
-- `ledger-reversals.DLT`
-
-## Contratos Principais
-
-Comando de transferencia em `ledger-movements`:
+`ledger-movements`:
 
 ```json
 {
-  "transfer_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872bf",
-  "source_digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
+  "transfer_id": "b6384f49-2648-4896-a07a-c09b82719b88",
+  "source_digital_account_id": "3f20291f-c0ba-4c8e-b0b2-7ff1cccb3833",
   "source_account": "12345-6",
-  "destination_digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b2",
-  "destination_account": "98765-4",
+  "destination_digital_account_id": "530743d7-9663-453f-9ef5-3c68ec4f7929",
+  "destination_account": "01023-0",
   "amount_cents": 1500,
   "currency": "BRL"
 }
 ```
 
-Evento publicado em `ledger-posting-created`:
+`ledger-posting-created`:
 
 ```json
 {
-  "entry_id": 1778098838981000000,
-  "external_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872bf",
+  "entry_id": 1778122436150000000,
+  "external_id": "b6384f49-2648-4896-a07a-c09b82719b88",
   "entry_type": "TRANSFER",
   "status": "POSTED",
-  "description": "Transferencia BRL de conta 12345-6 para conta 98765-4",
-  "occurred_at": 1778098838836,
-  "created_at": 1778098838836,
+  "description": "Transferencia BRL",
+  "occurred_at": 1778122436000,
+  "created_at": 1778122436000,
   "reversal_of_entry_id": 0,
   "metadata": "{}",
-  "lines": []
+  "lines": [
+    {
+      "line_id": 1778122436160000000,
+      "entry_id": 1778122436150000000,
+      "account_id": 1778122358876000000,
+      "digital_account_id": "3f20291f-c0ba-4c8e-b0b2-7ff1cccb3833",
+      "direction": "DEBIT",
+      "amount_minor": 1500,
+      "signed_amount_minor": -1500,
+      "currency": "BRL",
+      "line_memo": "source",
+      "created_at": 1778122436000
+    }
+  ]
 }
 ```
 
-As linhas reais sao publicadas em `lines` com `DEBIT` e `CREDIT`, valores em minor units e soma zero por moeda.
-
 ## Configuracao
 
-Propriedades e variaveis principais:
-
-| Nome | Padrao | Descricao |
+| Variavel | Padrao | Descricao |
 | --- | --- | --- |
-| `spring.kafka.bootstrap-servers` | `localhost:9092` | Bootstrap servers do Kafka. |
-| `spring.kafka.consumer.group-id` | `bank-flow-ledger` | Consumer group do servico. |
-| `KAFKA_AUTO_OFFSET_RESET` | `latest` | Offset reset do consumer. |
+| `SERVER_PORT` | `8085` | Porta HTTP para Actuator. |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers. |
+| `KAFKA_AUTO_OFFSET_RESET` | `latest` | Offset reset. |
 | `ID_GENERATOR_WORKER_ID` | `0` | Worker id do gerador numerico. |
-| `IMMUDB_ENABLED` | `true` | Liga persistencia real no immudb. |
-| `IMMUDB_HOST` | `localhost` | Host do immudb. |
-| `IMMUDB_PORT` | `3322` | Porta gRPC do immudb. |
-| `IMMUDB_DATABASE` | `ledger` | Database usada pelo ledger. |
-| `IMMUDB_USERNAME` | `immudb` | Usuario do immudb. |
-| `IMMUDB_PASSWORD` | `immudb` | Senha do immudb. |
+| `IMMUDB_ENABLED` | `true` | Liga persistencia real. |
+| `IMMUDB_HOST` | `localhost` | Host immudb. |
+| `IMMUDB_PORT` | `3322` | Porta gRPC immudb. |
+| `IMMUDB_DATABASE` | `ledger` | Database immudb. |
+| `IMMUDB_USERNAME` | `immudb` | Usuario immudb. |
+| `IMMUDB_PASSWORD` | `immudb` | Senha immudb. |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Export de traces para Tempo. |
 
-## Rodando Localmente
+## Observability
 
-Suba a infraestrutura:
+```text
+GET /actuator/health
+GET /actuator/metrics
+GET /actuator/prometheus
+```
+
+O ledger nao possui API de negocio publica, mas expoe Actuator na porta `8085`.
+
+## Rodando
 
 ```bash
 docker compose up -d kafka kafka-init immudb
+cd bank-flow-ledger
+./gradlew bootRun
 ```
 
 Prepare as tabelas do immudb quando necessario:
@@ -121,40 +124,9 @@ Prepare as tabelas do immudb quando necessario:
 scripts/immudb/001_create_ledger_tables.sql
 ```
 
-Esse SQL deve ser aplicado no database configurado em `IMMUDB_DATABASE` antes de processar eventos com `IMMUDB_ENABLED=true`.
-
-Inicie o servico:
-
-```bash
-cd bank-flow-ledger
-./gradlew bootRun
-```
-
 ## Testes
 
 ```bash
 cd bank-flow-ledger
 ./gradlew test
-```
-
-Os testes cobrem regras de dominio, geracao de IDs, criacao de postings, idempotencia por `external_id`, estornos e persistencia no immudb.
-
-## Comandos Uteis
-
-Produzir eventos de conta:
-
-```bash
-python3 scripts/produce_account_created.py
-```
-
-Produzir comandos de movimento:
-
-```bash
-python3 scripts/produce_ledger_movements.py
-```
-
-Listar topicos:
-
-```bash
-docker compose exec -T kafka kafka-topics --bootstrap-server kafka:29092 --list
 ```

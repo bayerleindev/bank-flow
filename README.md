@@ -1,219 +1,147 @@
 # Bank Flow Backend
 
-Este diretorio contem quatro servicos Spring Boot que implementam abertura de contas, transferencias, ledger contabil e projecao de saldo do Bank Flow.
+Este diretorio contem quatro servicos Spring Boot para abertura de contas digitais, transferencias, ledger contabil e projecao de saldo.
+
+Regra de identificadores: `accounts`, `transfer` e `balance` usam somente `digital_account_id`. Apenas o `ledger` manipula o `account_id` numerico contabil.
 
 ## Servicos
 
-### bank-flow-accounts
+| Servico | Porta | Responsabilidade |
+| --- | --- | --- |
+| `bank-flow-accounts` | `8084` | Cria contas digitais, chama BaaS e publica `account-created`. |
+| `bank-flow-transfer` | `8083` | Orquestra hold, PSP, webhook, outbox para ledger e conclusao. |
+| `bank-flow-ledger` | `8085` | Mantem double-entry no immudb e publica `ledger-posting-created`. |
+| `bank-flow-balance` | `8082` | Projeta saldos/extratos e gerencia holds por `digital_account_id`. |
 
-Cria contas digitais. Ele recebe dados cadastrais, chama um BaaS para efetivar a conta, salva `branch` e `account` retornados pelo BaaS e publica `account-created` via outbox para o ledger criar a conta contabil.
+## Fluxo Principal
 
-Responsabilidades principais:
-
-- `POST /accounts`: cria conta com `Idempotency-Key`.
-- Chama BaaS em modo `mock` ou `http`.
-- Publica `account-created` no Kafka quando a conta fica `ACTIVE`.
-- `GET /accounts/{digital_account_id}`: consulta a conta criada.
-
-Leia mais em [bank-flow-accounts/README.md](bank-flow-accounts/README.md).
-
-### bank-flow-transfer
-
-Orquestra transferencias entre contas. Ele recebe chamadas HTTP, cria holds no balance, chama o PSP, publica comandos para o ledger via outbox e conclui a transferencia quando recebe a confirmacao contabil.
-
-Responsabilidades principais:
-
-- `POST /transfers`: cria transferencia com `Idempotency-Key`.
-- `POST /webhooks/psp/transfers`: recebe confirmacao ou falha do PSP.
-- Publica comandos no topico `ledger-movements` usando a tabela `outbox_events`.
-- Consome `ledger-posting-created` para capturar hold e marcar `COMPLETED`.
-
-Leia mais em [bank-flow-transfer/README.md](bank-flow-transfer/README.md).
-
-### bank-flow-ledger
-
-Mantem o livro contabil double-entry. Ele consome comandos de criacao de conta, movimentos e estornos, persiste postings no immudb e publica eventos de postings criados.
-
-Responsabilidades principais:
-
-- Consome `account-created` para criar contas contabeis.
-- Consome `ledger-movements` para postar transferencias.
-- Consome `ledger-reversals` para criar estornos.
-- Publica `ledger-posting-created` apos persistir o posting.
-
-Leia mais em [bank-flow-ledger/README.md](bank-flow-ledger/README.md).
-
-### bank-flow-balance
-
-Materializa saldos, extratos e holds em PostgreSQL. Ele e um read model do ledger e tambem oferece APIs transacionais para reservar, capturar ou liberar saldo.
-
-Responsabilidades principais:
-
-- Consome `ledger-posting-created`.
-- Atualiza `account_balances` e `account_balance_entries`.
-- Expoe `GET /balances/{digital_account_id}` e `GET /balances/{digital_account_id}/statement`.
-- Expoe `POST /holds`, `POST /holds/{hold_id}/capture` e `POST /holds/{hold_id}/release`.
-
-Leia mais em [bank-flow-balance/README.md](bank-flow-balance/README.md).
-
-## Como os Servicos Interagem
-
-Fluxo de criacao de conta:
+Criacao de conta:
 
 ```text
-client
-  └── POST /accounts
-        └── bank-flow-accounts
-              ├── valida cadastro
-              ├── chama BaaS
-              ├── salva branch/account
-              └── publica account-created via outbox
-
-account-created
-  └── bank-flow-ledger
-        └── cria ledger_account para o digital_account_id
+POST /accounts
+  -> accounts chama BaaS
+  -> accounts salva branch/account
+  -> accounts publica account-created via outbox
+  -> ledger cria ledger account interno para o digital_account_id
 ```
 
-Fluxo de transferencia bem-sucedida:
+Transferencia:
 
 ```text
-client
-  └── POST /transfers
-        └── bank-flow-transfer
-              ├── cria transferencia RECEIVED
-              ├── cria hold no bank-flow-balance
-              ├── chama PSP
-              └── aguarda webhook PSP
-
-PSP
-  └── POST /webhooks/psp/transfers CONFIRMED
-        └── bank-flow-transfer
-              ├── grava comando no outbox
-              └── marca POSTING_REQUESTED
-
-bank-flow-transfer outbox
-  └── publica ledger-movements
-        └── bank-flow-ledger
-              ├── cria posting double-entry
-              ├── persiste no immudb
-              └── publica ledger-posting-created
-
-ledger-posting-created
-  ├── bank-flow-balance atualiza saldo/extrato
-  └── bank-flow-transfer captura hold e marca COMPLETED
+POST /transfers
+  -> transfer consulta accounts por digital_account_id
+  -> transfer cria hold no balance
+  -> transfer chama PSP
+  -> webhook PSP CONFIRMED
+  -> transfer publica ledger-movements via outbox
+  -> ledger cria posting double-entry
+  -> ledger publica ledger-posting-created
+  -> balance projeta saldo/extrato
+  -> transfer captura hold e marca COMPLETED
 ```
 
-Fluxo com falha PSP:
+Se o PSP retorna `FAILED`, o transfer libera o hold e marca a transferencia como `FAILED`.
 
-```text
-PSP FAILED
-  └── bank-flow-transfer
-        ├── libera hold no bank-flow-balance
-        └── marca transferencia FAILED
-```
-
-## Topicos Kafka
+## Kafka
 
 | Topico | Produtor | Consumidor | Chave |
 | --- | --- | --- | --- |
-| `account-created` | `bank-flow-accounts` | `bank-flow-ledger` | `digital_account_id` |
-| `ledger-movements` | `bank-flow-transfer` | `bank-flow-ledger` | `source_digital_account_id` |
-| `ledger-reversals` | scripts/outros sistemas | `bank-flow-ledger` | `original_external_id` |
-| `ledger-posting-created` | `bank-flow-ledger` | `bank-flow-balance`, `bank-flow-transfer` | `external_id` |
+| `account-created` | accounts | ledger | `digital_account_id` |
+| `ledger-movements` | transfer | ledger | `source_digital_account_id` |
+| `ledger-reversals` | externo/scripts | ledger | `original_external_id` |
+| `ledger-posting-created` | ledger | balance, transfer | `external_id` |
 
-Cada topico possui uma DLT correspondente com sufixo `.DLT`.
+Cada topico possui DLT com sufixo `.DLT`.
 
 ## Infra Local
 
-O arquivo [docker-compose.yaml](docker-compose.yaml) sobe:
-
-- PostgreSQL em `localhost:5432`.
-- Kafka em `localhost:9092`.
-- Kafka UI em `http://localhost:8081`.
-- immudb em `localhost:3322`.
-
-Subir dependencias:
+Suba dependencias principais:
 
 ```bash
 docker compose up -d db kafka kafka-init kafka-ui immudb
 ```
 
-## Rodando os Servicos
+Servicos:
+
+- Postgres: `localhost:5432`, database `bank_flow`, user `myuser`, password `mysecretpassword`
+- Kafka: `localhost:9092`
+- Kafka UI: `http://localhost:8081`
+- immudb: `localhost:3322`
+
+## Rodando Aplicacoes
 
 Em terminais separados:
 
 ```bash
-cd bank-flow-accounts
-./gradlew bootRun
+cd bank-flow-accounts && ./gradlew bootRun
+cd bank-flow-balance && ./gradlew bootRun
+cd bank-flow-ledger && ./gradlew bootRun
+cd bank-flow-transfer && ./gradlew bootRun
 ```
+
+## Observability
+
+Suba a stack:
 
 ```bash
-cd bank-flow-balance
-./gradlew bootRun
+docker compose -f docker-compose.observability.yml up -d
 ```
+
+URLs:
+
+- Grafana: `http://localhost:3000` (`admin`/`admin`)
+- Prometheus: `http://localhost:9090`
+- Loki: `http://localhost:3100`
+- Tempo: `http://localhost:3200`
+
+Todos os servicos expõem:
+
+```text
+/actuator/health
+/actuator/metrics
+/actuator/prometheus
+```
+
+Tempo recebe traces via OTLP em `localhost:4318/v1/traces`. O service graph usa métricas geradas pelo Tempo e enviadas ao Prometheus via remote write.
+
+## Script de Carga
+
+O script abaixo cria contas, faz funding inicial pela conta seed e mantém transferencias contínuas entre as contas. Ele também cria novas contas aleatoriamente durante o loop.
 
 ```bash
-cd bank-flow-ledger
-./gradlew bootRun
+python3 scripts/orchestrate_accounts_transfers.py \
+  --accounts 3 \
+  --seed-amount-minor 10000 \
+  --between-min-amount-minor 50 \
+  --between-max-amount-minor 500 \
+  --account-create-rate 0.2 \
+  --between-decline-rate 0.2
 ```
+
+Conta seed padrao:
+
+```text
+3f20291f-c0ba-4c8e-b0b2-7ff1cccb3833
+```
+
+Use `Ctrl+C` para parar. Para uma execucao finita:
 
 ```bash
-cd bank-flow-transfer
-./gradlew bootRun
+python3 scripts/orchestrate_accounts_transfers.py --max-between-transfers 10 --max-created-accounts 5
 ```
-
-Portas padrao:
-
-| Servico | Porta |
-| --- | --- |
-| `bank-flow-accounts` | `8084` |
-| `bank-flow-balance` | `8082` |
-| `bank-flow-transfer` | `8083` |
-| `bank-flow-ledger` | sem API HTTP publica |
 
 ## Testes
 
-Rodar testes por modulo:
-
 ```bash
 cd bank-flow-accounts && ./gradlew test
-cd ../bank-flow-balance && ./gradlew test
-cd ../bank-flow-ledger && ./gradlew test
 cd ../bank-flow-transfer && ./gradlew test
+cd ../bank-flow-ledger && ./gradlew test
+cd ../bank-flow-balance && ./gradlew test
 ```
 
-## Scripts Uteis
+## Bancos
 
-Produzir eventos de conta:
-
-```bash
-python3 scripts/produce_account_created.py
-```
-
-Produzir movimentos direto no ledger:
-
-```bash
-python3 scripts/produce_ledger_movements.py
-```
-
-Produzir estornos:
-
-```bash
-python3 scripts/produce_ledger_reversals.py
-```
-
-## Bancos e Schemas
-
-PostgreSQL usa o database `bank_flow`.
-
-- `bank-flow-accounts` usa o schema `accounts`.
-- `bank-flow-balance` cria tabelas no schema configurado pelo modulo de balance.
-- `bank-flow-transfer` usa o schema `transfer`.
-- `bank-flow-ledger` usa immudb para `ledger_accounts`, `ledger_entries` e `ledger_entry_lines`.
-
-## Observacoes de Operacao
-
-- O transfer usa outbox para evitar perder comandos ao ledger depois da confirmacao PSP.
-- O ledger e a fonte de verdade contabil.
-- O balance e uma projecao reconstruivel a partir de `ledger-posting-created`.
-- O fechamento de hold acontece somente depois do resultado final: release em falha PSP, capture apos posting contabil.
+- `bank-flow-accounts`: schema Postgres `accounts`.
+- `bank-flow-transfer`: schema Postgres `transfer`.
+- `bank-flow-balance`: tabelas de projecao e holds no Postgres.
+- `bank-flow-ledger`: immudb para contas contabeis, entries e lines.

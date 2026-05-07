@@ -1,33 +1,32 @@
 # bank-flow-accounts
 
-Servico responsavel por criar contas digitais no Bank Flow. Ele recebe dados cadastrais, chama um BaaS para efetivar a conta, salva `branch` e `account` retornados pelo BaaS e publica `account-created` via outbox para o ledger criar a conta contabil.
+Servico responsavel por criar contas digitais. Ele valida dados cadastrais, chama um BaaS, salva `branch`/`account` retornados e publica `account-created` para o ledger.
+
+Este servico expõe e persiste o identificador operacional `digital_account_id`. O `account_id` numerico contabil e criado e usado apenas pelo `bank-flow-ledger`.
 
 ## Responsabilidades
 
 - Receber `POST /accounts` com `Idempotency-Key`.
-- Validar dados cadastrais, incluindo CPF e data de nascimento.
-- Chamar o BaaS para abertura efetiva da conta.
+- Validar CPF, email, telefone e data de nascimento.
+- Chamar BaaS em modo `mock` ou `http`.
 - Persistir `baas_account_id`, `branch`, `account`, `currency` e status.
-- Publicar evento `account-created` no Kafka via outbox.
-- Permitir consulta por `GET /accounts/{digital_account_id}`.
+- Publicar `account-created` via outbox quando a conta fica `ACTIVE`.
+- Consultar conta por `GET /accounts/{digital_account_id}`.
 
-## Fluxo Principal
+## Fluxo
 
 ```text
 POST /accounts
-  ├── valida payload
-  ├── cria account RECEIVED
-  ├── chama BaaS
-  ├── salva branch/account retornados pelo BaaS
-  ├── marca ACTIVE, BAAS_PENDING ou REJECTED
-  └── se ACTIVE, grava account.created no outbox
-
-OutboxPublisher
-  └── publica account-created
-        └── bank-flow-ledger cria ledger_account
+  -> valida payload
+  -> cria conta RECEIVED
+  -> chama BaaS
+  -> salva branch/account
+  -> marca ACTIVE, BAAS_PENDING ou REJECTED
+  -> se ACTIVE, grava account.created no outbox
+  -> OutboxPublisher publica account-created no Kafka
 ```
 
-## API HTTP
+## API
 
 Porta padrao: `8084`.
 
@@ -50,7 +49,7 @@ curl -s -X POST http://localhost:8084/accounts \
   }'
 ```
 
-Consultar conta:
+Consultar:
 
 ```bash
 curl -s http://localhost:8084/accounts/{digital_account_id}
@@ -60,8 +59,7 @@ Resposta:
 
 ```json
 {
-  "digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872bf",
-  "digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
+  "digital_account_id": "530743d7-9663-453f-9ef5-3c68ec4f7929",
   "document_number": "***4860",
   "email": "maria@example.com",
   "baas_account_id": "baas-35225454860",
@@ -75,56 +73,22 @@ Resposta:
 }
 ```
 
-## Status da Conta
-
-- `RECEIVED`: conta registrada localmente antes da chamada BaaS.
-- `BAAS_PENDING`: BaaS aceitou, mas ainda nao ativou a conta.
-- `ACTIVE`: BaaS ativou a conta; evento `account-created` e publicado.
-- `REJECTED`: BaaS recusou a abertura.
-- `FAILED`: reservado para falhas operacionais futuras.
-
-## BaaS
-
-O BaaS deve retornar pelo menos:
-
-```json
-{
-  "baas_account_id": "baas-123",
-  "branch": "0001",
-  "account": "12345-6",
-  "currency": "BRL",
-  "status": "ACTIVE",
-  "failure_reason": null
-}
-```
-
-Modos:
-
-- `BAAS_MODE=mock`: retorna uma conta fake deterministica.
-- `BAAS_MODE=http`: chama `POST {BAAS_BASE_URL}/accounts`.
-
-O client HTTP repassa `Idempotency-Key` para o BaaS.
-
-## Outbox e Kafka
-
-Quando a conta fica `ACTIVE`, o servico grava um evento outbox:
-
-```json
-{
-  "digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
-  "branch": "0001",
-  "account": "12345-6",
-  "currency": "BRL"
-}
-```
+## Evento Publicado
 
 Topico: `account-created`
 
 Chave Kafka: `digital_account_id`
 
-Esse contrato ja e consumido pelo `bank-flow-ledger`.
+Payload:
 
-Importante: `digital_account_id` e o identificador operacional do accounts-service. Ele nao e o mesmo `account_id` numerico criado pelo ledger. A integracao entre accounts e ledger usa `digital_account_id`; o ledger resolve/cria seu proprio `ledger_accounts.account_id`.
+```json
+{
+  "digital_account_id": "530743d7-9663-453f-9ef5-3c68ec4f7929",
+  "branch": "0001",
+  "account": "54860-0",
+  "currency": "BRL"
+}
+```
 
 ## Configuracao
 
@@ -132,25 +96,31 @@ Importante: `digital_account_id` e o identificador operacional do accounts-servi
 | --- | --- | --- |
 | `SERVER_PORT` | `8084` | Porta HTTP. |
 | `POSTGRES_URL` | `jdbc:postgresql://localhost:5432/bank_flow?currentSchema=accounts,public` | JDBC URL. |
-| `POSTGRES_USER` | `myuser` | Usuario do Postgres. |
-| `POSTGRES_PASSWORD` | `mysecretpassword` | Senha do Postgres. |
-| `BAAS_MODE` | `mock` | Modo do client BaaS. |
+| `POSTGRES_USER` | `myuser` | Usuario Postgres. |
+| `POSTGRES_PASSWORD` | `mysecretpassword` | Senha Postgres. |
+| `BAAS_MODE` | `mock` | Modo do BaaS. |
 | `BAAS_BASE_URL` | `http://localhost:9098` | URL base do BaaS HTTP. |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Bootstrap servers Kafka. |
-| `OUTBOX_PUBLISHER_FIXED_DELAY_MS` | `1000` | Intervalo do publisher do outbox. |
-| `OUTBOX_PUBLISHER_BATCH_SIZE` | `50` | Tamanho do lote do outbox. |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers. |
+| `OUTBOX_PUBLISHER_FIXED_DELAY_MS` | `1000` | Intervalo do publisher. |
+| `OUTBOX_PUBLISHER_BATCH_SIZE` | `50` | Tamanho do lote. |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Export de traces para Tempo. |
 
-## Rodando Localmente
+## Observability
 
-Suba dependencias:
+Endpoints:
+
+```text
+GET /actuator/health
+GET /actuator/metrics
+GET /actuator/prometheus
+```
+
+O servico emite métricas Prometheus, logs estruturados e traces OpenTelemetry.
+
+## Rodando
 
 ```bash
 docker compose up -d db kafka kafka-init
-```
-
-Inicie o servico:
-
-```bash
 cd bank-flow-accounts
 ./gradlew bootRun
 ```
@@ -161,5 +131,3 @@ cd bank-flow-accounts
 cd bank-flow-accounts
 ./gradlew test
 ```
-
-Os testes cobrem validacao do fluxo, idempotencia por chave/documento, retorno BaaS com `branch`/`account` e criacao do outbox.
