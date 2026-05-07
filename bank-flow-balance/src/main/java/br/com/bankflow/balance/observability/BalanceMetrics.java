@@ -7,6 +7,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -142,10 +143,14 @@ public class BalanceMetrics {
 	}
 
 	private double sum(JdbcTemplate jdbcTemplate, String expression) {
-		Double value = jdbcTemplate.queryForObject(
-				"SELECT COALESCE(SUM(%s), 0) FROM account_balances".formatted(expression),
-				Double.class
-		);
-		return value == null ? 0 : value;
+		try {
+			Double value = jdbcTemplate.queryForObject(
+					"SELECT COALESCE(SUM(%s), 0) FROM account_balances".formatted(expression),
+					Double.class
+			);
+			return value == null ? 0 : value;
+		} catch (DataAccessException exception) {
+			return 0;
+		}
 	}
 }

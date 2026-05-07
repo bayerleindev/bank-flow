@@ -9,20 +9,24 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class BalanceQueryServiceTests {
+	private static final UUID DIGITAL_ACCOUNT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+	private static final UUID MISSING_DIGITAL_ACCOUNT_ID = UUID.fromString("99999999-9999-9999-9999-999999999999");
+
 	private final FakeBalanceQueryRepository repository = new FakeBalanceQueryRepository();
 	private final BalanceQueryService service = new BalanceQueryService(repository);
 
 	@Test
 	void returnsBalance() {
-		AccountBalance balance = service.getBalance(1001L);
+		AccountBalance balance = service.getBalance(DIGITAL_ACCOUNT_ID);
 
-		assertEquals(1001L, balance.accountId());
+		assertEquals(DIGITAL_ACCOUNT_ID, balance.digitalAccountId());
 		assertEquals("BRL", balance.currency());
 		assertEquals(12_500L, balance.postedMinor());
 		assertEquals(2_500L, balance.heldMinor());
@@ -31,12 +35,12 @@ class BalanceQueryServiceTests {
 
 	@Test
 	void failsWhenBalanceDoesNotExist() {
-		assertThrows(BalanceNotFoundException.class, () -> service.getBalance(9999L));
+		assertThrows(BalanceNotFoundException.class, () -> service.getBalance(MISSING_DIGITAL_ACCOUNT_ID));
 	}
 
 	@Test
 	void returnsStatementWithDefaultLimit() {
-		BalanceQueryService.AccountStatement statement = service.getStatement(1001L, null, null);
+		BalanceQueryService.AccountStatement statement = service.getStatement(DIGITAL_ACCOUNT_ID, null, null);
 
 		assertEquals(50, statement.limit());
 		assertEquals(2, statement.lines().size());
@@ -48,7 +52,7 @@ class BalanceQueryServiceTests {
 	@Test
 	void capsStatementLimit() {
 		String cursor = encodeCursor(123L, 456L);
-		service.getStatement(1001L, 500, cursor);
+		service.getStatement(DIGITAL_ACCOUNT_ID, 500, cursor);
 
 		assertEquals(200, repository.lastLimit);
 		assertEquals(123L, repository.lastCursor.occurredAt());
@@ -57,17 +61,17 @@ class BalanceQueryServiceTests {
 
 	@Test
 	void returnsNextCursorWhenPageIsFull() {
-		BalanceQueryService.AccountStatement statement = service.getStatement(1001L, 2, null);
+		BalanceQueryService.AccountStatement statement = service.getStatement(DIGITAL_ACCOUNT_ID, 2, null);
 
 		assertEquals(encodeCursor(100L, 1L), statement.nextCursor());
 	}
 
 	@Test
 	void rejectsInvalidInputs() {
-		assertThrows(IllegalArgumentException.class, () -> service.getBalance(0L));
-		assertThrows(IllegalArgumentException.class, () -> service.getStatement(1001L, 0, null));
-		assertThrows(IllegalArgumentException.class, () -> service.getStatement(1001L, 10, "invalid"));
-		assertThrows(IllegalArgumentException.class, () -> service.getStatement(1001L, 10, encodeCursor(0L, 1L)));
+		assertThrows(IllegalArgumentException.class, () -> service.getBalance(null));
+		assertThrows(IllegalArgumentException.class, () -> service.getStatement(DIGITAL_ACCOUNT_ID, 0, null));
+		assertThrows(IllegalArgumentException.class, () -> service.getStatement(DIGITAL_ACCOUNT_ID, 10, "invalid"));
+		assertThrows(IllegalArgumentException.class, () -> service.getStatement(DIGITAL_ACCOUNT_ID, 10, encodeCursor(0L, 1L)));
 	}
 
 	private String encodeCursor(long occurredAt, long lineId) {
@@ -81,20 +85,20 @@ class BalanceQueryServiceTests {
 		private StatementCursor lastCursor;
 
 		@Override
-		public Optional<AccountBalance> findBalance(long accountId) {
-			if (accountId == 1001L) {
-				return Optional.of(new AccountBalance(1001L, "BRL", 12_500L, 2_500L, 1_777_777_777_000L));
+		public Optional<AccountBalance> findBalance(UUID digitalAccountId) {
+			if (DIGITAL_ACCOUNT_ID.equals(digitalAccountId)) {
+				return Optional.of(new AccountBalance(DIGITAL_ACCOUNT_ID, "BRL", 12_500L, 2_500L, 1_777_777_777_000L));
 			}
 			return Optional.empty();
 		}
 
 		@Override
-		public List<AccountStatementLine> findStatementLines(long accountId, int limit, StatementCursor cursor) {
+		public List<AccountStatementLine> findStatementLines(UUID digitalAccountId, int limit, StatementCursor cursor) {
 			lastLimit = limit;
 			lastCursor = cursor;
 			return List.of(
-					new AccountStatementLine(2L, 10L, 1001L, "transfer-1", "TRANSFER", "CREDIT", 7500L, 7500L, "BRL", "Transfer transfer-1", 200L, 210L),
-					new AccountStatementLine(1L, 9L, 1001L, "transfer-0", "TRANSFER", "CREDIT", 5000L, 5000L, "BRL", "Transfer transfer-0", 100L, 110L)
+					new AccountStatementLine(2L, 10L, DIGITAL_ACCOUNT_ID, "transfer-1", "TRANSFER", "CREDIT", 7500L, 7500L, "BRL", "Transfer transfer-1", 200L, 210L),
+					new AccountStatementLine(1L, 9L, DIGITAL_ACCOUNT_ID, "transfer-0", "TRANSFER", "CREDIT", 5000L, 5000L, "BRL", "Transfer transfer-0", 100L, 110L)
 			);
 		}
 	}

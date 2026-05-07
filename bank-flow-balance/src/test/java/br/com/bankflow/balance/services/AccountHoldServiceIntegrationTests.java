@@ -9,11 +9,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.util.UUID;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 @SpringBootTest(properties = "spring.kafka.listener.auto-startup=false")
 class AccountHoldServiceIntegrationTests {
+	private static final UUID DIGITAL_ACCOUNT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+
 	@Autowired
 	private AccountHoldService accountHoldService;
 
@@ -27,9 +31,9 @@ class AccountHoldServiceIntegrationTests {
 		jdbcTemplate.update("DELETE FROM processed_ledger_entries");
 		jdbcTemplate.update("DELETE FROM account_balances");
 		jdbcTemplate.update("""
-				INSERT INTO account_balances (account_id, currency, posted_minor, held_minor, updated_at)
-				VALUES (1001, 'BRL', 10000, 0, 1778000000000)
-				""");
+				INSERT INTO account_balances (account_id, digital_account_id, currency, posted_minor, held_minor, updated_at)
+				VALUES (1001, ?, 'BRL', 10000, 0, 1778000000000)
+				""", DIGITAL_ACCOUNT_ID);
 	}
 
 	@Test
@@ -84,7 +88,7 @@ class AccountHoldServiceIntegrationTests {
 	private CreateAccountHoldCommand command(String transferId, long amountMinor) {
 		return new CreateAccountHoldCommand(
 				transferId,
-				1001L,
+				DIGITAL_ACCOUNT_ID,
 				amountMinor,
 				"BRL",
 				"TRANSFER",
@@ -94,16 +98,18 @@ class AccountHoldServiceIntegrationTests {
 
 	private long heldMinor() {
 		Long held = jdbcTemplate.queryForObject(
-				"SELECT held_minor FROM account_balances WHERE account_id = 1001",
-				Long.class
+				"SELECT held_minor FROM account_balances WHERE digital_account_id = ?",
+				Long.class,
+				DIGITAL_ACCOUNT_ID
 		);
 		return held == null ? 0L : held;
 	}
 
 	private long availableMinor() {
 		Long available = jdbcTemplate.queryForObject(
-				"SELECT posted_minor - held_minor FROM account_balances WHERE account_id = 1001",
-				Long.class
+				"SELECT posted_minor - held_minor FROM account_balances WHERE digital_account_id = ?",
+				Long.class,
+				DIGITAL_ACCOUNT_ID
 		);
 		return available == null ? 0L : available;
 	}

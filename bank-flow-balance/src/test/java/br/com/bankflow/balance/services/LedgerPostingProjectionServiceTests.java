@@ -12,11 +12,15 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class LedgerPostingProjectionServiceTests {
+	private static final UUID SOURCE_DIGITAL_ACCOUNT_ID = UUID.fromString("11111111-1111-1111-1111-111111111111");
+	private static final UUID DESTINATION_DIGITAL_ACCOUNT_ID = UUID.fromString("22222222-2222-2222-2222-222222222222");
+
 	private final FakeBalanceProjectionRepository repository = new FakeBalanceProjectionRepository();
 	private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 	private final LedgerPostingProjectionService service = new LedgerPostingProjectionService(
@@ -68,8 +72,8 @@ class LedgerPostingProjectionServiceTests {
 				0L,
 				"{}",
 				List.of(
-						new LedgerPostingCreatedLine(101L, 999L, 1001L, "DEBIT", 5000L, -5000L, "BRL", "source", 1_777_777_710L),
-						new LedgerPostingCreatedLine(102L, 10L, 2002L, "CREDIT", 5000L, 5000L, "BRL", "destination", 1_777_777_710L)
+						new LedgerPostingCreatedLine(101L, 999L, 1001L, SOURCE_DIGITAL_ACCOUNT_ID, "DEBIT", 5000L, -5000L, "BRL", "source", 1_777_777_710L),
+						new LedgerPostingCreatedLine(102L, 10L, 2002L, DESTINATION_DIGITAL_ACCOUNT_ID, "CREDIT", 5000L, 5000L, "BRL", "destination", 1_777_777_710L)
 				)
 		);
 
@@ -90,8 +94,8 @@ class LedgerPostingProjectionServiceTests {
 				0L,
 				"{}",
 				List.of(
-						new LedgerPostingCreatedLine(101L, 10L, 1001L, "DEBIT", 5000L, -5000L, "BRL", "source", 1_777_777_710L),
-						new LedgerPostingCreatedLine(102L, 10L, 2002L, "CREDIT", 4000L, 4000L, "BRL", "destination", 1_777_777_710L)
+						new LedgerPostingCreatedLine(101L, 10L, 1001L, SOURCE_DIGITAL_ACCOUNT_ID, "DEBIT", 5000L, -5000L, "BRL", "source", 1_777_777_710L),
+						new LedgerPostingCreatedLine(102L, 10L, 2002L, DESTINATION_DIGITAL_ACCOUNT_ID, "CREDIT", 4000L, 4000L, "BRL", "destination", 1_777_777_710L)
 				)
 		);
 
@@ -118,8 +122,8 @@ class LedgerPostingProjectionServiceTests {
 				0L,
 				"{}",
 				List.of(
-						new LedgerPostingCreatedLine(101L, 10L, 1001L, "DEBIT", 5000L, -5000L, "BRL", "source", 1_777_777_710L),
-						new LedgerPostingCreatedLine(102L, 10L, 2002L, "CREDIT", 5000L, 5000L, "BRL", "destination", 1_777_777_710L)
+						new LedgerPostingCreatedLine(101L, 10L, 1001L, SOURCE_DIGITAL_ACCOUNT_ID, "DEBIT", 5000L, -5000L, "BRL", "source", 1_777_777_710L),
+						new LedgerPostingCreatedLine(102L, 10L, 2002L, DESTINATION_DIGITAL_ACCOUNT_ID, "CREDIT", 5000L, 5000L, "BRL", "destination", 1_777_777_710L)
 				)
 		);
 	}
