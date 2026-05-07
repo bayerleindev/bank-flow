@@ -117,6 +117,15 @@ GET /actuator/prometheus
 
 O servico emite métricas Prometheus, logs estruturados e traces OpenTelemetry.
 
+Metricas de negocio:
+
+- `accounts_created_total`
+- `accounts_in_status{status}`
+- `account_oldest_in_status_age_seconds{status}`
+- `outbox_pending_events{service="bank-flow-accounts"}`
+- `outbox_oldest_pending_event_age_seconds{service="bank-flow-accounts"}`
+- `outbox_publish_failures_total{service,topic,event_type}`
+
 ## Rodando
 
 ```bash

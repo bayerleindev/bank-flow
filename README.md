@@ -9,7 +9,7 @@ Regra de identificadores: `accounts`, `transfer` e `balance` usam somente `digit
 | Servico | Porta | Responsabilidade |
 | --- | --- | --- |
 | `bank-flow-accounts` | `8084` | Cria contas digitais, chama BaaS e publica `account-created`. |
-| `bank-flow-transfer` | `8083` | Orquestra hold, PSP, webhook, outbox para ledger e conclusao. |
+| `bank-flow-transfer` | `8083` | Orquestra hold, PSP, webhook inbound externo, outbox para ledger e conclusao. |
 | `bank-flow-ledger` | `8085` | Mantem double-entry no immudb e publica `ledger-posting-created`. |
 | `bank-flow-balance` | `8082` | Projeta saldos/extratos e gerencia holds por `digital_account_id`. |
 
@@ -42,6 +42,18 @@ POST /transfers
 
 Se o PSP retorna `FAILED`, o transfer libera o hold e marca a transferencia como `FAILED`.
 
+Transferencia inbound de outra instituicao:
+
+```text
+POST /webhooks/external-institutions/transfers
+  -> transfer valida a conta destino no accounts
+  -> usa a conta contabil de liquidacao como origem
+  -> transfer publica ledger-movements via outbox
+  -> ledger debita liquidacao e credita a conta destino
+  -> balance projeta saldo/extrato
+  -> transfer marca COMPLETED apos ledger-posting-created
+```
+
 ## Kafka
 
 | Topico | Produtor | Consumidor | Chave |
@@ -52,6 +64,15 @@ Se o PSP retorna `FAILED`, o transfer libera o hold e marca a transferencia como
 | `ledger-posting-created` | ledger | balance, transfer | `external_id` |
 
 Cada topico possui DLT com sufixo `.DLT`.
+
+Conta contabil de liquidacao inbound:
+
+```text
+account_code: SETTLEMENT_EXTERNAL_INBOUND_BRL
+owner_id: 00000000-0000-0000-0000-000000000100
+```
+
+Antes de processar inbound externo em ambiente novo, rode o seed em `scripts/immudb/002_seed_settlement_accounts.sql`.
 
 ## Infra Local
 
@@ -104,9 +125,18 @@ Todos os servicos expõem:
 
 Tempo recebe traces via OTLP em `localhost:4318/v1/traces`. O service graph usa métricas geradas pelo Tempo e enviadas ao Prometheus via remote write.
 
+Metricas de negocio criticas:
+
+- `accounts_in_status` e `account_oldest_in_status_age_seconds`
+- `transfers_in_status` e `transfer_oldest_in_status_age_seconds`
+- `transfer_end_to_end_latency_seconds`
+- `outbox_pending_events` e `outbox_oldest_pending_event_age_seconds`
+- `ledger_posting_created_total`, `ledger_publish_failures_total` e `ledger_posting_unbalanced_total`
+- `balance_projection_lag_seconds`, `bank_flow_balance_projection_total` e `balance_hold_close_failures_total`
+
 ## Script de Carga
 
-O script abaixo cria contas, faz funding inicial pela conta seed e mantém transferencias contínuas entre as contas. Ele também cria novas contas aleatoriamente durante o loop.
+O script abaixo cria contas, envia uma transferencia inbound externa para uma conta criada na propria execucao, faz funding inicial pela conta seed e mantém transferencias contínuas entre as contas. Ele também cria novas contas aleatoriamente durante o loop.
 
 ```bash
 python3 scripts/orchestrate_accounts_transfers.py \
@@ -129,6 +159,30 @@ Use `Ctrl+C` para parar. Para uma execucao finita:
 ```bash
 python3 scripts/orchestrate_accounts_transfers.py --max-between-transfers 10 --max-created-accounts 5
 ```
+
+Opcoes relacionadas ao inbound externo:
+
+```bash
+python3 scripts/orchestrate_accounts_transfers.py \
+  --external-inbound-amount-minor 750
+
+python3 scripts/orchestrate_accounts_transfers.py \
+  --skip-external-inbound
+```
+
+## GitHub Actions
+
+Workflow principal: `.github/workflows/pipeline.yaml`.
+
+Ele pode ser executado manualmente com `workflow_dispatch` escolhendo:
+
+- `all`
+- `accounts`
+- `balance`
+- `transfer`
+- `ledger`
+
+Cada servico tambem possui um workflow proprio que roda `./gradlew test` no diretorio correspondente.
 
 ## Testes
 

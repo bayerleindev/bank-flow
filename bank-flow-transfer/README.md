@@ -37,6 +37,8 @@ POST /webhooks/external-institutions/transfers
   -> usa conta contabil de liquidacao como origem
   -> grava ledger.transfer_posted no outbox
   -> marca POSTING_REQUESTED
+  -> ledger publica ledger-posting-created
+  -> transfer marca COMPLETED
 ```
 
 ## API
@@ -96,6 +98,13 @@ curl -s -X POST http://localhost:8083/webhooks/external-institutions/transfers \
 
 Idempotencia inbound: `source_institution_code` + `external_transfer_id`.
 
+Conta contabil usada como origem no inbound externo:
+
+```text
+source_digital_account_id: 00000000-0000-0000-0000-000000000100
+source_account: SETTLEMENT_EXTERNAL_INBOUND_BRL
+```
+
 ## Status
 
 - `RECEIVED`: transferencia registrada.
@@ -154,6 +163,19 @@ GET /actuator/prometheus
 ```
 
 O servico emite métricas HTTP/JVM/Hikari/Kafka, logs estruturados e traces OpenTelemetry.
+
+Metricas de negocio:
+
+- `transfers_created_total`
+- `transfers_completed_total`
+- `transfers_failed_total{reason}`
+- `transfer_psp_confirmed_total`
+- `transfer_end_to_end_latency_seconds`
+- `transfers_in_status{status}`
+- `transfer_oldest_in_status_age_seconds{status}`
+- `outbox_pending_events{service="bank-flow-transfer"}`
+- `outbox_oldest_pending_event_age_seconds{service="bank-flow-transfer"}`
+- `outbox_publish_failures_total{service,topic,event_type}`
 
 ## Rodando
 

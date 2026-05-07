@@ -11,6 +11,7 @@ Somente este servico manipula o `account_id` numerico contabil.
 - Consumir `ledger-reversals` e criar estornos.
 - Persistir entries/lines no immudb de forma idempotente.
 - Publicar `ledger-posting-created` com linhas contendo `account_id` e `digital_account_id`.
+- Usar conta contabil de liquidacao para transferencias inbound externas.
 
 ## Fluxo
 
@@ -37,6 +38,15 @@ Consumidos:
 Publicado:
 
 - `ledger-posting-created`, chave `external_id`
+
+No inbound externo, o transfer envia a origem como:
+
+```text
+source_digital_account_id: 00000000-0000-0000-0000-000000000100
+source_account: SETTLEMENT_EXTERNAL_INBOUND_BRL
+```
+
+Essa conta deve existir no immudb antes do primeiro evento inbound. Use `scripts/immudb/002_seed_settlement_accounts.sql`.
 
 ## Contratos
 
@@ -109,6 +119,17 @@ GET /actuator/prometheus
 ```
 
 O ledger nao possui API de negocio publica, mas expoe Actuator na porta `8085`.
+
+Metricas de negocio:
+
+- `ledger_posting_created_total{entry_type}`
+- `ledger_posting_latency_seconds{entry_type}`
+- `ledger_publish_failures_total{topic,entry_type,exception}`
+- `ledger_validation_failures_total{operation,reason}`
+- `ledger_idempotency_hits_total{operation}`
+- `ledger_posting_unbalanced_total{entry_type}`
+- `ledger_posting_balance_difference_minor`
+- `ledger_reversals_created_total`
 
 ## Rodando
 

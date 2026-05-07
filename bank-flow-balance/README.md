@@ -156,6 +156,14 @@ Metricas customizadas do balance:
 - `bank_flow_balance_projection_total`
 - `bank_flow_balance_projection_duration`
 - `bank_flow_balance_projection_lines`
+- `balance_projection_lag_seconds`
+- `balance_available_minor`
+- `balance_held_minor`
+- `balance_holds_created_total`
+- `balance_holds_captured_total`
+- `balance_holds_released_total`
+- `balance_holds_expired_total`
+- `balance_hold_close_failures_total`
 
 ## Rodando
 
@@ -171,6 +179,8 @@ cd bank-flow-balance
 cd bank-flow-balance
 ./gradlew test
 ```
+
+Os testes usam PostgreSQL via Testcontainers para cobrir migrations com sintaxe PostgreSQL. Docker precisa estar disponivel no ambiente de CI/local.
 
 ## Comandos Uteis
 
