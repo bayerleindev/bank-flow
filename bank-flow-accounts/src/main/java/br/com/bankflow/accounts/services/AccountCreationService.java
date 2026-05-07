@@ -61,7 +61,7 @@ public class AccountCreationService {
 
 	protected Account createNewAccount(CreateAccountCommand command) {
 		long now = clock.millis();
-		Account account = accountRepository.create(UUID.randomUUID(), UUID.randomUUID(), command, now);
+		Account account = accountRepository.create(UUID.randomUUID(), command, now);
 		BaasAccountResponse response = baasClient.createAccount(command);
 		Account updated = accountRepository.updateFromBaas(
 				account.accountId(),
@@ -96,7 +96,7 @@ public class AccountCreationService {
 					account.accountId().toString(),
 					ACCOUNT_CREATED_EVENT,
 					accountCreatedTopic,
-					account.ownerId().toString(),
+					account.accountId().toString(),
 					objectMapper.writeValueAsString(AccountCreatedEvent.from(account)),
 					"PENDING",
 					0,

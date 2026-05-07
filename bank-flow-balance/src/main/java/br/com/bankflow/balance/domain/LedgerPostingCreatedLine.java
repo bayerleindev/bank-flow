@@ -6,6 +6,7 @@ public record LedgerPostingCreatedLine(
 		@JsonProperty("line_id") long lineId,
 		@JsonProperty("entry_id") long entryId,
 		@JsonProperty("account_id") long accountId,
+		@JsonProperty("digital_account_id") java.util.UUID digitalAccountId,
 		String direction,
 		@JsonProperty("amount_minor") long amountMinor,
 		@JsonProperty("signed_amount_minor") long signedAmountMinor,
@@ -22,6 +23,9 @@ public record LedgerPostingCreatedLine(
 		}
 		if (accountId <= 0) {
 			throw new IllegalArgumentException("account_id must be positive");
+		}
+		if (digitalAccountId == null) {
+			throw new IllegalArgumentException("digital_account_id is required");
 		}
 		if (!"DEBIT".equals(direction) && !"CREDIT".equals(direction)) {
 			throw new IllegalArgumentException("direction must be DEBIT or CREDIT");

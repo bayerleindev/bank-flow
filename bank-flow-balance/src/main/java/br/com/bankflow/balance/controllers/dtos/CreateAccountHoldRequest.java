@@ -5,7 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record CreateAccountHoldRequest(
 		@JsonProperty("transfer_id") String transferId,
-		@JsonProperty("account_id") long accountId,
+		@JsonProperty("digital_account_id") java.util.UUID digitalAccountId,
 		@JsonProperty("amount_minor") long amountMinor,
 		String currency,
 		String reason,
@@ -14,7 +14,7 @@ public record CreateAccountHoldRequest(
 	public CreateAccountHoldCommand toCommand() {
 		return new CreateAccountHoldCommand(
 				transferId,
-				accountId,
+				digitalAccountId,
 				amountMinor,
 				currency,
 				reason,

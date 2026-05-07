@@ -5,11 +5,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record TransferResponse(
 		@JsonProperty("transfer_id") String transferId,
-		@JsonProperty("source_account_id") long sourceAccountId,
-		@JsonProperty("source_owner_id") String sourceOwnerId,
+		@JsonProperty("source_digital_account_id") String sourceDigitalAccountId,
 		@JsonProperty("source_account") String sourceAccount,
-		@JsonProperty("destination_account_id") long destinationAccountId,
-		@JsonProperty("destination_owner_id") String destinationOwnerId,
+		@JsonProperty("destination_digital_account_id") String destinationDigitalAccountId,
 		@JsonProperty("destination_account") String destinationAccount,
 		@JsonProperty("amount_minor") long amountMinor,
 		String currency,
@@ -24,11 +22,9 @@ public record TransferResponse(
 	public static TransferResponse from(Transfer transfer) {
 		return new TransferResponse(
 				transfer.transferId().toString(),
-				transfer.sourceAccountId(),
-				transfer.sourceOwnerId() == null ? null : transfer.sourceOwnerId().toString(),
+				transfer.sourceDigitalAccountId().toString(),
 				transfer.sourceAccount(),
-				transfer.destinationAccountId(),
-				transfer.destinationOwnerId() == null ? null : transfer.destinationOwnerId().toString(),
+				transfer.destinationDigitalAccountId().toString(),
 				transfer.destinationAccount(),
 				transfer.amountMinor(),
 				transfer.currency(),

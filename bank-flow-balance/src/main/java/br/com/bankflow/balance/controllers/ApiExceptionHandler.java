@@ -18,8 +18,8 @@ public class ApiExceptionHandler {
 	ResponseEntity<ProblemDetail> handleBalanceNotFound(BalanceNotFoundException exception) {
 		ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.NOT_FOUND);
 		problem.setTitle("Balance not found");
-		problem.setDetail("No balance projection exists for account_id=%d".formatted(exception.accountId()));
-		problem.setProperty("account_id", exception.accountId());
+		problem.setDetail("No balance projection exists for digital_account_id=%s".formatted(exception.digitalAccountId()));
+		problem.setProperty("digital_account_id", exception.digitalAccountId());
 		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(problem);
 	}
 
@@ -37,7 +37,7 @@ public class ApiExceptionHandler {
 		ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.CONFLICT);
 		problem.setTitle("Insufficient funds");
 		problem.setDetail("Available balance is lower than requested amount");
-		problem.setProperty("account_id", exception.accountId());
+		problem.setProperty("digital_account_id", exception.digitalAccountId());
 		problem.setProperty("amount_minor", exception.amountMinor());
 		problem.setProperty("currency", exception.currency());
 		return ResponseEntity.status(HttpStatus.CONFLICT).body(problem);

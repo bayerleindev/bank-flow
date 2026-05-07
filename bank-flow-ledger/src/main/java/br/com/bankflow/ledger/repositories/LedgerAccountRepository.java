@@ -8,5 +8,5 @@ import java.util.UUID;
 public interface LedgerAccountRepository {
 	boolean saveIfNotExists(LedgerAccount account);
 
-	OptionalLong findAccountIdByOwnerId(UUID ownerId);
+	OptionalLong findAccountIdByDigitalAccountId(UUID digitalAccountId);
 }

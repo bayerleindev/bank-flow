@@ -17,51 +17,51 @@ public class JdbcBalanceQueryRepository implements BalanceQueryRepository {
 	}
 
 	@Override
-	public Optional<AccountBalance> findBalance(long accountId) {
+	public Optional<AccountBalance> findBalance(java.util.UUID digitalAccountId) {
 		List<AccountBalance> balances = jdbcTemplate.query("""
-				SELECT account_id, currency, posted_minor, held_minor, updated_at
+				SELECT digital_account_id, currency, posted_minor, held_minor, updated_at
 				FROM account_balances
-				WHERE account_id = ?
+				WHERE digital_account_id = ?
 				""",
 				(rs, rowNum) -> new AccountBalance(
-						rs.getLong("account_id"),
+						(java.util.UUID) rs.getObject("digital_account_id"),
 						rs.getString("currency"),
 						rs.getLong("posted_minor"),
 						rs.getLong("held_minor"),
 						rs.getLong("updated_at")
 				),
-				accountId
+				digitalAccountId
 		);
 		return balances.stream().findFirst();
 	}
 
 	@Override
-	public List<AccountStatementLine> findStatementLines(long accountId, int limit, StatementCursor cursor) {
+	public List<AccountStatementLine> findStatementLines(java.util.UUID digitalAccountId, int limit, StatementCursor cursor) {
 		if (cursor == null) {
 			return jdbcTemplate.query("""
-					SELECT line_id, entry_id, account_id, external_id, entry_type, direction, amount_minor,
+					SELECT line_id, entry_id, digital_account_id, external_id, entry_type, direction, amount_minor,
 					       signed_amount_minor, currency, description, occurred_at, created_at
 					FROM account_balance_entries
-					WHERE account_id = ?
+					WHERE digital_account_id = ?
 					ORDER BY occurred_at DESC, line_id DESC
 					LIMIT ?
 					""",
 					this::mapStatementLine,
-					accountId,
+					digitalAccountId,
 					limit
 			);
 		}
 		return jdbcTemplate.query("""
-				SELECT line_id, entry_id, account_id, external_id, entry_type, direction, amount_minor,
+				SELECT line_id, entry_id, digital_account_id, external_id, entry_type, direction, amount_minor,
 				       signed_amount_minor, currency, description, occurred_at, created_at
 				FROM account_balance_entries
-				WHERE account_id = ?
+				WHERE digital_account_id = ?
 				  AND (occurred_at < ? OR (occurred_at = ? AND line_id < ?))
 				ORDER BY occurred_at DESC, line_id DESC
 				LIMIT ?
 				""",
 				this::mapStatementLine,
-				accountId,
+				digitalAccountId,
 				cursor.occurredAt(),
 				cursor.occurredAt(),
 				cursor.lineId(),
@@ -73,7 +73,7 @@ public class JdbcBalanceQueryRepository implements BalanceQueryRepository {
 		return new AccountStatementLine(
 				rs.getLong("line_id"),
 				rs.getLong("entry_id"),
-				rs.getLong("account_id"),
+				(java.util.UUID) rs.getObject("digital_account_id"),
 				rs.getString("external_id"),
 				rs.getString("entry_type"),
 				rs.getString("direction"),

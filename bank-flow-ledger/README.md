@@ -30,8 +30,8 @@ Fluxo de transferencia:
 bank-flow-transfer outbox
   └── ledger-movements
         └── bank-flow-ledger
-              ├── valida chave source_owner_id
-              ├── resolve contas contabeis por owner_id
+              ├── valida chave source_digital_account_id
+              ├── resolve contas contabeis por digital_account_id
               ├── cria debit/credit lines
               ├── persiste posting no immudb
               └── publica ledger-posting-created
@@ -41,8 +41,8 @@ bank-flow-transfer outbox
 
 Consumidos:
 
-- `account-created`, chave `owner_id`, publicado pelo `bank-flow-accounts`.
-- `ledger-movements`, chave `source_owner_id`.
+- `account-created`, chave `digital_account_id`, publicado pelo `bank-flow-accounts`.
+- `ledger-movements`, chave `source_digital_account_id`.
 - `ledger-reversals`, chave `original_external_id`.
 
 Publicado:
@@ -62,9 +62,9 @@ Comando de transferencia em `ledger-movements`:
 ```json
 {
   "transfer_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872bf",
-  "source_owner_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
+  "source_digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
   "source_account": "12345-6",
-  "destination_owner_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b2",
+  "destination_digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b2",
   "destination_account": "98765-4",
   "amount_cents": 1500,
   "currency": "BRL"

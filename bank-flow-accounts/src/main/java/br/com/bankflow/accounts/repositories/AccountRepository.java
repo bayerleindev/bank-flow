@@ -15,7 +15,7 @@ public interface AccountRepository {
 
 	Optional<Account> findByAccountId(UUID accountId);
 
-	Account create(UUID accountId, UUID ownerId, CreateAccountCommand command, long now);
+	Account create(UUID accountId, CreateAccountCommand command, long now);
 
 	Account updateFromBaas(UUID accountId, BaasAccountResponse response, AccountStatus status, String failureReason, long now);
 }

@@ -70,7 +70,7 @@ public class ImmuDbLedgerAccountRepository implements LedgerAccountRepository {
 					new SQLValue(account.normalBalance()),
 					new SQLValue(account.currency()),
 					new SQLValue(account.ownerType()),
-					new SQLValue(account.ownerId().toString()),
+					new SQLValue(account.digitalAccountId().toString()),
 					new SQLValue(account.active()),
 					new SQLValue(account.createdAt())
 			);
@@ -90,7 +90,7 @@ public class ImmuDbLedgerAccountRepository implements LedgerAccountRepository {
 	}
 
 	@Override
-	public OptionalLong findAccountIdByOwnerId(UUID ownerId) {
+	public OptionalLong findAccountIdByDigitalAccountId(UUID digitalAccountId) {
 		ImmuClient immuClient = clientFactory.openClient();
 		boolean transactionStarted = false;
 		try {
@@ -98,7 +98,7 @@ public class ImmuDbLedgerAccountRepository implements LedgerAccountRepository {
 			transactionStarted = true;
 			SQLQueryResult result = immuClient.sqlQuery(
 					FIND_ACCOUNT_ID_BY_OWNER_ID,
-					new SQLValue(ownerId.toString())
+					new SQLValue(digitalAccountId.toString())
 			);
 			try {
 				if (!result.next()) {

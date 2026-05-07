@@ -3,6 +3,8 @@ package br.com.bankflow.transfer.services;
 import br.com.bankflow.transfer.clients.balance.BalanceClient;
 import br.com.bankflow.transfer.clients.balance.BalanceHoldResponse;
 import br.com.bankflow.transfer.clients.balance.CreateBalanceHoldRequest;
+import br.com.bankflow.transfer.clients.accounts.AccountClient;
+import br.com.bankflow.transfer.clients.accounts.AccountResponse;
 import br.com.bankflow.transfer.clients.psp.PspClient;
 import br.com.bankflow.transfer.clients.psp.PspPaymentResponse;
 import br.com.bankflow.transfer.clients.psp.PspPaymentStatus;
@@ -36,6 +38,7 @@ public class TransferOrchestrationService {
 
 	private final TransferRepository transferRepository;
 	private final OutboxEventRepository outboxEventRepository;
+	private final AccountClient accountClient;
 	private final BalanceClient balanceClient;
 	private final PspClient pspClient;
 	private final ObjectMapper objectMapper;
@@ -45,6 +48,7 @@ public class TransferOrchestrationService {
 	public TransferOrchestrationService(
 			TransferRepository transferRepository,
 			OutboxEventRepository outboxEventRepository,
+			AccountClient accountClient,
 			BalanceClient balanceClient,
 			PspClient pspClient,
 			ObjectMapper objectMapper,
@@ -53,6 +57,7 @@ public class TransferOrchestrationService {
 	) {
 		this.transferRepository = transferRepository;
 		this.outboxEventRepository = outboxEventRepository;
+		this.accountClient = accountClient;
 		this.balanceClient = balanceClient;
 		this.pspClient = pspClient;
 		this.objectMapper = objectMapper;
@@ -129,11 +134,15 @@ public class TransferOrchestrationService {
 	}
 
 	private Transfer orchestrateNewTransfer(CreateTransferCommand command) {
-		Transfer transfer = createReceivedTransfer(command);
+		AccountResponse sourceAccount = accountClient.getAccount(command.sourceDigitalAccountId());
+		sourceAccount.validateActive("source");
+		AccountResponse destinationAccount = accountClient.getAccount(command.destinationDigitalAccountId());
+		destinationAccount.validateActive("destination");
+		Transfer transfer = createReceivedTransfer(command, sourceAccount.account(), destinationAccount.account());
 		try {
 			BalanceHoldResponse hold = balanceClient.createHold(new CreateBalanceHoldRequest(
 					transfer.transferId().toString(),
-					command.sourceAccountId(),
+					command.sourceDigitalAccountId(),
 					command.amountMinor(),
 					command.currency(),
 					"TRANSFER",
@@ -161,8 +170,8 @@ public class TransferOrchestrationService {
 	}
 
 	@Transactional
-	protected Transfer createReceivedTransfer(CreateTransferCommand command) {
-		return transferRepository.create(UUID.randomUUID(), command, clock.millis());
+	protected Transfer createReceivedTransfer(CreateTransferCommand command, String sourceAccount, String destinationAccount) {
+		return transferRepository.create(UUID.randomUUID(), command, sourceAccount, destinationAccount, clock.millis());
 	}
 
 	@Transactional
@@ -190,7 +199,7 @@ public class TransferOrchestrationService {
 					transfer.transferId().toString(),
 					LEDGER_TRANSFER_POSTED_EVENT,
 					ledgerMovementsTopic,
-					transfer.sourceOwnerId().toString(),
+					transfer.sourceDigitalAccountId().toString(),
 					objectMapper.writeValueAsString(command),
 					"PENDING",
 					0,

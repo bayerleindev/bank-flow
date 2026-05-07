@@ -6,7 +6,6 @@ import java.util.UUID;
 public record Account(
 		UUID accountId,
 		String idempotencyKey,
-		UUID ownerId,
 		String fullName,
 		String documentNumber,
 		String email,

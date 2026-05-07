@@ -5,11 +5,9 @@ import java.util.UUID;
 public record Transfer(
 		UUID transferId,
 		String idempotencyKey,
-		long sourceAccountId,
-		java.util.UUID sourceOwnerId,
+		UUID sourceDigitalAccountId,
 		String sourceAccount,
-		long destinationAccountId,
-		java.util.UUID destinationOwnerId,
+		UUID destinationDigitalAccountId,
 		String destinationAccount,
 		long amountMinor,
 		String currency,

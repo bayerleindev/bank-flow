@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public record AccountHoldResponse(
 		@JsonProperty("hold_id") String holdId,
 		@JsonProperty("transfer_id") String transferId,
-		@JsonProperty("account_id") long accountId,
+		@JsonProperty("digital_account_id") String digitalAccountId,
 		@JsonProperty("amount_minor") long amountMinor,
 		String currency,
 		String status,
@@ -19,7 +19,7 @@ public record AccountHoldResponse(
 		return new AccountHoldResponse(
 				hold.holdId(),
 				hold.transferId(),
-				hold.accountId(),
+				hold.digitalAccountId().toString(),
 				hold.amountMinor(),
 				hold.currency(),
 				hold.status().name(),

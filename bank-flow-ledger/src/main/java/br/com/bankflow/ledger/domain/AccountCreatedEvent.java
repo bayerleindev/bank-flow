@@ -5,14 +5,14 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.UUID;
 
 public record AccountCreatedEvent(
-		@JsonProperty("owner_id") UUID ownerId,
-		String branch,
-		String account,
-		String currency
+		@JsonProperty("digital_account_id") UUID digitalAccountId,
+	String branch,
+	String account,
+	String currency
 ) {
 	public void validate() {
-		if (ownerId == null) {
-			throw new IllegalArgumentException("owner_id is required");
+		if (digitalAccountId == null) {
+			throw new IllegalArgumentException("digital_account_id is required");
 		}
 		if (isBlank(branch)) {
 			throw new IllegalArgumentException("branch is required");

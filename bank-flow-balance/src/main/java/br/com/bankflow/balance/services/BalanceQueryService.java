@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 @Service
@@ -22,24 +23,24 @@ public class BalanceQueryService {
 		this.balanceQueryRepository = balanceQueryRepository;
 	}
 
-	public AccountBalance getBalance(long accountId) {
-		validateAccountId(accountId);
-		return balanceQueryRepository.findBalance(accountId)
-				.orElseThrow(() -> new BalanceNotFoundException(accountId));
+	public AccountBalance getBalance(UUID digitalAccountId) {
+		validateDigitalAccountId(digitalAccountId);
+		return balanceQueryRepository.findBalance(digitalAccountId)
+				.orElseThrow(() -> new BalanceNotFoundException(digitalAccountId));
 	}
 
-	public AccountStatement getStatement(long accountId, Integer requestedLimit, String cursorValue) {
-		AccountBalance balance = getBalance(accountId);
+	public AccountStatement getStatement(UUID digitalAccountId, Integer requestedLimit, String cursorValue) {
+		AccountBalance balance = getBalance(digitalAccountId);
 		int limit = normalizeLimit(requestedLimit);
 		BalanceQueryRepository.StatementCursor cursor = decodeCursor(cursorValue);
-		List<AccountStatementLine> lines = balanceQueryRepository.findStatementLines(accountId, limit, cursor);
+		List<AccountStatementLine> lines = balanceQueryRepository.findStatementLines(digitalAccountId, limit, cursor);
 		String nextCursor = lines.size() == limit ? encodeCursor(lines.getLast()) : null;
 		return new AccountStatement(balance, lines, limit, nextCursor);
 	}
 
-	private void validateAccountId(long accountId) {
-		if (accountId <= 0) {
-			throw new IllegalArgumentException("account_id must be positive");
+	private void validateDigitalAccountId(UUID digitalAccountId) {
+		if (digitalAccountId == null) {
+			throw new IllegalArgumentException("digital_account_id is required");
 		}
 	}
 

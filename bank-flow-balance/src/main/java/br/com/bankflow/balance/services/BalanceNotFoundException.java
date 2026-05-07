@@ -1,14 +1,14 @@
 package br.com.bankflow.balance.services;
 
 public class BalanceNotFoundException extends RuntimeException {
-	private final long accountId;
+	private final java.util.UUID digitalAccountId;
 
-	public BalanceNotFoundException(long accountId) {
-		super("balance not found account_id=%d".formatted(accountId));
-		this.accountId = accountId;
+	public BalanceNotFoundException(java.util.UUID digitalAccountId) {
+		super("balance not found digital_account_id=%s".formatted(digitalAccountId));
+		this.digitalAccountId = digitalAccountId;
 	}
 
-	public long accountId() {
-		return accountId;
+	public java.util.UUID digitalAccountId() {
+		return digitalAccountId;
 	}
 }

@@ -13,7 +13,7 @@ Responsabilidades principais:
 - `POST /accounts`: cria conta com `Idempotency-Key`.
 - Chama BaaS em modo `mock` ou `http`.
 - Publica `account-created` no Kafka quando a conta fica `ACTIVE`.
-- `GET /accounts/{account_id}`: consulta a conta criada.
+- `GET /accounts/{digital_account_id}`: consulta a conta criada.
 
 Leia mais em [bank-flow-accounts/README.md](bank-flow-accounts/README.md).
 
@@ -51,7 +51,7 @@ Responsabilidades principais:
 
 - Consome `ledger-posting-created`.
 - Atualiza `account_balances` e `account_balance_entries`.
-- Expoe `GET /balances/{account_id}` e `GET /balances/{account_id}/statement`.
+- Expoe `GET /balances/{digital_account_id}` e `GET /balances/{digital_account_id}/statement`.
 - Expoe `POST /holds`, `POST /holds/{hold_id}/capture` e `POST /holds/{hold_id}/release`.
 
 Leia mais em [bank-flow-balance/README.md](bank-flow-balance/README.md).
@@ -71,7 +71,7 @@ client
 
 account-created
   └── bank-flow-ledger
-        └── cria ledger_account para o owner_id
+        └── cria ledger_account para o digital_account_id
 ```
 
 Fluxo de transferencia bem-sucedida:
@@ -116,8 +116,8 @@ PSP FAILED
 
 | Topico | Produtor | Consumidor | Chave |
 | --- | --- | --- | --- |
-| `account-created` | `bank-flow-accounts` | `bank-flow-ledger` | `owner_id` |
-| `ledger-movements` | `bank-flow-transfer` | `bank-flow-ledger` | `source_owner_id` |
+| `account-created` | `bank-flow-accounts` | `bank-flow-ledger` | `digital_account_id` |
+| `ledger-movements` | `bank-flow-transfer` | `bank-flow-ledger` | `source_digital_account_id` |
 | `ledger-reversals` | scripts/outros sistemas | `bank-flow-ledger` | `original_external_id` |
 | `ledger-posting-created` | `bank-flow-ledger` | `bank-flow-balance`, `bank-flow-transfer` | `external_id` |
 

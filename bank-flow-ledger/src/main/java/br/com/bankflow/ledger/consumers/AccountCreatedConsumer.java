@@ -38,22 +38,22 @@ public class AccountCreatedConsumer {
 		acknowledgment.acknowledge();
 
 		log.debug(
-				"account-created consumed topic={} partition={} offset={} ownerId={}",
+				"account-created consumed topic={} partition={} offset={} digitalAccountId={}",
 				record.topic(),
 				record.partition(),
 				record.offset(),
-				event.ownerId()
+				event.digitalAccountId()
 		);
 	}
 
 	private void validatePartitionKey(String key, AccountCreatedEvent event) {
 		if (key == null || key.isBlank()) {
-			throw new IllegalArgumentException("Kafka key owner_id is required");
+			throw new IllegalArgumentException("Kafka key digital_account_id is required");
 		}
 
-		UUID ownerIdKey = UUID.fromString(key);
-		if (!ownerIdKey.equals(event.ownerId())) {
-			throw new IllegalArgumentException("Kafka key owner_id must match event owner_id");
+		UUID digitalAccountIdKey = UUID.fromString(key);
+		if (!digitalAccountIdKey.equals(event.digitalAccountId())) {
+			throw new IllegalArgumentException("Kafka key digital_account_id must match event digital_account_id");
 		}
 	}
 }

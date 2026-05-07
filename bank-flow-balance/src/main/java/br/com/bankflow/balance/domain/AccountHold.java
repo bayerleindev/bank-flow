@@ -3,7 +3,7 @@ package br.com.bankflow.balance.domain;
 public record AccountHold(
 		String holdId,
 		String transferId,
-		long accountId,
+		java.util.UUID digitalAccountId,
 		long amountMinor,
 		String currency,
 		AccountHoldStatus status,

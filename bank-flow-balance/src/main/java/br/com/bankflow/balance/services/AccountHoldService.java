@@ -49,13 +49,13 @@ public class AccountHoldService {
 					.orElseThrow(() -> exception);
 		}
 		boolean reserved = accountHoldRepository.reserveBalance(
-				command.accountId(),
+				command.digitalAccountId(),
 				command.currency(),
 				command.amountMinor(),
 				now
 		);
 		if (!reserved) {
-			throw new InsufficientFundsException(command.accountId(), command.amountMinor(), command.currency());
+			throw new InsufficientFundsException(command.digitalAccountId(), command.amountMinor(), command.currency());
 		}
 		return hold;
 	}

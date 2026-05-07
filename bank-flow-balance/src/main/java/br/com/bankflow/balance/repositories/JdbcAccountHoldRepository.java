@@ -22,7 +22,7 @@ public class JdbcAccountHoldRepository implements AccountHoldRepository {
 	@Override
 	public Optional<AccountHold> findByTransferId(String transferId) {
 		List<AccountHold> holds = jdbcTemplate.query("""
-				SELECT hold_id, transfer_id, account_id, amount_minor, currency, status, reason,
+				SELECT hold_id, transfer_id, digital_account_id, amount_minor, currency, status, reason,
 				       expires_at, created_at, updated_at
 				FROM account_holds
 				WHERE transfer_id = ?
@@ -33,7 +33,7 @@ public class JdbcAccountHoldRepository implements AccountHoldRepository {
 	@Override
 	public Optional<AccountHold> findByHoldId(String holdId) {
 		List<AccountHold> holds = jdbcTemplate.query("""
-				SELECT hold_id, transfer_id, account_id, amount_minor, currency, status, reason,
+				SELECT hold_id, transfer_id, digital_account_id, amount_minor, currency, status, reason,
 				       expires_at, created_at, updated_at
 				FROM account_holds
 				WHERE hold_id = ?
@@ -45,13 +45,13 @@ public class JdbcAccountHoldRepository implements AccountHoldRepository {
 	public AccountHold createHeld(String holdId, CreateAccountHoldCommand command, long now) {
 		jdbcTemplate.update("""
 				INSERT INTO account_holds (
-					hold_id, transfer_id, account_id, amount_minor, currency, status,
+					hold_id, transfer_id, digital_account_id, amount_minor, currency, status,
 					reason, expires_at, created_at, updated_at
 				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				""",
 				holdId,
 				command.transferId(),
-				command.accountId(),
+				command.digitalAccountId(),
 				command.amountMinor(),
 				command.currency(),
 				AccountHoldStatus.HELD.name(),
@@ -64,18 +64,18 @@ public class JdbcAccountHoldRepository implements AccountHoldRepository {
 	}
 
 	@Override
-	public boolean reserveBalance(long accountId, String currency, long amountMinor, long updatedAt) {
+	public boolean reserveBalance(java.util.UUID digitalAccountId, String currency, long amountMinor, long updatedAt) {
 		int updated = jdbcTemplate.update("""
 				UPDATE account_balances
 				SET held_minor = held_minor + ?,
 				    updated_at = ?
-				WHERE account_id = ?
+				WHERE digital_account_id = ?
 				  AND currency = ?
 				  AND posted_minor - held_minor >= ?
 				""",
 				amountMinor,
 				updatedAt,
-				accountId,
+				digitalAccountId,
 				currency,
 				amountMinor
 		);
@@ -107,7 +107,7 @@ public class JdbcAccountHoldRepository implements AccountHoldRepository {
 				UPDATE account_balances
 				SET held_minor = held_minor - (SELECT amount_minor FROM account_holds WHERE hold_id = ?),
 				    updated_at = ?
-				WHERE account_id = (SELECT account_id FROM account_holds WHERE hold_id = ?)
+				WHERE digital_account_id = (SELECT digital_account_id FROM account_holds WHERE hold_id = ?)
 				  AND currency = (SELECT currency FROM account_holds WHERE hold_id = ?)
 				""", holdId, updatedAt, holdId, holdId);
 		return updatedBalance == 1;
@@ -117,7 +117,7 @@ public class JdbcAccountHoldRepository implements AccountHoldRepository {
 		return new AccountHold(
 				rs.getString("hold_id"),
 				rs.getString("transfer_id"),
-				rs.getLong("account_id"),
+				(java.util.UUID) rs.getObject("digital_account_id"),
 				rs.getLong("amount_minor"),
 				rs.getString("currency"),
 				AccountHoldStatus.valueOf(rs.getString("status")),

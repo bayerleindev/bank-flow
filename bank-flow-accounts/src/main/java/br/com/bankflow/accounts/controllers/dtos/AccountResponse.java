@@ -4,8 +4,7 @@ import br.com.bankflow.accounts.domain.Account;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record AccountResponse(
-		@JsonProperty("account_id") String accountId,
-		@JsonProperty("owner_id") String ownerId,
+		@JsonProperty("digital_account_id") String digitalAccountId,
 		@JsonProperty("document_number") String documentNumber,
 		String email,
 		@JsonProperty("baas_account_id") String baasAccountId,
@@ -20,7 +19,6 @@ public record AccountResponse(
 	public static AccountResponse from(Account account) {
 		return new AccountResponse(
 				account.accountId().toString(),
-				account.ownerId().toString(),
 				maskDocument(account.documentNumber()),
 				account.email(),
 				account.baasAccountId(),

@@ -9,7 +9,7 @@ Servico responsavel por criar contas digitais no Bank Flow. Ele recebe dados cad
 - Chamar o BaaS para abertura efetiva da conta.
 - Persistir `baas_account_id`, `branch`, `account`, `currency` e status.
 - Publicar evento `account-created` no Kafka via outbox.
-- Permitir consulta por `GET /accounts/{account_id}`.
+- Permitir consulta por `GET /accounts/{digital_account_id}`.
 
 ## Fluxo Principal
 
@@ -53,15 +53,15 @@ curl -s -X POST http://localhost:8084/accounts \
 Consultar conta:
 
 ```bash
-curl -s http://localhost:8084/accounts/{account_id}
+curl -s http://localhost:8084/accounts/{digital_account_id}
 ```
 
 Resposta:
 
 ```json
 {
-  "account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872bf",
-  "owner_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
+  "digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872bf",
+  "digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
   "document_number": "***4860",
   "email": "maria@example.com",
   "baas_account_id": "baas-35225454860",
@@ -111,7 +111,7 @@ Quando a conta fica `ACTIVE`, o servico grava um evento outbox:
 
 ```json
 {
-  "owner_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
+  "digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
   "branch": "0001",
   "account": "12345-6",
   "currency": "BRL"
@@ -120,9 +120,11 @@ Quando a conta fica `ACTIVE`, o servico grava um evento outbox:
 
 Topico: `account-created`
 
-Chave Kafka: `owner_id`
+Chave Kafka: `digital_account_id`
 
 Esse contrato ja e consumido pelo `bank-flow-ledger`.
+
+Importante: `digital_account_id` e o identificador operacional do accounts-service. Ele nao e o mesmo `account_id` numerico criado pelo ledger. A integracao entre accounts e ledger usa `digital_account_id`; o ledger resolve/cria seu proprio `ledger_accounts.account_id`.
 
 ## Configuracao
 

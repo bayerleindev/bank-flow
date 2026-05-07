@@ -69,7 +69,7 @@ class AccountCreatedServiceTests {
 		}
 
 		@Override
-		public OptionalLong findAccountIdByOwnerId(UUID ownerId) {
+		public OptionalLong findAccountIdByDigitalAccountId(UUID ownerId) {
 			return OptionalLong.empty();
 		}
 	}

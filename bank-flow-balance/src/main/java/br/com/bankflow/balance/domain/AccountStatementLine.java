@@ -3,7 +3,7 @@ package br.com.bankflow.balance.domain;
 public record AccountStatementLine(
 		long lineId,
 		long entryId,
-		long accountId,
+		java.util.UUID digitalAccountId,
 		String externalId,
 		String entryType,
 		String direction,

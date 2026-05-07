@@ -12,7 +12,7 @@ public interface AccountHoldRepository {
 
 	AccountHold createHeld(String holdId, CreateAccountHoldCommand command, long now);
 
-	boolean reserveBalance(long accountId, String currency, long amountMinor, long updatedAt);
+	boolean reserveBalance(java.util.UUID digitalAccountId, String currency, long amountMinor, long updatedAt);
 
 	boolean captureHeld(String holdId, long updatedAt);
 

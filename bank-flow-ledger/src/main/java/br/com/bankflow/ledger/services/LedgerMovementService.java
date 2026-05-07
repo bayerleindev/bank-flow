@@ -80,10 +80,10 @@ public class LedgerMovementService {
 		boolean created = ledgerPostingRepository.saveIfNotExists(posting);
 		if (!created) {
 			log.info(
-					"ledger movement already processed externalId={} sourceOwnerId={} destinationOwnerId={} amountCents={}",
+					"ledger movement already processed externalId={} sourceDigitalAccountId={} destinationDigitalAccountId={} amountCents={}",
 					entry.externalId(),
-					event.sourceOwnerId(),
-					event.destinationOwnerId(),
+					event.sourceDigitalAccountId(),
+					event.destinationDigitalAccountId(),
 					event.amountCents()
 			);
 			return;
@@ -91,13 +91,13 @@ public class LedgerMovementService {
 		ledgerPostingPublisher.publish(posting);
 
 		log.info(
-				"ledger movement created entryId={} debitLineId={} creditLineId={} externalId={} sourceOwnerId={} destinationOwnerId={} amountCents={}",
+				"ledger movement created entryId={} debitLineId={} creditLineId={} externalId={} sourceDigitalAccountId={} destinationDigitalAccountId={} amountCents={}",
 				entry.entryId(),
 				debitLine.lineId(),
 				creditLine.lineId(),
 				entry.externalId(),
-				event.sourceOwnerId(),
-				event.destinationOwnerId(),
+				event.sourceDigitalAccountId(),
+				event.destinationDigitalAccountId(),
 				event.amountCents()
 		);
 	}
@@ -105,23 +105,23 @@ public class LedgerMovementService {
 	private String buildMetadata(TransferPostedEvent event) throws JsonProcessingException {
 		return objectMapper.writeValueAsString(Map.of(
 				"transfer_id", event.transferId().toString(),
-				"source_owner_id", event.sourceOwnerId().toString(),
+				"source_digital_account_id", event.sourceDigitalAccountId().toString(),
 				"source_account", event.sourceAccount(),
-				"destination_owner_id", event.destinationOwnerId().toString(),
+				"destination_digital_account_id", event.destinationDigitalAccountId().toString(),
 				"destination_account", event.destinationAccount(),
 				"amount_cents", event.amountCents(),
 				"currency", event.currency(),
-				"debit_account_code", "CUSTOMER_ACCOUNT_%s".formatted(event.sourceOwnerId()),
-				"credit_account_code", "CUSTOMER_ACCOUNT_%s".formatted(event.destinationOwnerId())
+				"debit_account_code", "CUSTOMER_ACCOUNT_%s".formatted(event.sourceDigitalAccountId()),
+				"credit_account_code", "CUSTOMER_ACCOUNT_%s".formatted(event.destinationDigitalAccountId())
 		));
 	}
 
 	private long findAccountId(TransferPostedEvent event, boolean source) {
-		java.util.UUID ownerId = source ? event.sourceOwnerId() : event.destinationOwnerId();
+		java.util.UUID digitalAccountId = source ? event.sourceDigitalAccountId() : event.destinationDigitalAccountId();
 		String side = source ? "source" : "destination";
-		return ledgerAccountRepository.findAccountIdByOwnerId(ownerId)
+		return ledgerAccountRepository.findAccountIdByDigitalAccountId(digitalAccountId)
 				.orElseThrow(() -> new IllegalArgumentException(
-						"ledger account not found for %s_owner_id=%s".formatted(side, ownerId)
+						"ledger account not found for %s_digital_account_id=%s".formatted(side, digitalAccountId)
 				));
 	}
 }

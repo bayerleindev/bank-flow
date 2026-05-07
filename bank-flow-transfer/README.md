@@ -44,11 +44,11 @@ curl -s -X POST http://localhost:8083/transfers \
   -H "Content-Type: application/json" \
   -H "Idempotency-Key: transfer-001" \
   -d '{
-    "source_account_id": 1001,
-    "source_owner_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
+    "source_digital_account_id": 1001,
+    "source_digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
     "source_account": "12345-6",
-    "destination_account_id": 2002,
-    "destination_owner_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b2",
+    "destination_digital_account_id": 2002,
+    "destination_digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b2",
     "destination_account": "98765-4",
     "amount_minor": 1500,
     "currency": "BRL",
@@ -91,14 +91,14 @@ Tabela:
 outbox_events
 ```
 
-O outbox publica comandos no topico `ledger-movements` com chave `source_owner_id`. O payload segue o contrato do ledger:
+O outbox publica comandos no topico `ledger-movements` com chave `source_digital_account_id`. O payload segue o contrato do ledger:
 
 ```json
 {
   "transfer_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872bf",
-  "source_owner_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
+  "source_digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b1",
   "source_account": "12345-6",
-  "destination_owner_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b2",
+  "destination_digital_account_id": "018f6e4f-f427-7c32-9d4b-3bc9e72872b2",
   "destination_account": "98765-4",
   "amount_cents": 1500,
   "currency": "BRL"

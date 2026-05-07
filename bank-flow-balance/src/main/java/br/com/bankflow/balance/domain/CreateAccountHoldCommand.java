@@ -2,7 +2,7 @@ package br.com.bankflow.balance.domain;
 
 public record CreateAccountHoldCommand(
 		String transferId,
-		long accountId,
+		java.util.UUID digitalAccountId,
 		long amountMinor,
 		String currency,
 		String reason,
@@ -12,8 +12,8 @@ public record CreateAccountHoldCommand(
 		if (isBlank(transferId)) {
 			throw new IllegalArgumentException("transfer_id is required");
 		}
-		if (accountId <= 0) {
-			throw new IllegalArgumentException("account_id must be positive");
+		if (digitalAccountId == null) {
+			throw new IllegalArgumentException("digital_account_id is required");
 		}
 		if (amountMinor <= 0) {
 			throw new IllegalArgumentException("amount_minor must be positive");

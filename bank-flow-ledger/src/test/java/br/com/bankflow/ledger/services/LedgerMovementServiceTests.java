@@ -26,8 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LedgerMovementServiceTests {
-	private static final UUID SOURCE_OWNER_ID = UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b1");
-	private static final UUID DESTINATION_OWNER_ID = UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b2");
+	private static final UUID SOURCE_DIGITAL_ACCOUNT_ID = UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b1");
+	private static final UUID DESTINATION_DIGITAL_ACCOUNT_ID = UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b2");
 
 	@Test
 	void createsExactlyOneEntryAndTwoBalancedLinesUsingLedgerAccountIds() throws Exception {
@@ -116,9 +116,9 @@ class LedgerMovementServiceTests {
 	private TransferPostedEvent transferEvent() {
 		return new TransferPostedEvent(
 				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872bf"),
-				SOURCE_OWNER_ID,
+				SOURCE_DIGITAL_ACCOUNT_ID,
 				"12345-6",
-				DESTINATION_OWNER_ID,
+				DESTINATION_DIGITAL_ACCOUNT_ID,
 				"98765-4",
 				1_500L,
 				"BRL"
@@ -144,11 +144,11 @@ class LedgerMovementServiceTests {
 		}
 
 		@Override
-		public OptionalLong findAccountIdByOwnerId(UUID ownerId) {
-			if (SOURCE_OWNER_ID.equals(ownerId)) {
+		public OptionalLong findAccountIdByDigitalAccountId(UUID ownerId) {
+			if (SOURCE_DIGITAL_ACCOUNT_ID.equals(ownerId)) {
 				return sourceAccountId;
 			}
-			if (DESTINATION_OWNER_ID.equals(ownerId)) {
+			if (DESTINATION_DIGITAL_ACCOUNT_ID.equals(ownerId)) {
 				return destinationAccountId;
 			}
 			return OptionalLong.empty();

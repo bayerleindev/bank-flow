@@ -1,5 +1,7 @@
 package br.com.bankflow.transfer.services;
 
+import br.com.bankflow.transfer.clients.accounts.AccountClient;
+import br.com.bankflow.transfer.clients.accounts.AccountResponse;
 import br.com.bankflow.transfer.clients.balance.BalanceClient;
 import br.com.bankflow.transfer.clients.balance.BalanceHoldResponse;
 import br.com.bankflow.transfer.clients.balance.CreateBalanceHoldRequest;
@@ -31,11 +33,13 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class TransferOrchestrationServiceTests {
 	private final FakeTransferRepository repository = new FakeTransferRepository();
 	private final FakeOutboxEventRepository outboxRepository = new FakeOutboxEventRepository();
+	private final FakeAccountClient accountClient = new FakeAccountClient();
 	private final FakeBalanceClient balanceClient = new FakeBalanceClient();
 	private final FakePspClient pspClient = new FakePspClient();
 	private final TransferOrchestrationService service = new TransferOrchestrationService(
 			repository,
 			outboxRepository,
+			accountClient,
 			balanceClient,
 			pspClient,
 			new ObjectMapper(),
@@ -76,7 +80,7 @@ class TransferOrchestrationServiceTests {
 		assertEquals(TransferStatus.POSTING_REQUESTED, confirmed.status());
 		assertEquals(1, outboxRepository.events.size());
 		assertEquals("ledger-movements", outboxRepository.events.getFirst().topic());
-		assertEquals(transfer.sourceOwnerId().toString(), outboxRepository.events.getFirst().eventKey());
+		assertEquals(transfer.sourceDigitalAccountId().toString(), outboxRepository.events.getFirst().eventKey());
 		assertEquals(0, balanceClient.releasedHolds);
 	}
 
@@ -119,12 +123,8 @@ class TransferOrchestrationServiceTests {
 	private CreateTransferCommand command(String idempotencyKey) {
 		return new CreateTransferCommand(
 				idempotencyKey,
-				1001L,
 				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b1"),
-				"12345-6",
-				2002L,
 				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b2"),
-				"98765-4",
 				1500L,
 				"BRL",
 				"Test transfer"
@@ -142,7 +142,7 @@ class TransferOrchestrationServiceTests {
 			return new BalanceHoldResponse(
 					"hold-" + request.transferId(),
 					request.transferId(),
-					request.accountId(),
+					request.digitalAccountId(),
 					request.amountMinor(),
 					request.currency(),
 					"HELD",
@@ -196,16 +196,14 @@ class TransferOrchestrationServiceTests {
 		}
 
 		@Override
-		public Transfer create(UUID transferId, CreateTransferCommand command, long now) {
+		public Transfer create(UUID transferId, CreateTransferCommand command, String sourceAccount, String destinationAccount, long now) {
 			Transfer transfer = new Transfer(
 					transferId,
 					command.idempotencyKey(),
-					command.sourceAccountId(),
-					command.sourceOwnerId(),
-					command.sourceAccount(),
-					command.destinationAccountId(),
-					command.destinationOwnerId(),
-					command.destinationAccount(),
+					command.sourceDigitalAccountId(),
+					sourceAccount,
+					command.destinationDigitalAccountId(),
+					destinationAccount,
 					command.amountMinor(),
 					command.currency(),
 					command.description(),
@@ -257,11 +255,9 @@ class TransferOrchestrationServiceTests {
 			return new Transfer(
 					current.transferId(),
 					current.idempotencyKey(),
-					current.sourceAccountId(),
-					current.sourceOwnerId(),
+					current.sourceDigitalAccountId(),
 					current.sourceAccount(),
-					current.destinationAccountId(),
-					current.destinationOwnerId(),
+					current.destinationDigitalAccountId(),
 					current.destinationAccount(),
 					current.amountMinor(),
 					current.currency(),
@@ -273,6 +269,14 @@ class TransferOrchestrationServiceTests {
 					current.createdAt(),
 					updatedAt
 			);
+		}
+	}
+
+	private static class FakeAccountClient implements AccountClient {
+		@Override
+		public AccountResponse getAccount(UUID digitalAccountId) {
+			String account = digitalAccountId.toString().endsWith("2") ? "98765-4" : "12345-6";
+			return new AccountResponse(digitalAccountId, "0001", account, "BRL", "ACTIVE");
 		}
 	}
 

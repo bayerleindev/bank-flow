@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public record StatementLineResponse(
 		@JsonProperty("line_id") long lineId,
 		@JsonProperty("entry_id") long entryId,
-		@JsonProperty("account_id") long accountId,
+		@JsonProperty("digital_account_id") String digitalAccountId,
 		@JsonProperty("external_id") String externalId,
 		@JsonProperty("entry_type") String entryType,
 		String direction,
@@ -21,7 +21,7 @@ public record StatementLineResponse(
 		return new StatementLineResponse(
 				line.lineId(),
 				line.entryId(),
-				line.accountId(),
+				line.digitalAccountId().toString(),
 				line.externalId(),
 				line.entryType(),
 				line.direction(),

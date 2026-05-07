@@ -48,12 +48,12 @@ public class LedgerMovementConsumer {
 
 	private void validatePartitionKey(String key, TransferPostedEvent event) {
 		if (key == null || key.isBlank()) {
-			throw new IllegalArgumentException("Kafka key source_owner_id is required");
+			throw new IllegalArgumentException("Kafka key source_digital_account_id is required");
 		}
 
-		UUID sourceOwnerIdKey = UUID.fromString(key);
-		if (!sourceOwnerIdKey.equals(event.sourceOwnerId())) {
-			throw new IllegalArgumentException("Kafka key source_owner_id must match event source_owner_id");
+		UUID sourceDigitalAccountIdKey = UUID.fromString(key);
+		if (!sourceDigitalAccountIdKey.equals(event.sourceDigitalAccountId())) {
+			throw new IllegalArgumentException("Kafka key source_digital_account_id must match event source_digital_account_id");
 		}
 	}
 }

@@ -33,7 +33,7 @@ public class ImmuDbConfig {
 			}
 
 			@Override
-			public java.util.OptionalLong findAccountIdByOwnerId(java.util.UUID ownerId) {
+			public java.util.OptionalLong findAccountIdByDigitalAccountId(java.util.UUID digitalAccountId) {
 				return java.util.OptionalLong.empty();
 			}
 		};

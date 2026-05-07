@@ -39,17 +39,16 @@ public class JdbcAccountRepository implements AccountRepository {
 	}
 
 	@Override
-	public Account create(UUID accountId, UUID ownerId, CreateAccountCommand command, long now) {
+	public Account create(UUID accountId, CreateAccountCommand command, long now) {
 		jdbcTemplate.update("""
 				INSERT INTO accounts (
-					account_id, idempotency_key, owner_id, full_name, document_number, email,
+					account_id, idempotency_key, full_name, document_number, email,
 					mother_name, social_name, phone_number, birth_date, address, is_politically_exposed,
 					currency, status, created_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				""",
 				accountId,
 				command.idempotencyKey(),
-				ownerId,
 				command.fullName(),
 				normalizeDocument(command.documentNumber()),
 				command.email().trim().toLowerCase(),
@@ -99,7 +98,7 @@ public class JdbcAccountRepository implements AccountRepository {
 
 	private String selectSql() {
 		return """
-				SELECT account_id, idempotency_key, owner_id, full_name, document_number, email,
+				SELECT account_id, idempotency_key, full_name, document_number, email,
 				       mother_name, social_name, phone_number, birth_date, address, is_politically_exposed,
 				       baas_account_id, branch, account, currency, status, failure_reason, created_at, updated_at
 				FROM accounts
@@ -110,7 +109,6 @@ public class JdbcAccountRepository implements AccountRepository {
 		return new Account(
 				(UUID) rs.getObject("account_id"),
 				rs.getString("idempotency_key"),
-				(UUID) rs.getObject("owner_id"),
 				rs.getString("full_name"),
 				rs.getString("document_number"),
 				rs.getString("email"),

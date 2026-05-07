@@ -2,12 +2,8 @@ package br.com.bankflow.transfer.domain;
 
 public record CreateTransferCommand(
 		String idempotencyKey,
-		long sourceAccountId,
-		java.util.UUID sourceOwnerId,
-		String sourceAccount,
-		long destinationAccountId,
-		java.util.UUID destinationOwnerId,
-		String destinationAccount,
+		java.util.UUID sourceDigitalAccountId,
+		java.util.UUID destinationDigitalAccountId,
 		long amountMinor,
 		String currency,
 		String description
@@ -16,26 +12,14 @@ public record CreateTransferCommand(
 		if (idempotencyKey == null || idempotencyKey.isBlank()) {
 			throw new IllegalArgumentException("Idempotency-Key is required");
 		}
-		if (sourceAccountId <= 0) {
-			throw new IllegalArgumentException("source_account_id must be positive");
+		if (sourceDigitalAccountId == null) {
+			throw new IllegalArgumentException("source_digital_account_id is required");
 		}
-		if (sourceOwnerId == null) {
-			throw new IllegalArgumentException("source_owner_id is required");
+		if (destinationDigitalAccountId == null) {
+			throw new IllegalArgumentException("destination_digital_account_id is required");
 		}
-		if (sourceAccount == null || sourceAccount.isBlank()) {
-			throw new IllegalArgumentException("source_account is required");
-		}
-		if (destinationAccountId <= 0) {
-			throw new IllegalArgumentException("destination_account_id must be positive");
-		}
-		if (destinationOwnerId == null) {
-			throw new IllegalArgumentException("destination_owner_id is required");
-		}
-		if (destinationAccount == null || destinationAccount.isBlank()) {
-			throw new IllegalArgumentException("destination_account is required");
-		}
-		if (sourceAccountId == destinationAccountId) {
-			throw new IllegalArgumentException("source_account_id and destination_account_id must be different");
+		if (sourceDigitalAccountId.equals(destinationDigitalAccountId)) {
+			throw new IllegalArgumentException("source_digital_account_id and destination_digital_account_id must be different");
 		}
 		if (amountMinor <= 0) {
 			throw new IllegalArgumentException("amount_minor must be positive");

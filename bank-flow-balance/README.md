@@ -301,7 +301,7 @@ Pode ser alterada com:
 SERVER_PORT=8083 ./gradlew bootRun
 ```
 
-### GET /balances/{account_id}
+### GET /balances/{digital_account_id}
 
 Consulta o saldo atual projetado de uma conta.
 
@@ -330,7 +330,7 @@ Status:
 - `400`: `account_id` invalido.
 - `404`: ainda nao existe projecao de saldo para a conta.
 
-### GET /balances/{account_id}/statement
+### GET /balances/{digital_account_id}/statement
 
 Consulta o extrato paginado da conta.
 

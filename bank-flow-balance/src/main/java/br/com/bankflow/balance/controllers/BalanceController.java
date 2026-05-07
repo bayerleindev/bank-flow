@@ -17,17 +17,17 @@ public class BalanceController {
 		this.balanceQueryService = balanceQueryService;
 	}
 
-	@GetMapping("/balances/{account_id}")
-	public ResponseEntity<BalanceResponse> getBalance(@PathVariable("account_id") long accountId) {
-		return ResponseEntity.ok(BalanceResponse.from(balanceQueryService.getBalance(accountId)));
+	@GetMapping("/balances/{digital_account_id}")
+	public ResponseEntity<BalanceResponse> getBalance(@PathVariable("digital_account_id") java.util.UUID digitalAccountId) {
+		return ResponseEntity.ok(BalanceResponse.from(balanceQueryService.getBalance(digitalAccountId)));
 	}
 
-	@GetMapping("/balances/{account_id}/statement")
+	@GetMapping("/balances/{digital_account_id}/statement")
 	public ResponseEntity<StatementResponse> getStatement(
-			@PathVariable("account_id") long accountId,
+			@PathVariable("digital_account_id") java.util.UUID digitalAccountId,
 			@RequestParam(value = "limit", required = false) Integer limit,
 			@RequestParam(value = "cursor", required = false) String cursor
 	) {
-		return ResponseEntity.ok(StatementResponse.from(balanceQueryService.getStatement(accountId, limit, cursor)));
+		return ResponseEntity.ok(StatementResponse.from(balanceQueryService.getStatement(digitalAccountId, limit, cursor)));
 	}
 }

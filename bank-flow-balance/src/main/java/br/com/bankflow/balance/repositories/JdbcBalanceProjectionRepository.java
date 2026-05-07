@@ -29,7 +29,8 @@ public class JdbcBalanceProjectionRepository implements BalanceProjectionReposit
 				INSERT INTO account_balance_entries (
 					line_id,
 					entry_id,
-					account_id,
+					digital_account_id,
+					ledger_account_id,
 					external_id,
 					entry_type,
 					direction,
@@ -39,10 +40,11 @@ public class JdbcBalanceProjectionRepository implements BalanceProjectionReposit
 					description,
 					occurred_at,
 					created_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				""",
 				line.lineId(),
 				event.entryId(),
+				line.digitalAccountId(),
 				line.accountId(),
 				event.externalId(),
 				event.entryType(),
@@ -59,21 +61,21 @@ public class JdbcBalanceProjectionRepository implements BalanceProjectionReposit
 	@Override
 	public void applyPostedBalance(LedgerPostingCreatedLine line, long updatedAt) {
 		int updated = jdbcTemplate.update("""
-				INSERT INTO account_balances (account_id, currency, posted_minor, updated_at)
+				INSERT INTO account_balances (digital_account_id, currency, posted_minor, updated_at)
 				VALUES (?, ?, ?, ?)
-				ON CONFLICT (account_id)
+				ON CONFLICT (digital_account_id)
 				DO UPDATE SET
 					posted_minor = account_balances.posted_minor + EXCLUDED.posted_minor,
 					updated_at = EXCLUDED.updated_at
 				WHERE account_balances.currency = EXCLUDED.currency
 				""",
-				line.accountId(),
+				line.digitalAccountId(),
 				line.currency(),
 				line.signedAmountMinor(),
 				updatedAt
 		);
 		if (updated != 1) {
-			throw new IllegalStateException("account balance currency mismatch account_id=%d".formatted(line.accountId()));
+			throw new IllegalStateException("account balance currency mismatch digital_account_id=%s".formatted(line.digitalAccountId()));
 		}
 	}
 }

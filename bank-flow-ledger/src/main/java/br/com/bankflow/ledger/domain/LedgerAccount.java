@@ -7,12 +7,12 @@ public record LedgerAccount(
 		String accountCode,
 		String accountName,
 		String accountType,
-		String normalBalance,
-		String currency,
-		String ownerType,
-		UUID ownerId,
-		boolean active,
-		long createdAt
+	String normalBalance,
+	String currency,
+	String ownerType,
+	UUID digitalAccountId,
+	boolean active,
+	long createdAt
 ) {
 	private static final String ACCOUNT_TYPE = "LIABILITY";
 	private static final String NORMAL_BALANCE = "CREDIT";
@@ -33,13 +33,13 @@ public record LedgerAccount(
 
 		return new LedgerAccount(
 				accountId,
-				"CUSTOMER_ACCOUNT_%s".formatted(event.ownerId()),
+				"CUSTOMER_ACCOUNT_%s".formatted(event.digitalAccountId()),
 				"Saldo dispon\u00edvel BRL - Conta %s".formatted(event.account()),
 				ACCOUNT_TYPE,
 				NORMAL_BALANCE,
 				CURRENCY,
 				OWNER_TYPE,
-				event.ownerId(),
+				event.digitalAccountId(),
 				true,
 				createdAt
 		);

@@ -1,7 +1,7 @@
 package br.com.bankflow.balance.domain;
 
 public record AccountBalance(
-		long accountId,
+		java.util.UUID digitalAccountId,
 		String currency,
 		long postedMinor,
 		long heldMinor,

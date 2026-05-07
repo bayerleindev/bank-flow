@@ -6,9 +6,9 @@ import java.util.UUID;
 
 public record TransferPostedCommand(
 		@JsonProperty("transfer_id") UUID transferId,
-		@JsonProperty("source_owner_id") UUID sourceOwnerId,
+		@JsonProperty("source_digital_account_id") UUID sourceDigitalAccountId,
 		@JsonProperty("source_account") String sourceAccount,
-		@JsonProperty("destination_owner_id") UUID destinationOwnerId,
+		@JsonProperty("destination_digital_account_id") UUID destinationDigitalAccountId,
 		@JsonProperty("destination_account") String destinationAccount,
 		@JsonProperty("amount_cents") long amountCents,
 		String currency
@@ -16,9 +16,9 @@ public record TransferPostedCommand(
 	public static TransferPostedCommand from(Transfer transfer) {
 		return new TransferPostedCommand(
 				transfer.transferId(),
-				transfer.sourceOwnerId(),
+				transfer.sourceDigitalAccountId(),
 				transfer.sourceAccount(),
-				transfer.destinationOwnerId(),
+				transfer.destinationDigitalAccountId(),
 				transfer.destinationAccount(),
 				transfer.amountMinor(),
 				transfer.currency()

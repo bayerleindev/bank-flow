@@ -37,9 +37,9 @@ public class AccountCreatedService {
 		boolean created = ledgerAccountRepository.saveIfNotExists(account);
 		if (!created) {
 			log.info(
-					"ledger account already exists accountCode={} ownerId={} sourceAccount={} currency={}",
+					"ledger account already exists accountCode={} digitalAccountId={} sourceAccount={} currency={}",
 					account.accountCode(),
-					event.ownerId(),
+					event.digitalAccountId(),
 					event.account(),
 					event.currency()
 			);
@@ -47,10 +47,10 @@ public class AccountCreatedService {
 		}
 
 		log.info(
-				"ledger account created accountId={} accountCode={} ownerId={} sourceAccount={} currency={}",
+				"ledger account created accountId={} accountCode={} digitalAccountId={} sourceAccount={} currency={}",
 				account.accountId(),
 				account.accountCode(),
-				event.ownerId(),
+				event.digitalAccountId(),
 				event.account(),
 				event.currency()
 		);

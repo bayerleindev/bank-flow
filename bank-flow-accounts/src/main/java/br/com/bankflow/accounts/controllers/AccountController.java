@@ -34,8 +34,8 @@ public class AccountController {
 		return ResponseEntity.status(status).body(AccountResponse.from(account));
 	}
 
-	@GetMapping("/accounts/{account_id}")
-	public ResponseEntity<AccountResponse> getAccount(@PathVariable("account_id") UUID accountId) {
-		return ResponseEntity.ok(AccountResponse.from(accountCreationService.getAccount(accountId)));
+	@GetMapping("/accounts/{digital_account_id}")
+	public ResponseEntity<AccountResponse> getAccount(@PathVariable("digital_account_id") UUID digitalAccountId) {
+		return ResponseEntity.ok(AccountResponse.from(accountCreationService.getAccount(digitalAccountId)));
 	}
 }

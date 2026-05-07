@@ -14,7 +14,7 @@ public interface TransferRepository {
 
 	Optional<Transfer> findByPspPaymentId(String pspPaymentId);
 
-	Transfer create(UUID transferId, CreateTransferCommand command, long now);
+	Transfer create(UUID transferId, CreateTransferCommand command, String sourceAccount, String destinationAccount, long now);
 
 	Transfer updateHold(UUID transferId, String holdId, TransferStatus status, long now);
 

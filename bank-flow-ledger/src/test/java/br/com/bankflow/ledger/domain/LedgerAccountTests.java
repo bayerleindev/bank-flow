@@ -23,7 +23,7 @@ class LedgerAccountTests {
 		assertEquals("CREDIT", account.normalBalance());
 		assertEquals("BRL", account.currency());
 		assertEquals("BANK_ACCOUNT", account.ownerType());
-		assertEquals(ownerId, account.ownerId());
+		assertEquals(ownerId, account.digitalAccountId());
 		assertTrue(account.active());
 		assertEquals(1_778_012_345_000L, account.createdAt());
 	}

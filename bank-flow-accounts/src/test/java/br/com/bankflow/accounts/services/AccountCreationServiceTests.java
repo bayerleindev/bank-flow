@@ -50,7 +50,7 @@ class AccountCreationServiceTests {
 		assertEquals(1, baasClient.calls);
 		assertEquals(1, outboxRepository.events.size());
 		assertEquals("account-created", outboxRepository.events.getFirst().topic());
-		assertEquals(account.ownerId().toString(), outboxRepository.events.getFirst().eventKey());
+		assertEquals(account.accountId().toString(), outboxRepository.events.getFirst().eventKey());
 		assertTrue(outboxRepository.events.getFirst().payload().contains("\"branch\":\"0001\""));
 	}
 
@@ -128,11 +128,10 @@ class AccountCreationServiceTests {
 		}
 
 		@Override
-		public Account create(UUID accountId, UUID ownerId, CreateAccountCommand command, long now) {
+		public Account create(UUID accountId, CreateAccountCommand command, long now) {
 			Account account = new Account(
 					accountId,
 					command.idempotencyKey(),
-					ownerId,
 					command.fullName(),
 					normalize(command.documentNumber()),
 					command.email(),
@@ -169,7 +168,6 @@ class AccountCreationServiceTests {
 			Account updated = new Account(
 					current.accountId(),
 					current.idempotencyKey(),
-					current.ownerId(),
 					current.fullName(),
 					current.documentNumber(),
 					current.email(),
