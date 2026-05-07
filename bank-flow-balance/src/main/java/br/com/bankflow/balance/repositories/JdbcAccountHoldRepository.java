@@ -9,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -90,6 +91,33 @@ public class JdbcAccountHoldRepository implements AccountHoldRepository {
 	@Override
 	public boolean releaseHeld(String holdId, long updatedAt) {
 		return closeHeld(holdId, AccountHoldStatus.RELEASED, updatedAt);
+	}
+
+	@Override
+	public int expireHeld(long now) {
+		List<Map<String, Object>> expired = jdbcTemplate.queryForList("""
+				UPDATE account_holds
+				SET status = 'EXPIRED',
+				    updated_at = ?
+				WHERE status = 'HELD'
+				  AND expires_at <= ?
+				RETURNING digital_account_id, currency, amount_minor
+				""", now, now);
+		for (Map<String, Object> hold : expired) {
+			jdbcTemplate.update("""
+					UPDATE account_balances
+					SET held_minor = held_minor - ?,
+					    updated_at = ?
+					WHERE digital_account_id = ?
+					  AND currency = ?
+					""",
+					((Number) hold.get("amount_minor")).longValue(),
+					now,
+					hold.get("digital_account_id"),
+					hold.get("currency")
+			);
+		}
+		return expired.size();
 	}
 
 	private boolean closeHeld(String holdId, AccountHoldStatus targetStatus, long updatedAt) {

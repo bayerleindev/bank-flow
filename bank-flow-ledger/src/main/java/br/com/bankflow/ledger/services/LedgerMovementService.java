@@ -4,12 +4,15 @@ import br.com.bankflow.ledger.domain.LedgerEntry;
 import br.com.bankflow.ledger.domain.LedgerEntryLine;
 import br.com.bankflow.ledger.domain.LedgerPosting;
 import br.com.bankflow.ledger.domain.TransferPostedEvent;
+import br.com.bankflow.ledger.observability.LedgerBusinessMetrics;
 import br.com.bankflow.ledger.repositories.LedgerAccountRepository;
 import br.com.bankflow.ledger.repositories.LedgerPostingRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -27,6 +30,7 @@ public class LedgerMovementService {
 	private final NumericIdGenerator numericIdGenerator;
 	private final Clock clock;
 	private final ObjectMapper objectMapper;
+	private final LedgerBusinessMetrics ledgerBusinessMetrics;
 
 	public LedgerMovementService(
 			LedgerAccountRepository ledgerAccountRepository,
@@ -36,16 +40,43 @@ public class LedgerMovementService {
 			Clock clock,
 			ObjectMapper objectMapper
 	) {
+		this(
+				ledgerAccountRepository,
+				ledgerPostingRepository,
+				ledgerPostingPublisher,
+				numericIdGenerator,
+				clock,
+				objectMapper,
+				new LedgerBusinessMetrics(new SimpleMeterRegistry())
+		);
+	}
+
+	@Autowired
+	public LedgerMovementService(
+			LedgerAccountRepository ledgerAccountRepository,
+			LedgerPostingRepository ledgerPostingRepository,
+			LedgerPostingPublisher ledgerPostingPublisher,
+			NumericIdGenerator numericIdGenerator,
+			Clock clock,
+			ObjectMapper objectMapper,
+			LedgerBusinessMetrics ledgerBusinessMetrics
+	) {
 		this.ledgerAccountRepository = ledgerAccountRepository;
 		this.ledgerPostingRepository = ledgerPostingRepository;
 		this.ledgerPostingPublisher = ledgerPostingPublisher;
 		this.numericIdGenerator = numericIdGenerator;
 		this.clock = clock;
 		this.objectMapper = objectMapper;
+		this.ledgerBusinessMetrics = ledgerBusinessMetrics;
 	}
 
 	public void postTransfer(TransferPostedEvent event) throws JsonProcessingException {
-		event.validate();
+		try {
+			event.validate();
+		} catch (IllegalArgumentException exception) {
+			ledgerBusinessMetrics.recordValidationFailure("post_transfer", exception.getMessage());
+			throw exception;
+		}
 		long now = clock.millis();
 		long sourceAccountId = findAccountId(event, true);
 		long destinationAccountId = findAccountId(event, false);
@@ -76,9 +107,10 @@ public class LedgerMovementService {
 				now
 		);
 
-		LedgerPosting posting = LedgerPosting.of(entry, List.of(debitLine, creditLine));
+		LedgerPosting posting = createPosting(entry, List.of(debitLine, creditLine));
 		boolean created = ledgerPostingRepository.saveIfNotExists(posting);
 		if (!created) {
+			ledgerBusinessMetrics.recordIdempotencyHit("post_transfer");
 			log.info(
 					"ledger movement already processed externalId={} sourceDigitalAccountId={} destinationDigitalAccountId={} amountCents={}",
 					entry.externalId(),
@@ -102,6 +134,20 @@ public class LedgerMovementService {
 		);
 	}
 
+	private LedgerPosting createPosting(LedgerEntry entry, List<LedgerEntryLine> lines) {
+		long difference = Math.abs(lines.stream().mapToLong(LedgerEntryLine::signedAmountMinor).sum());
+		ledgerBusinessMetrics.recordLedgerPostingBalanceDifference(difference, entry.entryType());
+		try {
+			return LedgerPosting.of(entry, lines);
+		} catch (IllegalArgumentException exception) {
+			if ("ledger posting must be balanced".equals(exception.getMessage())) {
+				ledgerBusinessMetrics.recordLedgerPostingUnbalanced(entry.entryType());
+			}
+			ledgerBusinessMetrics.recordValidationFailure("post_transfer", exception.getMessage());
+			throw exception;
+		}
+	}
+
 	private String buildMetadata(TransferPostedEvent event) throws JsonProcessingException {
 		return objectMapper.writeValueAsString(Map.of(
 				"transfer_id", event.transferId().toString(),
@@ -120,8 +166,10 @@ public class LedgerMovementService {
 		java.util.UUID digitalAccountId = source ? event.sourceDigitalAccountId() : event.destinationDigitalAccountId();
 		String side = source ? "source" : "destination";
 		return ledgerAccountRepository.findAccountIdByDigitalAccountId(digitalAccountId)
-				.orElseThrow(() -> new IllegalArgumentException(
-						"ledger account not found for %s_digital_account_id=%s".formatted(side, digitalAccountId)
-				));
+				.orElseThrow(() -> {
+					String message = "ledger account not found for %s_digital_account_id=%s".formatted(side, digitalAccountId);
+					ledgerBusinessMetrics.recordValidationFailure("post_transfer", message);
+					return new IllegalArgumentException(message);
+				});
 	}
 }

@@ -17,4 +17,8 @@ public interface AccountHoldRepository {
 	boolean captureHeld(String holdId, long updatedAt);
 
 	boolean releaseHeld(String holdId, long updatedAt);
+
+	default int expireHeld(long now) {
+		return 0;
+	}
 }

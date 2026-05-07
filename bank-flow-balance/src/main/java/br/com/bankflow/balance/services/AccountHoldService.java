@@ -6,6 +6,7 @@ import br.com.bankflow.balance.domain.CreateAccountHoldCommand;
 import br.com.bankflow.balance.observability.BalanceMetrics;
 import br.com.bankflow.balance.repositories.AccountHoldRepository;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,12 +35,19 @@ public class AccountHoldService {
 
 	@Transactional
 	public AccountHold captureHold(String holdId) {
-		return closeHold(holdId, AccountHoldStatus.CAPTURED);
+		return closeHold(holdId, AccountHoldStatus.CAPTURED, "capture");
 	}
 
 	@Transactional
 	public AccountHold releaseHold(String holdId) {
-		return closeHold(holdId, AccountHoldStatus.RELEASED);
+		return closeHold(holdId, AccountHoldStatus.RELEASED, "release");
+	}
+
+	@Transactional
+	@Scheduled(fixedDelayString = "${bank-flow.holds.expiration.fixed-delay-ms:30000}")
+	public void expireHolds() {
+		int expired = accountHoldRepository.expireHeld(clock.millis());
+		balanceMetrics.recordHoldsExpired(expired);
 	}
 
 	private AccountHold createNewHold(CreateAccountHoldCommand command, long now) {
@@ -64,25 +72,33 @@ public class AccountHoldService {
 		return hold;
 	}
 
-	private AccountHold closeHold(String holdId, AccountHoldStatus targetStatus) {
+	private AccountHold closeHold(String holdId, AccountHoldStatus targetStatus, String operation) {
 		if (holdId == null || holdId.isBlank()) {
+			balanceMetrics.recordHoldCloseFailure(operation, "missing_hold_id");
 			throw new IllegalArgumentException("hold_id is required");
 		}
 		AccountHold hold = accountHoldRepository.findByHoldId(holdId)
-				.orElseThrow(() -> new AccountHoldNotFoundException(holdId));
+				.orElseThrow(() -> {
+					balanceMetrics.recordHoldCloseFailure(operation, "not_found");
+					return new AccountHoldNotFoundException(holdId);
+				});
 		if (hold.status() != AccountHoldStatus.HELD) {
+			balanceMetrics.recordHoldCloseFailure(operation, "invalid_state");
 			throw new AccountHoldStateException(hold.holdId(), hold.status());
 		}
 		boolean closed = targetStatus == AccountHoldStatus.CAPTURED
 				? accountHoldRepository.captureHeld(holdId, clock.millis())
 				: accountHoldRepository.releaseHeld(holdId, clock.millis());
 		if (!closed) {
+			balanceMetrics.recordHoldCloseFailure(operation, "close_failed");
 			throw new AccountHoldStateException(hold.holdId(), hold.status());
 		}
 		AccountHold closedHold = accountHoldRepository.findByHoldId(holdId)
 				.orElseThrow(() -> new AccountHoldNotFoundException(holdId));
 		if (targetStatus == AccountHoldStatus.CAPTURED) {
 			balanceMetrics.recordHoldCaptured();
+		} else if (targetStatus == AccountHoldStatus.RELEASED) {
+			balanceMetrics.recordHoldReleased();
 		}
 		return closedHold;
 	}
