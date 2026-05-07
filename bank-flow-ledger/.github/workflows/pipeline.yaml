@@ -1,0 +1,19 @@
+name: Deploy ledger
+
+on:
+  workflow_call: # Permite que este workflow seja chamado por outro
+    inputs:
+      ambiente:
+        required: true
+        type: string
+        default: 'staging'
+    secrets:
+      TOKEN_SECRET:
+        required: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Executando Deploy
+        run: echo "Deploying to ${{ inputs.ambiente }}"
