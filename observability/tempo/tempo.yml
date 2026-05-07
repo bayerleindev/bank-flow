@@ -18,8 +18,38 @@ compactor:
   compaction:
     block_retention: 24h
 
+metrics_generator:
+  registry:
+    collection_interval: 15s
+    external_labels:
+      source: tempo
+      cluster: bank-flow-local
+  storage:
+    path: /var/tempo/generator/wal
+    remote_write:
+      - url: http://prometheus:9090/api/v1/write
+        send_exemplars: true
+  processor:
+    service_graphs:
+      wait: 10s
+      max_items: 10000
+    span_metrics:
+      dimensions:
+        - http.method
+        - http.status_code
+        - messaging.system
+        - messaging.destination.name
+
 storage:
   trace:
     backend: local
     local:
       path: /var/tempo/traces
+
+overrides:
+  defaults:
+    metrics_generator:
+      processors:
+        - service-graphs
+        - span-metrics
+      max_active_series: 0
