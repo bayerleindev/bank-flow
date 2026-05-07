@@ -6,7 +6,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 public record TransferResponse(
 		@JsonProperty("transfer_id") String transferId,
 		@JsonProperty("source_account_id") long sourceAccountId,
+		@JsonProperty("source_owner_id") String sourceOwnerId,
+		@JsonProperty("source_account") String sourceAccount,
 		@JsonProperty("destination_account_id") long destinationAccountId,
+		@JsonProperty("destination_owner_id") String destinationOwnerId,
+		@JsonProperty("destination_account") String destinationAccount,
 		@JsonProperty("amount_minor") long amountMinor,
 		String currency,
 		String description,
@@ -21,7 +25,11 @@ public record TransferResponse(
 		return new TransferResponse(
 				transfer.transferId().toString(),
 				transfer.sourceAccountId(),
+				transfer.sourceOwnerId() == null ? null : transfer.sourceOwnerId().toString(),
+				transfer.sourceAccount(),
 				transfer.destinationAccountId(),
+				transfer.destinationOwnerId() == null ? null : transfer.destinationOwnerId().toString(),
+				transfer.destinationAccount(),
 				transfer.amountMinor(),
 				transfer.currency(),
 				transfer.description(),

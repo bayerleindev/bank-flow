@@ -75,6 +75,18 @@ bank-flow-transfer
               └── incrementa held_minor se available_minor for suficiente
 ```
 
+Fechamento do hold:
+
+```text
+bank-flow-transfer
+  ├── PSP falhou
+  │     └── POST /holds/{hold_id}/release
+  └── ledger-posting-created recebido pelo transfer
+        └── POST /holds/{hold_id}/capture
+```
+
+O balance nao consome eventos de PSP nem decide o status da transferencia. Ele apenas reserva, captura ou libera saldo quando chamado pelo transfer-service.
+
 ## Topico consumido
 
 Topico:
@@ -430,6 +442,7 @@ Efeito:
 
 - muda status de `HELD` para `CAPTURED`;
 - decrementa `held_minor`;
+- nao altera `posted_minor`, que ja foi atualizado pela projecao do `ledger-posting-created`;
 - falha com `409` se o hold ja estiver fechado.
 
 ### POST /holds/{hold_id}/release

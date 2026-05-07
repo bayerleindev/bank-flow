@@ -23,7 +23,8 @@ public class JdbcTransferRepository implements TransferRepository {
 	@Override
 	public Optional<Transfer> findByIdempotencyKey(String idempotencyKey) {
 		List<Transfer> transfers = jdbcTemplate.query("""
-				SELECT transfer_id, idempotency_key, source_account_id, destination_account_id, amount_minor,
+				SELECT transfer_id, idempotency_key, source_account_id, source_owner_id, source_account,
+				       destination_account_id, destination_owner_id, destination_account, amount_minor,
 				       currency, description, hold_id, psp_payment_id, status, failure_reason, created_at, updated_at
 				FROM transfers
 				WHERE idempotency_key = ?
@@ -34,7 +35,8 @@ public class JdbcTransferRepository implements TransferRepository {
 	@Override
 	public Optional<Transfer> findByTransferId(UUID transferId) {
 		List<Transfer> transfers = jdbcTemplate.query("""
-				SELECT transfer_id, idempotency_key, source_account_id, destination_account_id, amount_minor,
+				SELECT transfer_id, idempotency_key, source_account_id, source_owner_id, source_account,
+				       destination_account_id, destination_owner_id, destination_account, amount_minor,
 				       currency, description, hold_id, psp_payment_id, status, failure_reason, created_at, updated_at
 				FROM transfers
 				WHERE transfer_id = ?
@@ -45,7 +47,8 @@ public class JdbcTransferRepository implements TransferRepository {
 	@Override
 	public Optional<Transfer> findByPspPaymentId(String pspPaymentId) {
 		List<Transfer> transfers = jdbcTemplate.query("""
-				SELECT transfer_id, idempotency_key, source_account_id, destination_account_id, amount_minor,
+				SELECT transfer_id, idempotency_key, source_account_id, source_owner_id, source_account,
+				       destination_account_id, destination_owner_id, destination_account, amount_minor,
 				       currency, description, hold_id, psp_payment_id, status, failure_reason, created_at, updated_at
 				FROM transfers
 				WHERE psp_payment_id = ?
@@ -57,14 +60,19 @@ public class JdbcTransferRepository implements TransferRepository {
 	public Transfer create(UUID transferId, CreateTransferCommand command, long now) {
 		jdbcTemplate.update("""
 				INSERT INTO transfers (
-					transfer_id, idempotency_key, source_account_id, destination_account_id, amount_minor,
+					transfer_id, idempotency_key, source_account_id, source_owner_id, source_account,
+					destination_account_id, destination_owner_id, destination_account, amount_minor,
 					currency, description, status, created_at, updated_at
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				""",
 				transferId,
 				command.idempotencyKey(),
 				command.sourceAccountId(),
+				command.sourceOwnerId(),
+				command.sourceAccount(),
 				command.destinationAccountId(),
+				command.destinationOwnerId(),
+				command.destinationAccount(),
 				command.amountMinor(),
 				command.currency(),
 				command.description(),
@@ -116,7 +124,11 @@ public class JdbcTransferRepository implements TransferRepository {
 				(UUID) rs.getObject("transfer_id"),
 				rs.getString("idempotency_key"),
 				rs.getLong("source_account_id"),
+				(UUID) rs.getObject("source_owner_id"),
+				rs.getString("source_account"),
 				rs.getLong("destination_account_id"),
+				(UUID) rs.getObject("destination_owner_id"),
+				rs.getString("destination_account"),
 				rs.getLong("amount_minor"),
 				rs.getString("currency"),
 				rs.getString("description"),

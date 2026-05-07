@@ -7,11 +7,15 @@ import br.com.bankflow.transfer.clients.psp.PspClient;
 import br.com.bankflow.transfer.clients.psp.PspPaymentResponse;
 import br.com.bankflow.transfer.clients.psp.PspPaymentStatus;
 import br.com.bankflow.transfer.domain.CreateTransferCommand;
+import br.com.bankflow.transfer.domain.LedgerPostingCreatedEvent;
+import br.com.bankflow.transfer.domain.OutboxEvent;
 import br.com.bankflow.transfer.domain.PspWebhookCommand;
 import br.com.bankflow.transfer.domain.PspWebhookStatus;
 import br.com.bankflow.transfer.domain.Transfer;
 import br.com.bankflow.transfer.domain.TransferStatus;
+import br.com.bankflow.transfer.repositories.OutboxEventRepository;
 import br.com.bankflow.transfer.repositories.TransferRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -26,13 +30,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class TransferOrchestrationServiceTests {
 	private final FakeTransferRepository repository = new FakeTransferRepository();
+	private final FakeOutboxEventRepository outboxRepository = new FakeOutboxEventRepository();
 	private final FakeBalanceClient balanceClient = new FakeBalanceClient();
 	private final FakePspClient pspClient = new FakePspClient();
 	private final TransferOrchestrationService service = new TransferOrchestrationService(
 			repository,
+			outboxRepository,
 			balanceClient,
 			pspClient,
-			Clock.fixed(Instant.ofEpochMilli(1_778_100_000_000L), ZoneOffset.UTC)
+			new ObjectMapper(),
+			Clock.fixed(Instant.ofEpochMilli(1_778_100_000_000L), ZoneOffset.UTC),
+			"ledger-movements"
 	);
 
 	@Test
@@ -56,7 +64,7 @@ class TransferOrchestrationServiceTests {
 	}
 
 	@Test
-	void marksTransferAsPspConfirmedWhenWebhookConfirmsPayment() {
+	void enqueuesLedgerPostingWhenWebhookConfirmsPayment() {
 		Transfer transfer = service.createTransfer(command("idem-1"));
 
 		Transfer confirmed = service.handlePspWebhook(new PspWebhookCommand(
@@ -65,7 +73,31 @@ class TransferOrchestrationServiceTests {
 				null
 		));
 
-		assertEquals(TransferStatus.PSP_CONFIRMED, confirmed.status());
+		assertEquals(TransferStatus.POSTING_REQUESTED, confirmed.status());
+		assertEquals(1, outboxRepository.events.size());
+		assertEquals("ledger-movements", outboxRepository.events.getFirst().topic());
+		assertEquals(transfer.sourceOwnerId().toString(), outboxRepository.events.getFirst().eventKey());
+		assertEquals(0, balanceClient.releasedHolds);
+	}
+
+	@Test
+	void capturesHoldAndCompletesTransferWhenLedgerPostingIsCreated() {
+		Transfer transfer = service.createTransfer(command("idem-1"));
+		service.handlePspWebhook(new PspWebhookCommand(
+				transfer.pspPaymentId(),
+				PspWebhookStatus.CONFIRMED,
+				null
+		));
+
+		Transfer completed = service.completeAfterLedgerPosting(new LedgerPostingCreatedEvent(
+				1001L,
+				transfer.transferId().toString(),
+				"TRANSFER",
+				"POSTED"
+		));
+
+		assertEquals(TransferStatus.COMPLETED, completed.status());
+		assertEquals(1, balanceClient.capturedHolds);
 		assertEquals(0, balanceClient.releasedHolds);
 	}
 
@@ -88,7 +120,11 @@ class TransferOrchestrationServiceTests {
 		return new CreateTransferCommand(
 				idempotencyKey,
 				1001L,
+				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b1"),
+				"12345-6",
 				2002L,
+				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b2"),
+				"98765-4",
 				1500L,
 				"BRL",
 				"Test transfer"
@@ -97,6 +133,7 @@ class TransferOrchestrationServiceTests {
 
 	private static class FakeBalanceClient implements BalanceClient {
 		private int createdHolds;
+		private int capturedHolds;
 		private int releasedHolds;
 
 		@Override
@@ -114,6 +151,11 @@ class TransferOrchestrationServiceTests {
 					1L,
 					1L
 			);
+		}
+
+		@Override
+		public void captureHold(String holdId) {
+			capturedHolds++;
 		}
 
 		@Override
@@ -159,7 +201,11 @@ class TransferOrchestrationServiceTests {
 					transferId,
 					command.idempotencyKey(),
 					command.sourceAccountId(),
+					command.sourceOwnerId(),
+					command.sourceAccount(),
 					command.destinationAccountId(),
+					command.destinationOwnerId(),
+					command.destinationAccount(),
 					command.amountMinor(),
 					command.currency(),
 					command.description(),
@@ -212,7 +258,11 @@ class TransferOrchestrationServiceTests {
 					current.transferId(),
 					current.idempotencyKey(),
 					current.sourceAccountId(),
+					current.sourceOwnerId(),
+					current.sourceAccount(),
 					current.destinationAccountId(),
+					current.destinationOwnerId(),
+					current.destinationAccount(),
 					current.amountMinor(),
 					current.currency(),
 					current.description(),
@@ -223,6 +273,37 @@ class TransferOrchestrationServiceTests {
 					current.createdAt(),
 					updatedAt
 			);
+		}
+	}
+
+	private static class FakeOutboxEventRepository implements OutboxEventRepository {
+		private final java.util.List<OutboxEvent> events = new java.util.ArrayList<>();
+
+		@Override
+		public void createIfAbsent(OutboxEvent event) {
+			boolean exists = events.stream()
+					.anyMatch(existing -> existing.aggregateType().equals(event.aggregateType())
+							&& existing.aggregateId().equals(event.aggregateId())
+							&& existing.eventType().equals(event.eventType()));
+			if (!exists) {
+				events.add(event);
+			}
+		}
+
+		@Override
+		public java.util.List<OutboxEvent> findPending(int limit) {
+			return events.stream()
+					.filter(event -> "PENDING".equals(event.status()))
+					.limit(limit)
+					.toList();
+		}
+
+		@Override
+		public void markPublished(UUID eventId, long publishedAt) {
+		}
+
+		@Override
+		public void markFailed(UUID eventId, String errorMessage) {
 		}
 	}
 }

@@ -27,6 +27,14 @@ public class HttpBalanceClient implements BalanceClient {
 	}
 
 	@Override
+	public void captureHold(String holdId) {
+		restClient.post()
+				.uri("/holds/{hold_id}/capture", holdId)
+				.retrieve()
+				.toBodilessEntity();
+	}
+
+	@Override
 	public void releaseHold(String holdId) {
 		restClient.post()
 				.uri("/holds/{hold_id}/release", holdId)
