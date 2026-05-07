@@ -13,6 +13,96 @@ Regra de identificadores: `accounts`, `transfer` e `balance` usam somente `digit
 | `bank-flow-ledger` | `8085` | Mantem double-entry no immudb e publica `ledger-posting-created`. |
 | `bank-flow-balance` | `8082` | Projeta saldos/extratos e gerencia holds por `digital_account_id`. |
 
+## Arquitetura
+
+```mermaid
+flowchart LR
+    user[Cliente / Script de carga]
+    external[Instituicao externa]
+    psp[PSP]
+    baas[BaaS]
+
+    subgraph apps[Servicos Bank Flow]
+        accounts[bank-flow-accounts<br/>8084]
+        transfer[bank-flow-transfer<br/>8083]
+        ledger[bank-flow-ledger<br/>8085]
+        balance[bank-flow-balance<br/>8082]
+    end
+
+    subgraph storage[Persistencia]
+        pgAccounts[(Postgres<br/>schema accounts)]
+        pgTransfer[(Postgres<br/>schema transfer)]
+        pgBalance[(Postgres<br/>balance projection<br/>holds)]
+        immudb[(immudb<br/>ledger accounts<br/>entries / lines)]
+    end
+
+    subgraph kafka[Kafka]
+        tAccountCreated[account-created]
+        tLedgerMovements[ledger-movements]
+        tLedgerReversals[ledger-reversals]
+        tLedgerPostingCreated[ledger-posting-created]
+        dlt[*.DLT]
+    end
+
+    subgraph observability[Observability]
+        prometheus[Prometheus]
+        grafana[Grafana]
+        tempo[Tempo]
+        loki[Loki]
+        otel[OTLP Collector]
+    end
+
+    user -->|POST /accounts| accounts
+    accounts -->|create account| baas
+    accounts --> pgAccounts
+    accounts -->|outbox publish| tAccountCreated
+
+    tAccountCreated --> ledger
+    ledger -->|create CUSTOMER_ACCOUNT_*| immudb
+
+    user -->|POST /transfers| transfer
+    transfer -->|GET /accounts/{digital_account_id}| accounts
+    transfer -->|POST /holds| balance
+    balance --> pgBalance
+    transfer -->|create payment| psp
+    psp -->|POST /webhooks/psp/transfers| transfer
+    transfer --> pgTransfer
+    transfer -->|outbox publish| tLedgerMovements
+
+    external -->|POST /webhooks/external-institutions/transfers| transfer
+    transfer -->|validate destination account| accounts
+    transfer -->|debit SETTLEMENT_EXTERNAL_INBOUND_BRL| tLedgerMovements
+
+    tLedgerMovements --> ledger
+    tLedgerReversals --> ledger
+    ledger -->|double-entry posting| immudb
+    ledger -->|publish posting| tLedgerPostingCreated
+
+    tLedgerPostingCreated --> balance
+    balance -->|project balance and statement| pgBalance
+    tLedgerPostingCreated --> transfer
+    transfer -->|capture hold and mark COMPLETED| balance
+
+    tAccountCreated -. failure .-> dlt
+    tLedgerMovements -. failure .-> dlt
+    tLedgerReversals -. failure .-> dlt
+    tLedgerPostingCreated -. failure .-> dlt
+
+    accounts -->|/actuator/prometheus| prometheus
+    transfer -->|/actuator/prometheus| prometheus
+    ledger -->|/actuator/prometheus| prometheus
+    balance -->|/actuator/prometheus| prometheus
+    accounts -->|traces/logs| otel
+    transfer -->|traces/logs| otel
+    ledger -->|traces/logs| otel
+    balance -->|traces/logs| otel
+    otel --> tempo
+    otel --> loki
+    prometheus --> grafana
+    tempo --> grafana
+    loki --> grafana
+```
+
 ## Fluxo Principal
 
 Criacao de conta:

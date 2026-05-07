@@ -114,6 +114,8 @@ source_account: SETTLEMENT_EXTERNAL_INBOUND_BRL
 - `POSTING_REQUESTED`: comando contabil registrado no outbox.
 - `COMPLETED`: ledger postou e hold foi capturado.
 - `FAILED`: falha antes da postagem contabil.
+- `EXPIRED`: janela operacional da transferencia expirou antes da conclusao.
+- `REVERSED`: transferencia concluida foi revertida por um fluxo de estorno.
 
 ## Kafka e Outbox
 

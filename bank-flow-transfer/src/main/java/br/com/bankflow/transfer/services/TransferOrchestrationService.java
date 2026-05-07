@@ -115,7 +115,7 @@ public class TransferOrchestrationService {
 		command.validate();
 		Transfer transfer = transferRepository.findByPspPaymentId(command.pspPaymentId())
 				.orElseThrow(() -> new TransferNotFoundException(command.pspPaymentId()));
-		if (transfer.status() == TransferStatus.COMPLETED || transfer.status() == TransferStatus.FAILED) {
+		if (transfer.status().isTerminal()) {
 			return transfer;
 		}
 		if (transfer.status() == TransferStatus.POSTING_REQUESTED) {
@@ -160,7 +160,7 @@ public class TransferOrchestrationService {
 		if (transfer.status() == TransferStatus.COMPLETED) {
 			return transfer;
 		}
-		if (transfer.status() == TransferStatus.FAILED) {
+		if (transfer.status().isTerminal()) {
 			return transfer;
 		}
 		if (transfer.status() != TransferStatus.POSTING_REQUESTED) {

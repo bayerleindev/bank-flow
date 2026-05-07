@@ -137,6 +137,43 @@ class TransferOrchestrationServiceTests {
 	}
 
 	@Test
+	void ignoresPspWebhookForExpiredTransfer() {
+		Transfer transfer = service.createTransfer(command("idem-1"));
+		repository.updateStatus(transfer.transferId(), TransferStatus.EXPIRED, "HOLD_EXPIRED", clock.millis());
+
+		Transfer expired = service.handlePspWebhook(new PspWebhookCommand(
+				transfer.pspPaymentId(),
+				PspWebhookStatus.CONFIRMED,
+				null
+		));
+
+		assertEquals(TransferStatus.EXPIRED, expired.status());
+		assertEquals(0, outboxRepository.events.size());
+		assertEquals(0, balanceClient.capturedHolds);
+	}
+
+	@Test
+	void doesNotCompleteReversedTransferWhenLedgerEventArrivesLate() {
+		Transfer transfer = service.createTransfer(command("idem-1"));
+		service.handlePspWebhook(new PspWebhookCommand(
+				transfer.pspPaymentId(),
+				PspWebhookStatus.CONFIRMED,
+				null
+		));
+		repository.updateStatus(transfer.transferId(), TransferStatus.REVERSED, "MANUAL_REVERSAL", clock.millis());
+
+		Transfer reversed = service.completeAfterLedgerPosting(new LedgerPostingCreatedEvent(
+				1001L,
+				transfer.transferId().toString(),
+				"TRANSFER",
+				"POSTED"
+		));
+
+		assertEquals(TransferStatus.REVERSED, reversed.status());
+		assertEquals(0, balanceClient.capturedHolds);
+	}
+
+	@Test
 	void receivesExternalInboundTransferAndRequestsLedgerPostingWithoutHold() {
 		Transfer transfer = service.receiveExternalInboundTransfer(new ExternalInboundTransferCommand(
 				"external-inbound:260:evt-123",

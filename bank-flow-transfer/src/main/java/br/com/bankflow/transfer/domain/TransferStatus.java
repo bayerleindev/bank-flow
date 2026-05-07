@@ -7,5 +7,11 @@ public enum TransferStatus {
 	PSP_CONFIRMED,
 	POSTING_REQUESTED,
 	COMPLETED,
-	FAILED
+	FAILED,
+	EXPIRED,
+	REVERSED;
+
+	public boolean isTerminal() {
+		return this == COMPLETED || this == FAILED || this == EXPIRED || this == REVERSED;
+	}
 }
