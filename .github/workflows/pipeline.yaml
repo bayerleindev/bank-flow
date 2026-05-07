@@ -14,6 +14,6 @@ on:
 
 jobs:
   ledger-pipeline:
-    uses: ./bank-flow-ledger/.github/workflows/pipeline.yaml
+    uses: ./.github/workflows/ledger-pipeline.yaml
     with:
       ambiente: ${{ github.event.inputs.target_env }}
