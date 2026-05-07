@@ -12,6 +12,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.UUID;
 
 @Repository
@@ -36,6 +37,26 @@ public class JdbcAccountRepository implements AccountRepository {
 	public Optional<Account> findByAccountId(UUID accountId) {
 		List<Account> accounts = jdbcTemplate.query(selectSql() + " WHERE account_id = ?", this::mapAccount, accountId);
 		return accounts.stream().findFirst();
+	}
+
+	@Override
+	public long countByStatus(AccountStatus status) {
+		Long count = jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)
+				FROM accounts
+				WHERE status = ?
+				""", Long.class, status.name());
+		return count == null ? 0L : count;
+	}
+
+	@Override
+	public OptionalLong oldestUpdatedAtByStatus(AccountStatus status) {
+		Long oldestUpdatedAt = jdbcTemplate.queryForObject("""
+				SELECT MIN(updated_at)
+				FROM accounts
+				WHERE status = ?
+				""", Long.class, status.name());
+		return oldestUpdatedAt == null ? OptionalLong.empty() : OptionalLong.of(oldestUpdatedAt);
 	}
 
 	@Override

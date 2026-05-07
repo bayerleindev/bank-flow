@@ -106,6 +106,34 @@ def create_transfer(transfer_url, source_id, destination_id, amount_minor, descr
     return transfer
 
 
+def receive_external_transfer(transfer_url, destination_id, amount_minor, description):
+    external_transfer_id = f"script-external-{uuid.uuid4()}"
+    payload = {
+        "source_institution_code": "999",
+        "source_institution_name": "Script External Institution",
+        "external_transfer_id": external_transfer_id,
+        "destination_digital_account_id": destination_id,
+        "amount_minor": amount_minor,
+        "currency": "BRL",
+        "description": description,
+    }
+    transfer = request_json(
+        "POST",
+        f"{transfer_url}/webhooks/external-institutions/transfers",
+        payload,
+    )
+    print(
+        "received external transfer",
+        transfer["transfer_id"],
+        external_transfer_id,
+        "->",
+        destination_id,
+        amount_minor,
+        transfer.get("status"),
+    )
+    return transfer
+
+
 def get_transfer(transfer_url, transfer_id):
     return request_json("GET", f"{transfer_url}/transfers/{transfer_id}")
 
@@ -216,6 +244,12 @@ def parse_args():
         help="Stop creating new accounts after this total, including initial accounts.",
     )
     parser.add_argument("--seed-amount-minor", type=int, default=1000)
+    parser.add_argument("--external-inbound-amount-minor", type=int, default=750)
+    parser.add_argument(
+        "--skip-external-inbound",
+        action="store_true",
+        help="Do not call the external institution inbound transfer webhook.",
+    )
     parser.add_argument("--between-amount-minor", type=int, default=100)
     parser.add_argument("--between-min-amount-minor", type=int)
     parser.add_argument("--between-max-amount-minor", type=int)
@@ -264,6 +298,8 @@ def main():
         raise ValueError("--loop-interval-max-seconds must be greater than or equal to min interval")
     if args.max_between_transfers is not None and args.max_between_transfers < 1:
         raise ValueError("--max-between-transfers must be at least 1")
+    if args.external_inbound_amount_minor < 1:
+        raise ValueError("--external-inbound-amount-minor must be positive")
     if args.between_min_amount_minor is not None and args.between_min_amount_minor < 1:
         raise ValueError("--between-min-amount-minor must be positive")
     if args.between_max_amount_minor is not None and args.between_max_amount_minor < 1:
@@ -290,6 +326,21 @@ def main():
 
     print(f"waiting {args.ledger_wait_seconds}s for account-created events to reach ledger")
     time.sleep(args.ledger_wait_seconds)
+
+    if not args.skip_external_inbound:
+        external_destination_id = random.choice(digital_account_ids)
+        external_transfer = receive_external_transfer(
+            args.transfer_url,
+            external_destination_id,
+            args.external_inbound_amount_minor,
+            f"external inbound funding to {external_destination_id}",
+        )
+        wait_for_transfers(
+            args.transfer_url,
+            [external_transfer],
+            args.timeout_seconds,
+            args.poll_interval_seconds,
+        )
 
     seed_transfers = [
         create_transfer(

@@ -47,7 +47,7 @@ public class AccountCreationService {
 				outboxEventRepository,
 				baasClient,
 				objectMapper,
-				new AccountBusinessMetrics(new SimpleMeterRegistry(), outboxEventRepository),
+				new AccountBusinessMetrics(new SimpleMeterRegistry(), outboxEventRepository, accountRepository, clock),
 				clock,
 				accountCreatedTopic
 		);

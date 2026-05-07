@@ -16,9 +16,12 @@ import br.com.bankflow.transfer.domain.PspWebhookCommand;
 import br.com.bankflow.transfer.domain.PspWebhookStatus;
 import br.com.bankflow.transfer.domain.Transfer;
 import br.com.bankflow.transfer.domain.TransferStatus;
+import br.com.bankflow.transfer.observability.TransferBusinessMetrics;
 import br.com.bankflow.transfer.repositories.OutboxEventRepository;
 import br.com.bankflow.transfer.repositories.TransferRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Timer;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -27,18 +30,23 @@ import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class TransferOrchestrationServiceTests {
 	private static final UUID EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000100");
+	private final Clock clock = Clock.fixed(Instant.ofEpochMilli(1_778_100_000_000L), ZoneOffset.UTC);
 
 	private final FakeTransferRepository repository = new FakeTransferRepository();
 	private final FakeOutboxEventRepository outboxRepository = new FakeOutboxEventRepository();
 	private final FakeAccountClient accountClient = new FakeAccountClient();
 	private final FakeBalanceClient balanceClient = new FakeBalanceClient();
 	private final FakePspClient pspClient = new FakePspClient();
+	private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+	private final TransferBusinessMetrics transferBusinessMetrics = new TransferBusinessMetrics(meterRegistry, outboxRepository, repository, clock);
 	private final TransferOrchestrationService service = new TransferOrchestrationService(
 			repository,
 			outboxRepository,
@@ -46,7 +54,8 @@ class TransferOrchestrationServiceTests {
 			balanceClient,
 			pspClient,
 			new ObjectMapper(),
-			Clock.fixed(Instant.ofEpochMilli(1_778_100_000_000L), ZoneOffset.UTC),
+			transferBusinessMetrics,
+			clock,
 			"ledger-movements"
 	);
 
@@ -59,6 +68,7 @@ class TransferOrchestrationServiceTests {
 		assertEquals("psp-" + transfer.transferId(), transfer.pspPaymentId());
 		assertEquals(1, balanceClient.createdHolds);
 		assertEquals(0, balanceClient.releasedHolds);
+		assertEquals(1.0, meterRegistry.find("transfers_in_status").tag("status", "PSP_PENDING").gauge().value());
 	}
 
 	@Test
@@ -106,6 +116,9 @@ class TransferOrchestrationServiceTests {
 		assertEquals(TransferStatus.COMPLETED, completed.status());
 		assertEquals(1, balanceClient.capturedHolds);
 		assertEquals(0, balanceClient.releasedHolds);
+		Timer timer = meterRegistry.find("transfer_end_to_end_latency").timer();
+		assertNotNull(timer);
+		assertEquals(1, timer.count());
 	}
 
 	@Test
@@ -237,6 +250,21 @@ class TransferOrchestrationServiceTests {
 		@Override
 		public Optional<Transfer> findByPspPaymentId(String pspPaymentId) {
 			return Optional.ofNullable(byPspPaymentId.get(pspPaymentId)).map(byId::get);
+		}
+
+		@Override
+		public long countByStatus(TransferStatus status) {
+			return byId.values().stream()
+					.filter(transfer -> transfer.status() == status)
+					.count();
+		}
+
+		@Override
+		public OptionalLong oldestUpdatedAtByStatus(TransferStatus status) {
+			return byId.values().stream()
+					.filter(transfer -> transfer.status() == status)
+					.mapToLong(Transfer::updatedAt)
+					.min();
 		}
 
 		@Override

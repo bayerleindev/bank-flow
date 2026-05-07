@@ -610,6 +610,148 @@
       ],
       "title": "Funnel Conversion Ratios",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "((sum(increase(transfer_end_to_end_latency_seconds_sum[$__range])) or vector(0)) / clamp_min((sum(increase(transfer_end_to_end_latency_seconds_count[$__range])) or vector(0)), 1))",
+          "legendFormat": "avg"
+        },
+        {
+          "expr": "(histogram_quantile(0.95, sum(rate(transfer_end_to_end_latency_seconds_bucket[$__rate_interval])) by (le)) and (sum(increase(transfer_end_to_end_latency_seconds_count[$__range])) > 0)) or vector(0)",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "max(transfer_end_to_end_latency_seconds_max) or vector(0)",
+          "legendFormat": "max"
+        }
+      ],
+      "title": "Transfer End-to-End Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "id": 12,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (transfers_in_status) or vector(0)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "title": "Transfers In Status",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max by (status) (transfer_oldest_in_status_age_seconds) or vector(0)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "title": "Oldest Transfer Age By Status",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

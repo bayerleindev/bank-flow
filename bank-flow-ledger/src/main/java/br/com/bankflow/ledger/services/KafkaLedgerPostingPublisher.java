@@ -57,10 +57,20 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 			);
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
+			ledgerBusinessMetrics.recordLedgerPublishFailure(topic, posting.entry().entryType(), exception.getClass().getSimpleName());
 			throw new IllegalStateException("interrupted while publishing ledger posting event", exception);
 		} catch (ExecutionException exception) {
+			ledgerBusinessMetrics.recordLedgerPublishFailure(topic, posting.entry().entryType(), rootCauseName(exception));
 			throw new IllegalStateException("failed to publish ledger posting event", exception);
 		}
+	}
+
+	private String rootCauseName(Throwable exception) {
+		Throwable current = exception;
+		while (current.getCause() != null) {
+			current = current.getCause();
+		}
+		return current.getClass().getSimpleName();
 	}
 
 	private Map<String, Object> toEvent(LedgerPosting posting) {

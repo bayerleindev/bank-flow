@@ -32,6 +32,16 @@ public class LedgerBusinessMetrics {
 				.record(Duration.ofMillis(Math.max(0, latencyMillis)));
 	}
 
+	public void recordLedgerPublishFailure(String topic, String entryType, String exception) {
+		Counter.builder("ledger_publish_failures")
+				.description("Ledger posting publish failures")
+				.tag("topic", topic == null ? "unknown" : topic)
+				.tag("entry_type", entryType == null ? "unknown" : entryType)
+				.tag("exception", exception == null ? "unknown" : exception)
+				.register(meterRegistry)
+				.increment();
+	}
+
 	public void recordValidationFailure(String operation, String reason) {
 		Counter.builder("ledger_validation_failures")
 				.description("Ledger validation failures")

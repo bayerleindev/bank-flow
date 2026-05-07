@@ -1,25 +1,40 @@
 package br.com.bankflow.transfer.observability;
 
+import br.com.bankflow.transfer.domain.TransferStatus;
 import br.com.bankflow.transfer.repositories.OutboxEventRepository;
+import br.com.bankflow.transfer.repositories.TransferRepository;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Clock;
+import java.time.Duration;
 
 @Component
 public class TransferBusinessMetrics {
 	private final MeterRegistry meterRegistry;
+	private final Timer transferEndToEndLatency;
 
 	public TransferBusinessMetrics(MeterRegistry meterRegistry, OutboxEventRepository outboxEventRepository) {
-		this(meterRegistry, outboxEventRepository, Clock.systemUTC());
+		this(meterRegistry, outboxEventRepository, null, Clock.systemUTC());
 	}
 
 	@Autowired
-	public TransferBusinessMetrics(MeterRegistry meterRegistry, OutboxEventRepository outboxEventRepository, Clock clock) {
+	public TransferBusinessMetrics(
+			MeterRegistry meterRegistry,
+			OutboxEventRepository outboxEventRepository,
+			TransferRepository transferRepository,
+			Clock clock
+	) {
 		this.meterRegistry = meterRegistry;
+		this.transferEndToEndLatency = Timer.builder("transfer_end_to_end_latency")
+				.description("End-to-end latency from transfer creation to completion")
+				.publishPercentileHistogram()
+				.publishPercentiles(0.5, 0.95, 0.99)
+				.register(meterRegistry);
 		Gauge.builder("outbox_pending_events", outboxEventRepository::countPending)
 				.description("Pending outbox events")
 				.tag("service", "bank-flow-transfer")
@@ -29,6 +44,27 @@ public class TransferBusinessMetrics {
 				.description("Age of the oldest pending outbox event")
 				.tag("service", "bank-flow-transfer")
 				.register(meterRegistry);
+		if (transferRepository != null) {
+			registerTransferStateGauges(transferRepository, clock);
+		}
+	}
+
+	private void registerTransferStateGauges(TransferRepository transferRepository, Clock clock) {
+		for (TransferStatus status : TransferStatus.values()) {
+			Gauge.builder("transfers_in_status", transferRepository, repository -> repository.countByStatus(status))
+					.description("Current transfers by status")
+					.tag("status", status.name())
+					.register(meterRegistry);
+			Gauge.builder("transfer_oldest_in_status_age_seconds", transferRepository,
+							repository -> repository.oldestUpdatedAtByStatus(status)
+									.stream()
+									.mapToDouble(updatedAt -> Math.max(0, clock.millis() - updatedAt) / 1000.0)
+									.findFirst()
+									.orElse(0.0))
+					.description("Age of the oldest transfer currently in each status")
+					.tag("status", status.name())
+					.register(meterRegistry);
+		}
 	}
 
 	public void recordTransferCreated() {
@@ -43,6 +79,10 @@ public class TransferBusinessMetrics {
 				.description("Completed transfers")
 				.register(meterRegistry)
 				.increment();
+	}
+
+	public void recordTransferEndToEndLatency(long latencyMillis) {
+		transferEndToEndLatency.record(Duration.ofMillis(Math.max(0, latencyMillis)));
 	}
 
 	public void recordTransferFailed(String reason) {

@@ -558,6 +558,47 @@
       ],
       "title": "Unbalanced Posting Rate",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 37
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (topic, entry_type, exception) (rate(ledger_publish_failures_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "{{topic}} {{entry_type}} {{exception}}"
+        }
+      ],
+      "title": "Ledger Publish Failure Rate",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

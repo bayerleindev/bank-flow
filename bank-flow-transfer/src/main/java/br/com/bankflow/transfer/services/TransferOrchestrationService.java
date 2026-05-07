@@ -69,7 +69,7 @@ public class TransferOrchestrationService {
 				balanceClient,
 				pspClient,
 				objectMapper,
-				new TransferBusinessMetrics(new SimpleMeterRegistry(), outboxEventRepository),
+				new TransferBusinessMetrics(new SimpleMeterRegistry(), outboxEventRepository, transferRepository, clock),
 				clock,
 				ledgerMovementsTopic
 		);
@@ -174,6 +174,7 @@ public class TransferOrchestrationService {
 				clock.millis()
 		);
 		transferBusinessMetrics.recordTransferCompleted();
+		transferBusinessMetrics.recordTransferEndToEndLatency(completed.updatedAt() - completed.createdAt());
 		return completed;
 	}
 

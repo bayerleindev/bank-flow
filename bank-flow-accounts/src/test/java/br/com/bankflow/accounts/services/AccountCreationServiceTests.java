@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -125,6 +126,21 @@ class AccountCreationServiceTests {
 		@Override
 		public Optional<Account> findByAccountId(UUID accountId) {
 			return Optional.ofNullable(byId.get(accountId));
+		}
+
+		@Override
+		public long countByStatus(AccountStatus status) {
+			return byId.values().stream()
+					.filter(account -> account.status() == status)
+					.count();
+		}
+
+		@Override
+		public OptionalLong oldestUpdatedAtByStatus(AccountStatus status) {
+			return byId.values().stream()
+					.filter(account -> account.status() == status)
+					.mapToLong(Account::updatedAt)
+					.min();
 		}
 
 		@Override
