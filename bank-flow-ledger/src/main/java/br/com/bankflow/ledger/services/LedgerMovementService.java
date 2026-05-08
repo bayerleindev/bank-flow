@@ -114,6 +114,9 @@ public class LedgerMovementService {
 		boolean created = ledgerPostingRepository.saveIfNotExists(posting);
 		if (!created) {
 			ledgerBusinessMetrics.recordIdempotencyHit("post_transfer");
+			LedgerPosting existingPosting = ledgerPostingRepository.findByExternalId(entry.externalId())
+					.orElseThrow(() -> new IllegalStateException("existing ledger posting not found external_id=%s".formatted(entry.externalId())));
+			ledgerPostingPublisher.publish(existingPosting);
 			log.info(
 					"ledger movement already processed externalId={} sourceDigitalAccountId={} destinationDigitalAccountId={} amountCents={}",
 					entry.externalId(),

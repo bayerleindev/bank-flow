@@ -190,6 +190,146 @@ cd bank-flow-ledger && ./gradlew bootRun
 cd bank-flow-transfer && ./gradlew bootRun
 ```
 
+## Kubernetes
+
+Cada servico possui um chart Helm proprio em `k8s/`, permitindo deploy individualizado:
+
+```bash
+helm upgrade --install bank-flow-accounts bank-flow-accounts/k8s
+helm upgrade --install bank-flow-balance bank-flow-balance/k8s
+helm upgrade --install bank-flow-ledger bank-flow-ledger/k8s
+helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s
+```
+
+Recursos criados por servico:
+
+- `ConfigMap`: variaveis de ambiente nao sensiveis, definidas em `values.yaml`.
+- `Secret`: credenciais de Postgres ou immudb, definidas em `values.yaml`.
+- `Deployment`: container, replicas, probes de liveness/readiness e recursos.
+- `Service`: exposicao interna `ClusterIP`.
+
+Observacao: `bank-flow-ledger` usa `StatefulSet`, nao `Deployment`, para manter nomes de pods estaveis. O app deriva `ID_GENERATOR_WORKER_ID` do ordinal do pod, por exemplo `bank-flow-ledger-0` usa worker `0`.
+
+As imagens padrao usam `bank-flow-<servico>:local`, adequadas para Minikube com imagens carregadas localmente. Para trocar imagem/tag:
+
+```bash
+helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s \
+  --set image.repository=ghcr.io/bayerleindev/bank-flow-transfer \
+  --set image.tag=<tag>
+```
+
+Para alterar replicas:
+
+```bash
+helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s \
+  --set replicaCount=2
+```
+
+Para escalar o ledger:
+
+```bash
+helm upgrade --install bank-flow-ledger bank-flow-ledger/k8s \
+  --set replicaCount=2
+```
+
+Mantenha no maximo 100 replicas do ledger, porque o `worker_id` aceito vai de `0` a `99`.
+
+Defaults atuais para Minikube:
+
+- Postgres acessivel em `host.minikube.internal:5432`.
+- Kafka acessivel em `host.minikube.internal:9094`.
+- immudb acessivel em `host.minikube.internal:3322`.
+- OTLP Collector acessivel em `host.minikube.internal:4318`.
+
+### Prometheus no Kubernetes
+
+Para métricas dentro do Minikube, use o `kube-prometheus-stack`:
+
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+
+helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace \
+  -f observability/k8s/kube-prometheus-stack-values.yaml
+```
+
+Os charts dos servicos criam `ServiceMonitor` por padrão, com o label `release: monitoring`, e expõem `/actuator/prometheus` pela porta `http`.
+
+```bash
+helm upgrade --install bank-flow-accounts bank-flow-accounts/k8s
+helm upgrade --install bank-flow-balance bank-flow-balance/k8s
+helm upgrade --install bank-flow-ledger bank-flow-ledger/k8s
+helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s
+```
+
+Para os paineis de health que usam `probe_success{job="bank-flow-health"}`, instale tambem o Blackbox Exporter:
+
+```bash
+helm upgrade --install prometheus-blackbox-exporter prometheus-community/prometheus-blackbox-exporter \
+  --namespace monitoring
+```
+
+Os charts criam `Probe` por padrao, tambem com o label `release: monitoring`, apontando para o `/actuator/health` do respectivo servico:
+
+```text
+http://bank-flow-accounts.<namespace>.svc:8084/actuator/health
+http://bank-flow-balance.<namespace>.svc:8082/actuator/health
+http://bank-flow-ledger.<namespace>.svc:8085/actuator/health
+http://bank-flow-transfer.<namespace>.svc:8083/actuator/health
+```
+
+Se o Blackbox Exporter tiver outro nome ou namespace, ajuste o endereco do prober:
+
+```bash
+helm upgrade --install bank-flow-ledger bank-flow-ledger/k8s \
+  --set probe.proberUrl=<blackbox-service>.<namespace>.svc:9115
+```
+
+Para logs e traces, adicione os charts da Grafana:
+
+```bash
+helm repo add grafana https://grafana.github.io/helm-charts
+helm repo update
+
+helm upgrade --install loki grafana/loki \
+  --namespace monitoring \
+  -f observability/k8s/loki-values.yaml
+
+helm upgrade --install alloy grafana/alloy \
+  --namespace monitoring \
+  -f observability/k8s/alloy-values.yaml
+
+helm upgrade --install tempo grafana/tempo \
+  --namespace monitoring \
+  -f observability/k8s/tempo-values.yaml
+```
+
+O Alloy roda como `DaemonSet`, descobre pods no Kubernetes, processa logs CRI, extrai campos JSON dos logs estruturados e envia para o Loki.
+
+Os servicos enviam traces para `http://tempo.monitoring.svc.cluster.local:4318/v1/traces` por padrao nos charts Kubernetes.
+
+Para importar os dashboards existentes no Grafana do cluster:
+
+```bash
+kubectl create configmap bank-flow-dashboards \
+  -n monitoring \
+  --from-file=observability/grafana/dashboards \
+  --dry-run=client -o yaml | kubectl apply -f -
+
+kubectl label configmap bank-flow-dashboards \
+  -n monitoring \
+  grafana_dashboard=1 \
+  --overwrite
+```
+
+Para acessar o Grafana do stack:
+
+```bash
+kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80
+```
+
 ## Observability
 
 Suba a stack:
@@ -214,6 +354,12 @@ Todos os servicos expõem:
 ```
 
 Tempo recebe traces via OTLP em `localhost:4318/v1/traces`. O service graph usa métricas geradas pelo Tempo e enviadas ao Prometheus via remote write.
+
+Aprendizados do setup Kubernetes/observabilidade estao em [docs/aprendizados-kubernetes-observabilidade.md](docs/aprendizados-kubernetes-observabilidade.md).
+
+Passo a passo operacional para deploy no Minikube esta em [docs/deploy-kubernetes-minikube.md](docs/deploy-kubernetes-minikube.md).
+
+Aprendizados especificos do deploy no Minikube estao em [docs/aprendizados-deploy-kubernetes-minikube.md](docs/aprendizados-deploy-kubernetes-minikube.md).
 
 Metricas de negocio criticas:
 

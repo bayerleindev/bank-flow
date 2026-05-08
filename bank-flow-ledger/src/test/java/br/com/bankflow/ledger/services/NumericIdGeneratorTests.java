@@ -48,8 +48,16 @@ class NumericIdGeneratorTests {
 
 	@Test
 	void includesWorkerIdInGeneratedIds() {
-		NumericIdGenerator firstWorker = new NumericIdGenerator(fixedClock(), 1);
-		NumericIdGenerator secondWorker = new NumericIdGenerator(fixedClock(), 2);
+		NumericIdGenerator firstWorker = new NumericIdGenerator(fixedClock(), "1");
+		NumericIdGenerator secondWorker = new NumericIdGenerator(fixedClock(), "2");
+
+		assertTrue(firstWorker.nextEntryId() < secondWorker.nextEntryId());
+	}
+
+	@Test
+	void resolvesWorkerIdFromStatefulSetPodName() {
+		NumericIdGenerator firstWorker = new NumericIdGenerator(fixedClock(), "bank-flow-ledger-0");
+		NumericIdGenerator secondWorker = new NumericIdGenerator(fixedClock(), "bank-flow-ledger-1");
 
 		assertTrue(firstWorker.nextEntryId() < secondWorker.nextEntryId());
 	}

@@ -1,0 +1,79 @@
+nameOverride: bank-flow-ledger
+
+replicaCount: 1
+
+image:
+  repository: bank-flow-ledger
+  tag: local
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8085
+
+metrics:
+  job: bank-flow-services
+
+serviceMonitor:
+  enabled: true
+  namespace: ""
+  interval: 15s
+  scrapeTimeout: 10s
+  path: /actuator/prometheus
+  labels:
+    release: monitoring
+
+probe:
+  enabled: true
+  namespace: ""
+  jobName: bank-flow-health
+  module: http_2xx
+  proberUrl: prometheus-blackbox-exporter.monitoring.svc:9115
+  targetPath: /actuator/health
+  interval: 15s
+  scrapeTimeout: 10s
+  labels:
+    release: monitoring
+
+env:
+  SERVER_PORT: "8085"
+  KAFKA_BOOTSTRAP_SERVERS: "host.minikube.internal:9094"
+  KAFKA_CONSUMER_GROUP_ID: "bank-flow-ledger"
+  KAFKA_AUTO_OFFSET_RESET: "latest"
+  KAFKA_RETRY_INTERVAL_MS: "1000"
+  KAFKA_RETRY_MAX_ATTEMPTS: "3"
+  IMMUDB_ENABLED: "true"
+  IMMUDB_HOST: "host.minikube.internal"
+  IMMUDB_PORT: "3322"
+  IMMUDB_DATABASE: "ledger"
+  OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo.monitoring.svc.cluster.local:4318/v1/traces"
+  MANAGEMENT_HEALTH_SHOW_DETAILS: "never"
+  BPL_JVM_THREAD_COUNT: "50"
+  LOG_FILE: ""
+  BANK_FLOW_KAFKA_LAG_ENABLED: "false"
+
+secretEnv:
+  IMMUDB_USERNAME: "immudb"
+  IMMUDB_PASSWORD: "immudb"
+
+readinessProbe:
+  path: /actuator/health/readiness
+  initialDelaySeconds: 20
+  periodSeconds: 10
+  timeoutSeconds: 3
+  failureThreshold: 6
+
+livenessProbe:
+  path: /actuator/health/liveness
+  initialDelaySeconds: 30
+  periodSeconds: 20
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 768Mi

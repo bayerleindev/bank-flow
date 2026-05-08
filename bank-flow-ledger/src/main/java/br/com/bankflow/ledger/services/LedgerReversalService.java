@@ -71,7 +71,7 @@ public class LedgerReversalService {
 			ledgerBusinessMetrics.recordValidationFailure("reverse", exception.getMessage());
 			throw exception;
 		}
-		String reversalExternalId = event.reversalId().toString();
+		String reversalExternalId = reversalExternalIdFor(event);
 		if (ledgerPostingRepository.findByExternalId(reversalExternalId).isPresent()) {
 			ledgerBusinessMetrics.recordIdempotencyHit("reverse");
 			log.info("ledger reversal already processed reversalExternalId={}", reversalExternalId);
@@ -156,5 +156,9 @@ public class LedgerReversalService {
 				"original_entry_id", originalEntry.entryId(),
 				"reason", event.reason()
 		));
+	}
+
+	private String reversalExternalIdFor(LedgerReversalRequestedEvent event) {
+		return "reversal:%s".formatted(event.originalExternalId());
 	}
 }

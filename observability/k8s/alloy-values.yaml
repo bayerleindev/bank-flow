@@ -1,0 +1,86 @@
+controller:
+  type: daemonset
+
+alloy:
+  clustering:
+    enabled: true
+  configMap:
+    create: true
+    content: |-
+      logging {
+        level = "info"
+      }
+
+      discovery.kubernetes "pods" {
+        role = "pod"
+      }
+
+      discovery.relabel "pods" {
+        targets = discovery.kubernetes.pods.targets
+
+        rule {
+          source_labels = ["__meta_kubernetes_namespace"]
+          target_label  = "namespace"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_name"]
+          target_label  = "pod"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_container_name"]
+          target_label  = "container"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+          target_label  = "application"
+        }
+
+        rule {
+          source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_part_of"]
+          target_label  = "stack"
+        }
+      }
+
+      loki.source.kubernetes "pods" {
+        targets    = discovery.relabel.pods.output
+        forward_to = [loki.process.bank_flow.receiver]
+      }
+
+      loki.process "bank_flow" {
+        stage.cri {}
+
+        stage.json {
+          expressions = {
+            application = "application_name",
+            level       = "level",
+            logger      = "logger_name",
+            message     = "message",
+            trace_id    = "traceId",
+            span_id     = "spanId",
+          }
+        }
+
+        stage.labels {
+          values = {
+            application = "",
+            level       = "",
+            logger      = "",
+            trace_id    = "",
+          }
+        }
+
+        stage.output {
+          source = "message"
+        }
+
+        forward_to = [loki.write.default.receiver]
+      }
+
+      loki.write "default" {
+        endpoint {
+          url = "http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push"
+        }
+      }

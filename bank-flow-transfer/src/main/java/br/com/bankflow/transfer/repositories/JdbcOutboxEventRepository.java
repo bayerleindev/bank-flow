@@ -46,15 +46,36 @@ public class JdbcOutboxEventRepository implements OutboxEventRepository {
 	}
 
 	@Override
-	public List<OutboxEvent> findPending(int limit) {
+	public List<OutboxEvent> claimPending(
+			int limit,
+			String lockedBy,
+			long nowMillis,
+			long lockedUntilMillis,
+			int maxAttempts
+	) {
 		return jdbcTemplate.query("""
-				SELECT event_id, aggregate_type, aggregate_id, event_type, topic, event_key, payload,
-				       status, attempts, last_error, created_at, published_at
-				FROM outbox_events
-				WHERE status = 'PENDING'
-				ORDER BY created_at
-				LIMIT ?
-				""", this::mapEvent, limit);
+				WITH candidates AS (
+				    SELECT event_id
+				    FROM outbox_events
+				    WHERE attempts < ?
+				      AND (status = 'PENDING'
+				           OR (status = 'PROCESSING' AND locked_until < ?))
+				    ORDER BY created_at
+				    FOR UPDATE SKIP LOCKED
+				    LIMIT ?
+				)
+				UPDATE outbox_events event
+				SET status = 'PROCESSING',
+				    attempts = attempts + 1,
+				    locked_by = ?,
+				    locked_until = ?,
+				    last_error = NULL
+				FROM candidates
+				WHERE event.event_id = candidates.event_id
+				RETURNING event.event_id, event.aggregate_type, event.aggregate_id, event.event_type,
+				          event.topic, event.event_key, event.payload, event.status, event.attempts,
+				          event.last_error, event.created_at, event.published_at
+				""", this::mapEvent, maxAttempts, nowMillis, limit, lockedBy, lockedUntilMillis);
 	}
 
 	@Override
@@ -63,7 +84,8 @@ public class JdbcOutboxEventRepository implements OutboxEventRepository {
 				SELECT COUNT(*)
 				FROM outbox_events
 				WHERE status = 'PENDING'
-				""", Long.class);
+				   OR (status = 'PROCESSING' AND locked_until < ?)
+				""", Long.class, nowMillis());
 		return count == null ? 0 : count;
 	}
 
@@ -73,7 +95,8 @@ public class JdbcOutboxEventRepository implements OutboxEventRepository {
 				SELECT MIN(created_at)
 				FROM outbox_events
 				WHERE status = 'PENDING'
-				""", Long.class);
+				   OR (status = 'PROCESSING' AND locked_until < ?)
+				""", Long.class, nowMillis);
 		if (oldestCreatedAt == null) {
 			return 0;
 		}
@@ -81,24 +104,34 @@ public class JdbcOutboxEventRepository implements OutboxEventRepository {
 	}
 
 	@Override
-	public void markPublished(UUID eventId, long publishedAt) {
+	public void markPublished(UUID eventId, long publishedAt, String lockedBy) {
 		jdbcTemplate.update("""
 				UPDATE outbox_events
 				SET status = 'PUBLISHED',
 				    published_at = ?,
-				    last_error = NULL
+				    last_error = NULL,
+				    locked_by = NULL,
+				    locked_until = NULL
 				WHERE event_id = ?
-				""", publishedAt, eventId);
+				  AND locked_by = ?
+				""", publishedAt, eventId, lockedBy);
 	}
 
 	@Override
-	public void markFailed(UUID eventId, String errorMessage) {
+	public void markFailed(UUID eventId, String errorMessage, String lockedBy, int maxAttempts) {
 		jdbcTemplate.update("""
 				UPDATE outbox_events
-				SET attempts = attempts + 1,
-				    last_error = ?
+				SET status = CASE WHEN attempts >= ? THEN 'FAILED' ELSE 'PENDING' END,
+				    last_error = ?,
+				    locked_by = NULL,
+				    locked_until = NULL
 				WHERE event_id = ?
-				""", truncate(errorMessage), eventId);
+				  AND locked_by = ?
+				""", maxAttempts, truncate(errorMessage), eventId, lockedBy);
+	}
+
+	private long nowMillis() {
+		return System.currentTimeMillis();
 	}
 
 	private String truncate(String errorMessage) {

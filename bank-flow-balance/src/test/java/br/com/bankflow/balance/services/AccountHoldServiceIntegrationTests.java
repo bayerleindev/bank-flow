@@ -68,8 +68,10 @@ class AccountHoldServiceIntegrationTests {
 		AccountHold hold = accountHoldService.createHold(command("transfer-1", 1500L));
 
 		AccountHold captured = accountHoldService.captureHold(hold.holdId());
+		AccountHold duplicate = accountHoldService.captureHold(hold.holdId());
 
 		assertEquals(AccountHoldStatus.CAPTURED, captured.status());
+		assertEquals(AccountHoldStatus.CAPTURED, duplicate.status());
 		assertEquals(0L, heldMinor());
 		assertThrows(AccountHoldStateException.class, () -> accountHoldService.releaseHold(hold.holdId()));
 	}
@@ -79,8 +81,10 @@ class AccountHoldServiceIntegrationTests {
 		AccountHold hold = accountHoldService.createHold(command("transfer-1", 1500L));
 
 		AccountHold released = accountHoldService.releaseHold(hold.holdId());
+		AccountHold duplicate = accountHoldService.releaseHold(hold.holdId());
 
 		assertEquals(AccountHoldStatus.RELEASED, released.status());
+		assertEquals(AccountHoldStatus.RELEASED, duplicate.status());
 		assertEquals(0L, heldMinor());
 		assertThrows(AccountHoldStateException.class, () -> accountHoldService.captureHold(hold.holdId()));
 	}

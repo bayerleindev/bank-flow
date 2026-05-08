@@ -9,6 +9,7 @@ import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Component
+@ConditionalOnProperty(name = "bank-flow.kafka.lag.enabled", havingValue = "true", matchIfMissing = true)
 public class KafkaConsumerLagMetrics implements DisposableBean {
 	private final AdminClient adminClient;
 	private final String groupId;

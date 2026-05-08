@@ -33,7 +33,7 @@ class LedgerReversalServiceTests {
 		LedgerPosting reversalPosting = repository.savedPostings.get(1);
 		assertEquals("REVERSAL", reversalPosting.entry().entryType());
 		assertEquals(10L, reversalPosting.entry().reversalOfEntryId());
-		assertEquals(event().reversalId().toString(), reversalPosting.entry().externalId());
+		assertEquals("reversal:transfer-1", reversalPosting.entry().externalId());
 		assertEquals("CREDIT", reversalPosting.lines().get(0).direction());
 		assertEquals(1_500L, reversalPosting.lines().get(0).signedAmountMinor());
 		assertEquals("DEBIT", reversalPosting.lines().get(1).direction());
@@ -58,18 +58,22 @@ class LedgerReversalServiceTests {
 	}
 
 	@Test
-	void rejectsSecondReversalWithDifferentReversalId() {
+	void treatsSecondReversalForSameOriginalAsAlreadyProcessed() throws Exception {
 		LedgerPosting originalPosting = originalPosting();
 		LedgerPosting existingReversal = reversalPosting(originalPosting.entry());
 		InMemoryLedgerPostingRepository repository = new InMemoryLedgerPostingRepository(originalPosting, existingReversal);
-		LedgerReversalService service = newService(repository, new CapturingLedgerPostingPublisher());
+		CapturingLedgerPostingPublisher publisher = new CapturingLedgerPostingPublisher();
+		LedgerReversalService service = newService(repository, publisher);
 		LedgerReversalRequestedEvent differentReversal = new LedgerReversalRequestedEvent(
 				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872c1"),
 				"transfer-1",
 				"TRANSFER_CANCELLED"
 		);
 
-		assertThrows(IllegalArgumentException.class, () -> service.reverse(differentReversal));
+		service.reverse(differentReversal);
+
+		assertEquals(2, repository.savedPostings.size());
+		assertEquals(0, publisher.calls);
 	}
 
 	@Test
@@ -125,7 +129,7 @@ class LedgerReversalServiceTests {
 				2L,
 				2L,
 				originalEntry.entryId(),
-				event().reversalId().toString(),
+				"reversal:%s".formatted(originalEntry.externalId()),
 				"Estorno",
 				"{}"
 		);

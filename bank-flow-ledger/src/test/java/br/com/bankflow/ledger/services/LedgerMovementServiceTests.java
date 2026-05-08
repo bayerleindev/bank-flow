@@ -96,7 +96,8 @@ class LedgerMovementServiceTests {
 		assertEquals(2, postingRepository.calls);
 		assertEquals(1, postingRepository.savedPostings.size());
 		assertEquals(transferEvent().transferId().toString(), postingRepository.savedPostings.getFirst().entry().externalId());
-		assertEquals(1, publisher.calls);
+		assertEquals(2, publisher.calls);
+		assertEquals(postingRepository.savedPostings.getFirst(), publisher.publishedPostings.getLast());
 	}
 
 	@Test

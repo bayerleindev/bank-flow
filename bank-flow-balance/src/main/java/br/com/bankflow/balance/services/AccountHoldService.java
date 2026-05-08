@@ -82,6 +82,9 @@ public class AccountHoldService {
 					balanceMetrics.recordHoldCloseFailure(operation, "not_found");
 					return new AccountHoldNotFoundException(holdId);
 				});
+		if (hold.status() == targetStatus) {
+			return hold;
+		}
 		if (hold.status() != AccountHoldStatus.HELD) {
 			balanceMetrics.recordHoldCloseFailure(operation, "invalid_state");
 			throw new AccountHoldStateException(hold.holdId(), hold.status());
