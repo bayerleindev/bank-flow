@@ -2,6 +2,8 @@
 
 Esta doc registra os aprendizados do processo de preparar o Bank Flow para rodar no Minikube. Ela complementa o passo a passo operacional em `docs/deploy-kubernetes-minikube.md`.
 
+Para validar comportamento funcional depois do deploy, use tambem `docs/fluxos-regras-validacoes.md`, que documenta fluxos, regras de negocio, validacoes e idempotencia.
+
 ## 1. Helm vira a interface principal de deploy
 
 O principal aprendizado foi separar o deploy de cada servico em um chart Helm proprio. Isso deixa claro quais configuracoes pertencem a cada aplicacao: imagem, variaveis, secrets, probes, service, metricas e recursos.

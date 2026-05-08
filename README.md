@@ -4,6 +4,8 @@ Este diretorio contem quatro servicos Spring Boot para abertura de contas digita
 
 Regra de identificadores: `accounts`, `transfer` e `balance` usam somente `digital_account_id`. Apenas o `ledger` manipula o `account_id` numerico contabil.
 
+Fluxos completos, regras de negocio e validacoes estao documentados em [docs/fluxos-regras-validacoes.md](docs/fluxos-regras-validacoes.md).
+
 ## Servicos
 
 | Servico | Porta | Responsabilidade |
@@ -360,6 +362,8 @@ Aprendizados do setup Kubernetes/observabilidade estao em [docs/aprendizados-kub
 Passo a passo operacional para deploy no Minikube esta em [docs/deploy-kubernetes-minikube.md](docs/deploy-kubernetes-minikube.md).
 
 Aprendizados especificos do deploy no Minikube estao em [docs/aprendizados-deploy-kubernetes-minikube.md](docs/aprendizados-deploy-kubernetes-minikube.md).
+
+Fluxos, regras de negocio e validacoes estao em [docs/fluxos-regras-validacoes.md](docs/fluxos-regras-validacoes.md).
 
 Metricas de negocio criticas:
 

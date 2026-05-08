@@ -27,6 +27,29 @@ ledger-movements
   -> publica ledger-posting-created
 ```
 
+## Regras de Negocio
+
+- Apenas o ledger manipula `account_id` contabil.
+- Cada conta digital ativa vira uma conta contabil interna.
+- A conta de liquidacao `SETTLEMENT_EXTERNAL_INBOUND_BRL` deve existir antes de processar inbound externo.
+- Todo posting precisa ser double-entry: ao menos duas linhas e soma assinada igual a zero por moeda.
+- `external_id` e a idempotencia do posting.
+- Se um `ledger-movements` duplicado chega depois de o posting existir, o ledger republica o `ledger-posting-created` existente.
+- Estornos usam `reversal:<original_external_id>` como chave idempotente deterministica.
+- Uma reversao nao pode ser revertida; um posting original ja revertido nao pode receber segunda reversao.
+
+## Validacoes
+
+- `account-created` deve ter chave Kafka igual ao `digital_account_id`.
+- `ledger-movements` deve ter chave Kafka igual ao `source_digital_account_id`.
+- `ledger-reversals` deve ter chave Kafka igual ao `original_external_id`.
+- `ledger-movements` exige `transfer_id`, `source_digital_account_id`, `source_account`, `destination_digital_account_id`, `destination_account`, `amount_cents` e `currency`.
+- `amount_cents` deve ser positivo e `currency` deve ser `BRL`.
+- Posting rejeita linhas com `entry_id` divergente, moeda misturada, direction invalida, sinal incorreto ou soma diferente de zero.
+- `ledger-reversals` exige `reversal_id`, `original_external_id` e `reason`.
+
+Mais detalhes estao em [../docs/fluxos-regras-validacoes.md](../docs/fluxos-regras-validacoes.md).
+
 ## Kafka
 
 Consumidos:

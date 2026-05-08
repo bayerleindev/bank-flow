@@ -41,6 +41,31 @@ POST /webhooks/external-institutions/transfers
   -> transfer marca COMPLETED
 ```
 
+## Regras de Negocio
+
+- `POST /transfers` exige `Idempotency-Key`.
+- Repetir a mesma chave retorna a transferencia ja persistida.
+- Conta origem e destino precisam existir no `accounts` e estar `ACTIVE`.
+- Origem e destino nao podem ser o mesmo `digital_account_id`.
+- Transferencia interna cria hold antes da chamada ao PSP.
+- PSP `CONFIRMED` solicita postagem contabil; PSP `FAILED` libera o hold e marca a transferencia como `FAILED`.
+- Transferencia inbound externa nao cria hold; ela usa a conta contabil de liquidacao como origem.
+- A idempotencia do inbound externo usa `source_institution_code` + `external_transfer_id`.
+- `COMPLETED`, `FAILED`, `EXPIRED` e `REVERSED` sao estados terminais.
+- O outbox usa lock com `FOR UPDATE SKIP LOCKED`, `locked_by` e `locked_until`, permitindo mais de uma replica sem publicar o mesmo evento simultaneamente.
+
+## Validacoes
+
+- `source_digital_account_id`, `destination_digital_account_id`, `amount_minor`, `currency` e `description` sao obrigatorios em transferencia interna.
+- `amount_minor` deve ser positivo.
+- `currency` deve ter 3 letras; no contrato contabil com o ledger, deve ser BRL.
+- Webhook PSP exige `psp_payment_id` e `status`; status aceitos: `CONFIRMED` e `FAILED`.
+- Webhook inbound exige `source_institution_code`, `external_transfer_id`, `destination_digital_account_id`, `amount_minor`, `currency` e `description`.
+- No inbound externo, `currency` deve ser `BRL`.
+- O consumer de `ledger-posting-created` exige chave Kafka igual ao `external_id` do payload.
+
+Mais detalhes estao em [../docs/fluxos-regras-validacoes.md](../docs/fluxos-regras-validacoes.md).
+
 ## API
 
 Porta padrao: `8083`.
@@ -154,6 +179,10 @@ Topico consumido: `ledger-posting-created`, chave `external_id`.
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers. |
 | `OUTBOX_PUBLISHER_FIXED_DELAY_MS` | `1000` | Intervalo do publisher. |
 | `OUTBOX_PUBLISHER_BATCH_SIZE` | `50` | Tamanho do lote. |
+| `OUTBOX_PUBLISHER_LOCK_LEASE_MS` | `60000` | Tempo de posse do lock de evento em processamento. |
+| `OUTBOX_PUBLISHER_SEND_TIMEOUT_MS` | `30000` | Timeout para publish Kafka. |
+| `OUTBOX_PUBLISHER_MAX_ATTEMPTS` | `10` | Tentativas antes de marcar evento como `FAILED`. |
+| `KAFKA_PRODUCER_MAX_BLOCK_MS` | `30000` | Timeout maximo de bloqueio do producer Kafka. |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Export de traces para Tempo. |
 
 ## Observability

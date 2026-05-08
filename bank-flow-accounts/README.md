@@ -26,6 +26,25 @@ POST /accounts
   -> OutboxPublisher publica account-created no Kafka
 ```
 
+## Regras de Negocio
+
+- `Idempotency-Key` e obrigatorio para criar conta.
+- Repetir a mesma chave retorna a conta ja persistida, sem duplicar cadastro.
+- O servico cria e expoe apenas `digital_account_id`; `account_id` contabil e responsabilidade do ledger.
+- Apenas contas que chegam a `ACTIVE` publicam `account-created`.
+- O BaaS define `baas_account_id`, `branch`, `account`, `currency` e status operacional.
+- O outbox usa lock com `FOR UPDATE SKIP LOCKED`, `locked_by` e `locked_until`, permitindo mais de uma replica sem publicar o mesmo evento simultaneamente.
+
+## Validacoes
+
+- `fullName`, `motherName`, `phoneNumber`, `birthDate` e `address` sao obrigatorios.
+- `documentNumber` deve ser CPF valido.
+- `email` deve ter formato valido.
+- A resposta do BaaS precisa ter status valido.
+- Evento `account-created` publicado com chave Kafka igual ao `digital_account_id`.
+
+Mais detalhes estao em [../docs/fluxos-regras-validacoes.md](../docs/fluxos-regras-validacoes.md).
+
 ## API
 
 Porta padrao: `8084`.
@@ -103,6 +122,10 @@ Payload:
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers. |
 | `OUTBOX_PUBLISHER_FIXED_DELAY_MS` | `1000` | Intervalo do publisher. |
 | `OUTBOX_PUBLISHER_BATCH_SIZE` | `50` | Tamanho do lote. |
+| `OUTBOX_PUBLISHER_LOCK_LEASE_MS` | `60000` | Tempo de posse do lock de evento em processamento. |
+| `OUTBOX_PUBLISHER_SEND_TIMEOUT_MS` | `30000` | Timeout para publish Kafka. |
+| `OUTBOX_PUBLISHER_MAX_ATTEMPTS` | `10` | Tentativas antes de marcar evento como `FAILED`. |
+| `KAFKA_PRODUCER_MAX_BLOCK_MS` | `30000` | Timeout maximo de bloqueio do producer Kafka. |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Export de traces para Tempo. |
 
 ## Observability

@@ -2,6 +2,8 @@
 
 Este documento registra os principais aprendizados ao preparar os servicos do Bank Flow para deploy individualizado no Minikube com Helm, Prometheus, Grafana, Loki, Alloy e Tempo.
 
+Ele cobre operacao e observabilidade. Os fluxos de negocio, validacoes, estados e regras de idempotencia estao em `docs/fluxos-regras-validacoes.md`.
+
 ## 1. Deploy individual por servico
 
 Cada servico precisa ter seu proprio chart Helm para poder ser instalado, atualizado e escalado de forma independente. Isso evita que uma mudanca no `ledger`, por exemplo, force redeploy de `accounts`, `transfer` e `balance`.

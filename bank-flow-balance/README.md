@@ -33,11 +33,37 @@ transfer POST /holds
 transfer POST /holds/{hold_id}/capture
   -> muda HELD para CAPTURED
   -> decrementa held_minor
+  -> se ja CAPTURED, retorna sucesso idempotente
 
 transfer POST /holds/{hold_id}/release
   -> muda HELD para RELEASED
   -> decrementa held_minor
+  -> se ja RELEASED, retorna sucesso idempotente
 ```
+
+## Regras de Negocio
+
+- O balance projeta o resultado do ledger; ele nao decide partida contabil.
+- `available_minor = posted_minor - held_minor`.
+- `ledger-posting-created` e idempotente por `entry_id` e `external_id`.
+- Criar hold exige saldo disponivel suficiente.
+- Hold altera apenas `held_minor`; `posted_minor` muda somente pela projecao do ledger.
+- Capturar ou liberar um hold reduz `held_minor` e fecha o hold.
+- Repetir a mesma operacao terminal de hold e idempotente.
+- Capturar hold `RELEASED` ou liberar hold `CAPTURED` e transicao invalida.
+
+## Validacoes
+
+- A chave Kafka de `ledger-posting-created` deve ser igual ao `external_id`.
+- Evento de posting precisa ter `entry_id`, `external_id`, `entry_type`, `status`, `description`, `occurred_at`, `created_at` e ao menos duas linhas.
+- `status` do posting deve ser `POSTED`.
+- Linhas do posting precisam balancear para zero por moeda.
+- Cada linha precisa ter `line_id`, `entry_id`, `account_id`, `digital_account_id`, `direction`, `amount_minor`, `signed_amount_minor`, `currency`, `line_memo` e `created_at`.
+- `POST /holds` exige `transfer_id`, `digital_account_id`, `amount_minor`, `currency`, `reason` e `expires_at`.
+- `amount_minor` deve ser positivo e `expires_at` deve estar no futuro.
+- Consulta de extrato exige `limit` positivo e `cursor` valido quando informado.
+
+Mais detalhes estao em [../docs/fluxos-regras-validacoes.md](../docs/fluxos-regras-validacoes.md).
 
 ## API
 

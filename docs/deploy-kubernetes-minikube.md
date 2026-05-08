@@ -49,6 +49,12 @@ Infra local externa ao Minikube:
 docker-compose.yaml
 ```
 
+Documentacao funcional usada para validar os fluxos depois do deploy:
+
+```text
+docs/fluxos-regras-validacoes.md
+```
+
 ## 2. Dependencias fora do Minikube
 
 Neste setup, Postgres, Kafka e immudb rodam fora do Minikube via Docker Compose. Os pods acessam esses servicos pelo host:
