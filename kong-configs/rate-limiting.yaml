@@ -1,0 +1,9 @@
+apiVersion: configuration.konghq.com/v1
+kind: KongPlugin
+metadata:
+  name: bank-flow-rate-limiting
+  namespace: default
+plugin: rate-limiting
+config:
+  minute: 100
+  policy: local
