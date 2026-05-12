@@ -27,7 +27,7 @@ probe:
 commonEnv:
   POSTGRES_URL: "jdbc:postgresql://host.docker.internal:5432/bank_flow?currentSchema=transfer,public"
   ACCOUNTS_BASE_URL: "http://bank-flow-accounts:8084"
-  BALANCE_BASE_URL: "http://bank-flow-balance:8082"
+  BALANCE_BASE_URL: "http://bank-flow-balance-api:8082"
   PSP_MODE: "mock"
   PSP_BASE_URL: "http://psp:9099"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo.monitoring.svc.cluster.local:4318/v1/traces"

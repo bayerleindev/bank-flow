@@ -43,7 +43,7 @@ env:
   KAFKA_RETRY_INTERVAL_MS: "1000"
   KAFKA_RETRY_MAX_ATTEMPTS: "3"
   IMMUDB_ENABLED: "true"
-  IMMUDB_HOST: "192.168.49.2"
+  IMMUDB_HOST: "host.docker.internal"
   IMMUDB_PORT: "3322"
   IMMUDB_DATABASE: "ledger"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo.monitoring.svc.cluster.local:4318/v1/traces"

@@ -37,7 +37,7 @@ No cenário atual, as rotas ficam parecidas com:
 ```text
 /transfer  → bank-flow-transfer
 /accounts  → bank-flow-accounts
-/balance   → bank-flow-balance
+/balance   → bank-flow-balance-api
 ```
 
 O Kong fica responsável por receber o tráfego externo e encaminhar para os `Services` internos do Kubernetes.
@@ -308,12 +308,12 @@ Exemplo de service para saldo:
 apiVersion: v1
 kind: Service
 metadata:
-  name: bank-flow-balance
+  name: bank-flow-balance-api
   namespace: default
 spec:
   type: ClusterIP
   selector:
-    app: bank-flow-balance
+    app: bank-flow-balance-api
   ports:
     - name: http
       port: 8082
@@ -382,7 +382,7 @@ spec:
             type: PathPrefix
             value: /balance
       backendRefs:
-        - name: bank-flow-balance
+        - name: bank-flow-balance-api
           kind: Service
           port: 8082
 ```
@@ -574,7 +574,7 @@ spec:
             type: PathPrefix
             value: /balance
       backendRefs:
-        - name: bank-flow-balance
+        - name: bank-flow-balance-api
           kind: Service
           port: 8082
 ```

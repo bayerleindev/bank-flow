@@ -14,7 +14,8 @@ Fluxos completos, regras de negocio e validacoes estao documentados em [docs/flu
 | `bank-flow-transfer-api` | `8083` | API HTTP de transferencias, PSP webhook e inbound externo. |
 | `bank-flow-transfer-worker` | `8086` | Publica outbox para Kafka, consome `ledger-posting-created` e conclui transferencias. |
 | `bank-flow-ledger` | `8085` | Mantem double-entry no immudb e publica `ledger-posting-created`. |
-| `bank-flow-balance` | `8082` | Projeta saldos/extratos e gerencia holds por `digital_account_id`. |
+| `bank-flow-balance-api` | `8082` | API HTTP de saldo, extrato e holds por `digital_account_id`. |
+| `bank-flow-balance-worker` | `8087` | Consome `ledger-posting-created`, projeta saldo/extrato e expira holds. |
 
 ## Arquitetura
 
@@ -30,7 +31,8 @@ flowchart LR
         transferApi[bank-flow-transfer-api<br/>8083]
         transferWorker[bank-flow-transfer-worker<br/>8086]
         ledger[bank-flow-ledger<br/>8085]
-        balance[bank-flow-balance<br/>8082]
+        balanceApi[bank-flow-balance-api<br/>8082]
+        balanceWorker[bank-flow-balance-worker<br/>8087]
     end
 
     subgraph storage[Persistencia]
@@ -66,8 +68,8 @@ flowchart LR
 
     user -->|POST /transfers| transferApi
     transferApi -->|GET account by digital_account_id| accounts
-    transferApi -->|POST /holds| balance
-    balance --> pgBalance
+    transferApi -->|POST /holds| balanceApi
+    balanceApi --> pgBalance
     transferApi -->|create payment| psp
     psp -->|POST /webhooks/psp/transfers| transferApi
     transferApi --> pgTransfer
@@ -83,10 +85,10 @@ flowchart LR
     ledger -->|double-entry posting| immudb
     ledger -->|publish posting| tLedgerPostingCreated
 
-    tLedgerPostingCreated --> balance
-    balance -->|project balance and statement| pgBalance
+    tLedgerPostingCreated --> balanceWorker
+    balanceWorker -->|project balance and statement| pgBalance
     tLedgerPostingCreated --> transferWorker
-    transferWorker -->|capture hold and mark COMPLETED| balance
+    transferWorker -->|capture hold and mark COMPLETED| balanceApi
 
     tAccountCreated -. failure .-> dlt
     tLedgerMovements -. failure .-> dlt
@@ -97,12 +99,14 @@ flowchart LR
     transferApi -->|/actuator/prometheus| prometheus
     transferWorker -->|/actuator/prometheus| prometheus
     ledger -->|/actuator/prometheus| prometheus
-    balance -->|/actuator/prometheus| prometheus
+    balanceApi -->|/actuator/prometheus| prometheus
+    balanceWorker -->|/actuator/prometheus| prometheus
     accounts -->|traces/logs| otel
     transferApi -->|traces/logs| otel
     transferWorker -->|traces/logs| otel
     ledger -->|traces/logs| otel
-    balance -->|traces/logs| otel
+    balanceApi -->|traces/logs| otel
+    balanceWorker -->|traces/logs| otel
     otel --> tempo
     otel --> loki
     prometheus --> grafana
@@ -134,7 +138,7 @@ POST /transfers
   -> transfer-worker publica ledger-movements
   -> ledger cria posting double-entry
   -> ledger publica ledger-posting-created
-  -> balance projeta saldo/extrato
+  -> balance-worker projeta saldo/extrato
   -> transfer-worker captura hold e marca COMPLETED
 ```
 
@@ -149,7 +153,7 @@ POST /webhooks/external-institutions/transfers
   -> transfer-api grava ledger-movements no outbox
   -> transfer-worker publica ledger-movements
   -> ledger debita liquidacao e credita a conta destino
-  -> balance projeta saldo/extrato
+  -> balance-worker projeta saldo/extrato
   -> transfer-worker marca COMPLETED apos ledger-posting-created
 ```
 
@@ -160,7 +164,7 @@ POST /webhooks/external-institutions/transfers
 | `account-created` | accounts | ledger | `digital_account_id` |
 | `ledger-movements` | transfer-worker | ledger | `source_digital_account_id` |
 | `ledger-reversals` | externo/scripts | ledger | `original_external_id` |
-| `ledger-posting-created` | ledger | balance, transfer-worker | `external_id` |
+| `ledger-posting-created` | ledger | balance-worker, transfer-worker | `external_id` |
 
 Cada topico possui DLT com sufixo `.DLT`.
 
@@ -194,7 +198,8 @@ Em terminais separados:
 
 ```bash
 cd bank-flow-accounts && ./gradlew bootRun
-cd bank-flow-balance && ./gradlew bootRun
+cd bank-flow-balance && ./gradlew :api:bootRun
+cd bank-flow-balance && ./gradlew :worker:bootRun
 cd bank-flow-ledger && ./gradlew bootRun
 cd bank-flow-transfer && ./gradlew :api:bootRun
 cd bank-flow-transfer && ./gradlew :worker:bootRun
@@ -251,7 +256,7 @@ Defaults atuais para Minikube:
 
 - Postgres acessivel em `host.minikube.internal:5432`.
 - Kafka acessivel em `host.docker.internal:9094`.
-- immudb acessivel em `host.minikube.internal:3322`.
+- immudb acessivel em `host.docker.internal:3322`.
 - OTLP Collector acessivel em `host.minikube.internal:4318`.
 
 ### Prometheus no Kubernetes
@@ -288,7 +293,8 @@ Os charts criam `Probe` por padrao, tambem com o label `release: monitoring`, ap
 
 ```text
 http://bank-flow-accounts.<namespace>.svc:8084/actuator/health
-http://bank-flow-balance.<namespace>.svc:8082/actuator/health
+http://bank-flow-balance-api.<namespace>.svc:8082/actuator/health
+http://bank-flow-balance-worker.<namespace>.svc:8087/actuator/health
 http://bank-flow-ledger.<namespace>.svc:8085/actuator/health
 http://bank-flow-transfer-api.<namespace>.svc:8083/actuator/health
 http://bank-flow-transfer-worker.<namespace>.svc:8086/actuator/health
@@ -431,22 +437,26 @@ Ele pode ser executado manualmente com `workflow_dispatch` escolhendo:
 - `all`
 - `accounts`
 - `balance`
+- `balance-api`
+- `balance-worker`
 - `transfer`
 - `transfer-api`
 - `transfer-worker`
 - `ledger`
 
-Cada servico tambem possui um workflow proprio. Transferencias tem pipelines separados para `:api` e `:worker`, alem de um workflow agregado `transfer`.
+Cada servico tambem possui um workflow proprio. Balance e transferencias tem pipelines separados para `:api` e `:worker`, alem dos workflows agregados `balance` e `transfer`.
 
 ## Testes
 
 ```bash
 cd bank-flow-accounts && ./gradlew test
+cd ../bank-flow-balance && ./gradlew test
+cd ../bank-flow-balance && ./gradlew :api:test
+cd ../bank-flow-balance && ./gradlew :worker:test
 cd ../bank-flow-transfer && ./gradlew test
 cd ../bank-flow-transfer && ./gradlew :api:test
 cd ../bank-flow-transfer && ./gradlew :worker:test
 cd ../bank-flow-ledger && ./gradlew test
-cd ../bank-flow-balance && ./gradlew test
 ```
 
 ## Bancos

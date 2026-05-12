@@ -79,15 +79,15 @@ Para IDs por replica, prefira identidade estavel do Kubernetes: `StatefulSet` + 
 Quando o Kafka, Postgres ou immudb rodam fora do Minikube, `localhost` dentro do pod nao aponta para a maquina host. Para o Minikube acessar servicos do host, usamos:
 
 ```text
-host.minikube.internal
+host.docker.internal
 ```
 
 Exemplos:
 
 ```yaml
 KAFKA_BOOTSTRAP_SERVERS: host.docker.internal:9094
-IMMUDB_HOST: host.minikube.internal
-POSTGRES_URL: jdbc:postgresql://host.minikube.internal:5432/bank_flow
+IMMUDB_HOST: host.docker.internal
+POSTGRES_URL: jdbc:postgresql://host.docker.internal:5432/bank_flow
 ```
 
 No Kafka, alem da porta, tambem e necessario anunciar um listener que faca sentido para o Minikube:
