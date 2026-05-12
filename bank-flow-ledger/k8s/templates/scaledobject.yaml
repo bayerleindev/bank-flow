@@ -1,0 +1,25 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ .Values.nameOverride }}-scaledobject
+spec:
+  scaleTargetRef:
+    kind: StatefulSet
+    name: {{ .Values.nameOverride }}
+  minReplicaCount: 0
+  maxReplicaCount: 12
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: "host.docker.internal:9094"
+        consumerGroup: "bank-flow-ledger"
+        topic: "ledger-movements"
+        lagThreshold: '5'
+        activationLagThreshold: '3'
+        offsetResetPolicy: latest
+        allowIdleConsumers: 'false'
+        scaleToZeroOnInvalidOffset: 'false'
+        excludePersistentLag: 'false'
+        limitToPartitionsWithLag: 'false'
+        ensureEvenDistributionOfPartitions: 'false'
+        version: 1.0.0
