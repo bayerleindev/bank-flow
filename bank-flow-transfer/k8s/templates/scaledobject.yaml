@@ -6,7 +6,7 @@ spec:
   scaleTargetRef:
     kind: Deployment
     name: "bank-flow-transfer-worker"
-  minReplicaCount: 0
+  minReplicaCount: 1
   maxReplicaCount: 12
   triggers:
     - type: kafka
