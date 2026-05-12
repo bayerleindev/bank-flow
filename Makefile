@@ -10,5 +10,8 @@ up:
 	cd bank-flow-ledger; ./gradlew bootBuildImage --imageName=bank-flow-ledger:local
 	minikube image load bank-flow-ledger:local
 
-	cd bank-flow-transfer; ./gradlew bootBuildImage --imageName=bank-flow-transfer:local
-	minikube image load bank-flow-transfer:local
+	cd bank-flow-transfer; ./gradlew :api:bootBuildImage --imageName=bank-flow-transfer-api:local
+	minikube image load bank-flow-transfer-api:local
+
+	cd bank-flow-transfer; ./gradlew :worker:bootBuildImage --imageName=bank-flow-transfer-worker:local
+	minikube image load bank-flow-transfer-worker:local

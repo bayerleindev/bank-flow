@@ -1,27 +1,33 @@
 {{- if .Values.probe.enabled }}
+{{- range $componentKey, $component := .Values.components }}
+{{- if $component.enabled }}
 apiVersion: monitoring.coreos.com/v1
 kind: Probe
 metadata:
-  name: {{ .Values.nameOverride }}-health
-  {{- if .Values.probe.namespace }}
-  namespace: {{ .Values.probe.namespace }}
+  name: {{ $component.name }}-health
+  {{- if $.Values.probe.namespace }}
+  namespace: {{ $.Values.probe.namespace }}
   {{- end }}
   labels:
-    app.kubernetes.io/name: {{ .Values.nameOverride }}
+    app.kubernetes.io/name: {{ $component.name }}
+    app.kubernetes.io/component: {{ $componentKey }}
     app.kubernetes.io/part-of: bank-flow
-{{- range $key, $value := .Values.probe.labels }}
+{{- range $key, $value := $.Values.probe.labels }}
     {{ $key }}: {{ $value | quote }}
 {{- end }}
 spec:
-  jobName: {{ .Values.probe.jobName }}
-  module: {{ .Values.probe.module }}
+  jobName: {{ $.Values.probe.jobName }}
+  module: {{ $.Values.probe.module }}
   prober:
-    url: {{ .Values.probe.proberUrl }}
+    url: {{ $.Values.probe.proberUrl }}
   targets:
     staticConfig:
       static:
-        - http://{{ .Values.nameOverride }}.{{ .Release.Namespace }}.svc:{{ .Values.service.port }}{{ .Values.probe.targetPath }}
+        - http://{{ $component.name }}.{{ $.Release.Namespace }}.svc:{{ $component.service.port }}{{ $.Values.probe.targetPath }}
       labels:
-        service: {{ .Values.nameOverride }}
+        service: {{ $component.name }}
         stack: bank-flow
+---
+{{- end }}
+{{- end }}
 {{- end }}

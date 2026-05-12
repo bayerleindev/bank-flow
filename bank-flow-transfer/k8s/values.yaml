@@ -1,22 +1,11 @@
 nameOverride: bank-flow-transfer
 
-replicaCount: 1
-
-image:
-  repository: bank-flow-transfer
-  tag: local
-  pullPolicy: IfNotPresent
-
-service:
-  type: ClusterIP
-  port: 8083
-
 metrics:
   job: bank-flow-services
 
 serviceMonitor:
   enabled: true
-  namespace: ""
+  namespace: "bank-flow"
   interval: 15s
   scrapeTimeout: 10s
   path: /actuator/prometheus
@@ -25,7 +14,7 @@ serviceMonitor:
 
 probe:
   enabled: true
-  namespace: ""
+  namespace: "bank-flow"
   jobName: bank-flow-health
   module: http_2xx
   proberUrl: prometheus-blackbox-exporter.monitoring.svc:9115
@@ -35,52 +24,96 @@ probe:
   labels:
     release: monitoring
 
-env:
-  SERVER_PORT: "8083"
-  POSTGRES_URL: "jdbc:postgresql://host.minikube.internal:5432/bank_flow?currentSchema=transfer,public"
-  KAFKA_BOOTSTRAP_SERVERS: "host.minikube.internal:9094"
-  KAFKA_CONSUMER_GROUP_ID: "bank-flow-transfer"
-  KAFKA_AUTO_OFFSET_RESET: "earliest"
-  KAFKA_RETRY_INTERVAL_MS: "1000"
-  KAFKA_RETRY_MAX_ATTEMPTS: "3"
+commonEnv:
+  POSTGRES_URL: "jdbc:postgresql://host.docker.internal:5432/bank_flow?currentSchema=transfer,public"
   ACCOUNTS_BASE_URL: "http://bank-flow-accounts:8084"
   BALANCE_BASE_URL: "http://bank-flow-balance:8082"
   PSP_MODE: "mock"
   PSP_BASE_URL: "http://psp:9099"
-  OUTBOX_PUBLISHER_FIXED_DELAY_MS: "1000"
-  OUTBOX_PUBLISHER_BATCH_SIZE: "50"
-  OUTBOX_PUBLISHER_LOCK_LEASE_MS: "60000"
-  OUTBOX_PUBLISHER_SEND_TIMEOUT_MS: "30000"
-  OUTBOX_PUBLISHER_MAX_ATTEMPTS: "10"
-  KAFKA_PRODUCER_MAX_BLOCK_MS: "30000"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo.monitoring.svc.cluster.local:4318/v1/traces"
   MANAGEMENT_HEALTH_SHOW_DETAILS: "never"
   BPL_JVM_THREAD_COUNT: "50"
   LOG_FILE: ""
-  BANK_FLOW_KAFKA_LAG_ENABLED: "false"
 
 secretEnv:
   POSTGRES_USER: "myuser"
   POSTGRES_PASSWORD: "mysecretpassword"
 
-readinessProbe:
-  path: /actuator/health/readiness
-  initialDelaySeconds: 20
-  periodSeconds: 10
-  timeoutSeconds: 3
-  failureThreshold: 6
+components:
+  api:
+    enabled: true
+    name: bank-flow-transfer-api
+    replicaCount: 1
+    image:
+      repository: gbcamargo/bank-flow-transfer-api
+      tag: 1.0.0
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 8083
+    env:
+      SERVER_PORT: "8083"
+    readinessProbe:
+      path: /actuator/health/readiness
+      initialDelaySeconds: 20
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 6
+    livenessProbe:
+      path: /actuator/health/liveness
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 3
+      failureThreshold: 3
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi
 
-livenessProbe:
-  path: /actuator/health/liveness
-  initialDelaySeconds: 30
-  periodSeconds: 20
-  timeoutSeconds: 3
-  failureThreshold: 3
-
-resources:
-  requests:
-    cpu: 100m
-    memory: 256Mi
-  limits:
-    cpu: 500m
-    memory: 768Mi
+  worker:
+    enabled: true
+    name: bank-flow-transfer-worker
+    replicaCount: 1
+    image:
+      repository: gbcamargo/bank-flow-transfer-worker
+      tag: 1.0.0
+      pullPolicy: IfNotPresent
+    service:
+      type: ClusterIP
+      port: 8086
+    env:
+      SERVER_PORT: "8086"
+      KAFKA_BOOTSTRAP_SERVERS: "host.docker.internal:9094"
+      KAFKA_CONSUMER_GROUP_ID: "bank-flow-transfer-worker"
+      KAFKA_AUTO_OFFSET_RESET: "earliest"
+      KAFKA_RETRY_INTERVAL_MS: "1000"
+      KAFKA_RETRY_MAX_ATTEMPTS: "3"
+      OUTBOX_PUBLISHER_FIXED_DELAY_MS: "1000"
+      OUTBOX_PUBLISHER_BATCH_SIZE: "50"
+      OUTBOX_PUBLISHER_LOCK_LEASE_MS: "60000"
+      OUTBOX_PUBLISHER_SEND_TIMEOUT_MS: "30000"
+      OUTBOX_PUBLISHER_MAX_ATTEMPTS: "10"
+      KAFKA_PRODUCER_MAX_BLOCK_MS: "30000"
+      BANK_FLOW_KAFKA_LAG_ENABLED: "false"
+    readinessProbe:
+      path: /actuator/health/readiness
+      initialDelaySeconds: 20
+      periodSeconds: 10
+      timeoutSeconds: 3
+      failureThreshold: 6
+    livenessProbe:
+      path: /actuator/health/liveness
+      initialDelaySeconds: 30
+      periodSeconds: 20
+      timeoutSeconds: 3
+      failureThreshold: 3
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 768Mi

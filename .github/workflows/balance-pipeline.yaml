@@ -5,22 +5,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: bank-flow-balance
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: bank-flow-balance
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  api:
+    uses: ./.github/workflows/balance-api-pipeline.yaml
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: gradle
-
-      - name: Run tests
-        run: ./gradlew test
+  worker:
+    uses: ./.github/workflows/balance-worker-pipeline.yaml

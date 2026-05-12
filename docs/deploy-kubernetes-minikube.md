@@ -67,7 +67,7 @@ Defaults nos charts:
 
 ```text
 Postgres: host.minikube.internal:5432
-Kafka:    host.minikube.internal:9094
+Kafka:    host.docker.internal:9094
 immudb:   host.minikube.internal:3322
 ```
 
@@ -285,7 +285,7 @@ metadata:
 data:
   SERVER_PORT: "8083"
   POSTGRES_URL: "jdbc:postgresql://host.minikube.internal:5432/bank_flow?currentSchema=transfer,public"
-  KAFKA_BOOTSTRAP_SERVERS: "host.minikube.internal:9094"
+  KAFKA_BOOTSTRAP_SERVERS: "host.docker.internal:9094"
   ACCOUNTS_BASE_URL: "http://bank-flow-accounts:8084"
   BALANCE_BASE_URL: "http://bank-flow-balance:8082"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo.monitoring.svc.cluster.local:4318/v1/traces"

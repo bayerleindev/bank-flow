@@ -1,6 +1,6 @@
 # Bank Flow Backend
 
-Este diretorio contem quatro servicos Spring Boot para abertura de contas digitais, transferencias, ledger contabil e projecao de saldo.
+Este diretorio contem os servicos Spring Boot para abertura de contas digitais, transferencias, ledger contabil e projecao de saldo. O dominio de transferencias e dividido em API HTTP e Worker.
 
 Regra de identificadores: `accounts`, `transfer` e `balance` usam somente `digital_account_id`. Apenas o `ledger` manipula o `account_id` numerico contabil.
 
@@ -11,7 +11,8 @@ Fluxos completos, regras de negocio e validacoes estao documentados em [docs/flu
 | Servico | Porta | Responsabilidade |
 | --- | --- | --- |
 | `bank-flow-accounts` | `8084` | Cria contas digitais, chama BaaS e publica `account-created`. |
-| `bank-flow-transfer` | `8083` | Orquestra hold, PSP, webhook inbound externo, outbox para ledger e conclusao. |
+| `bank-flow-transfer-api` | `8083` | API HTTP de transferencias, PSP webhook e inbound externo. |
+| `bank-flow-transfer-worker` | `8086` | Publica outbox para Kafka, consome `ledger-posting-created` e conclui transferencias. |
 | `bank-flow-ledger` | `8085` | Mantem double-entry no immudb e publica `ledger-posting-created`. |
 | `bank-flow-balance` | `8082` | Projeta saldos/extratos e gerencia holds por `digital_account_id`. |
 
@@ -26,7 +27,8 @@ flowchart LR
 
     subgraph apps[Servicos Bank Flow]
         accounts[bank-flow-accounts<br/>8084]
-        transfer[bank-flow-transfer<br/>8083]
+        transferApi[bank-flow-transfer-api<br/>8083]
+        transferWorker[bank-flow-transfer-worker<br/>8086]
         ledger[bank-flow-ledger<br/>8085]
         balance[bank-flow-balance<br/>8082]
     end
@@ -62,18 +64,19 @@ flowchart LR
     tAccountCreated --> ledger
     ledger -->|create CUSTOMER_ACCOUNT_*| immudb
 
-    user -->|POST /transfers| transfer
-    transfer -->|GET account by digital_account_id| accounts
-    transfer -->|POST /holds| balance
+    user -->|POST /transfers| transferApi
+    transferApi -->|GET account by digital_account_id| accounts
+    transferApi -->|POST /holds| balance
     balance --> pgBalance
-    transfer -->|create payment| psp
-    psp -->|POST /webhooks/psp/transfers| transfer
-    transfer --> pgTransfer
-    transfer -->|outbox publish| tLedgerMovements
+    transferApi -->|create payment| psp
+    psp -->|POST /webhooks/psp/transfers| transferApi
+    transferApi --> pgTransfer
+    transferWorker -->|outbox publish| tLedgerMovements
 
-    external -->|POST /webhooks/external-institutions/transfers| transfer
-    transfer -->|validate destination account| accounts
-    transfer -->|debit SETTLEMENT_EXTERNAL_INBOUND_BRL| tLedgerMovements
+    external -->|POST /webhooks/external-institutions/transfers| transferApi
+    transferApi -->|validate destination account| accounts
+    transferApi --> pgTransfer
+    transferWorker -->|debit SETTLEMENT_EXTERNAL_INBOUND_BRL| tLedgerMovements
 
     tLedgerMovements --> ledger
     tLedgerReversals --> ledger
@@ -82,8 +85,8 @@ flowchart LR
 
     tLedgerPostingCreated --> balance
     balance -->|project balance and statement| pgBalance
-    tLedgerPostingCreated --> transfer
-    transfer -->|capture hold and mark COMPLETED| balance
+    tLedgerPostingCreated --> transferWorker
+    transferWorker -->|capture hold and mark COMPLETED| balance
 
     tAccountCreated -. failure .-> dlt
     tLedgerMovements -. failure .-> dlt
@@ -91,11 +94,13 @@ flowchart LR
     tLedgerPostingCreated -. failure .-> dlt
 
     accounts -->|/actuator/prometheus| prometheus
-    transfer -->|/actuator/prometheus| prometheus
+    transferApi -->|/actuator/prometheus| prometheus
+    transferWorker -->|/actuator/prometheus| prometheus
     ledger -->|/actuator/prometheus| prometheus
     balance -->|/actuator/prometheus| prometheus
     accounts -->|traces/logs| otel
-    transfer -->|traces/logs| otel
+    transferApi -->|traces/logs| otel
+    transferWorker -->|traces/logs| otel
     ledger -->|traces/logs| otel
     balance -->|traces/logs| otel
     otel --> tempo
@@ -121,29 +126,31 @@ Transferencia:
 
 ```text
 POST /transfers
-  -> transfer consulta accounts por digital_account_id
-  -> transfer cria hold no balance
-  -> transfer chama PSP
+  -> transfer-api consulta accounts por digital_account_id
+  -> transfer-api cria hold no balance
+  -> transfer-api chama PSP
   -> webhook PSP CONFIRMED
-  -> transfer publica ledger-movements via outbox
+  -> transfer-api grava ledger-movements no outbox
+  -> transfer-worker publica ledger-movements
   -> ledger cria posting double-entry
   -> ledger publica ledger-posting-created
   -> balance projeta saldo/extrato
-  -> transfer captura hold e marca COMPLETED
+  -> transfer-worker captura hold e marca COMPLETED
 ```
 
-Se o PSP retorna `FAILED`, o transfer libera o hold e marca a transferencia como `FAILED`.
+Se o PSP retorna `FAILED`, o transfer-api libera o hold e marca a transferencia como `FAILED`.
 
 Transferencia inbound de outra instituicao:
 
 ```text
 POST /webhooks/external-institutions/transfers
-  -> transfer valida a conta destino no accounts
+  -> transfer-api valida a conta destino no accounts
   -> usa a conta contabil de liquidacao como origem
-  -> transfer publica ledger-movements via outbox
+  -> transfer-api grava ledger-movements no outbox
+  -> transfer-worker publica ledger-movements
   -> ledger debita liquidacao e credita a conta destino
   -> balance projeta saldo/extrato
-  -> transfer marca COMPLETED apos ledger-posting-created
+  -> transfer-worker marca COMPLETED apos ledger-posting-created
 ```
 
 ## Kafka
@@ -151,9 +158,9 @@ POST /webhooks/external-institutions/transfers
 | Topico | Produtor | Consumidor | Chave |
 | --- | --- | --- | --- |
 | `account-created` | accounts | ledger | `digital_account_id` |
-| `ledger-movements` | transfer | ledger | `source_digital_account_id` |
+| `ledger-movements` | transfer-worker | ledger | `source_digital_account_id` |
 | `ledger-reversals` | externo/scripts | ledger | `original_external_id` |
-| `ledger-posting-created` | ledger | balance, transfer | `external_id` |
+| `ledger-posting-created` | ledger | balance, transfer-worker | `external_id` |
 
 Cada topico possui DLT com sufixo `.DLT`.
 
@@ -189,7 +196,8 @@ Em terminais separados:
 cd bank-flow-accounts && ./gradlew bootRun
 cd bank-flow-balance && ./gradlew bootRun
 cd bank-flow-ledger && ./gradlew bootRun
-cd bank-flow-transfer && ./gradlew bootRun
+cd bank-flow-transfer && ./gradlew :api:bootRun
+cd bank-flow-transfer && ./gradlew :worker:bootRun
 ```
 
 ## Kubernetes
@@ -216,15 +224,18 @@ As imagens padrao usam `bank-flow-<servico>:local`, adequadas para Minikube com 
 
 ```bash
 helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s \
-  --set image.repository=ghcr.io/bayerleindev/bank-flow-transfer \
-  --set image.tag=<tag>
+  --set components.api.image.repository=ghcr.io/bayerleindev/bank-flow-transfer-api \
+  --set components.api.image.tag=<tag> \
+  --set components.worker.image.repository=ghcr.io/bayerleindev/bank-flow-transfer-worker \
+  --set components.worker.image.tag=<tag>
 ```
 
-Para alterar replicas:
+Para alterar replicas ou fazer deploy de apenas um modulo:
 
 ```bash
 helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s \
-  --set replicaCount=2
+  --set components.api.replicaCount=2 \
+  --set components.worker.enabled=false
 ```
 
 Para escalar o ledger:
@@ -239,7 +250,7 @@ Mantenha no maximo 100 replicas do ledger, porque o `worker_id` aceito vai de `0
 Defaults atuais para Minikube:
 
 - Postgres acessivel em `host.minikube.internal:5432`.
-- Kafka acessivel em `host.minikube.internal:9094`.
+- Kafka acessivel em `host.docker.internal:9094`.
 - immudb acessivel em `host.minikube.internal:3322`.
 - OTLP Collector acessivel em `host.minikube.internal:4318`.
 
@@ -279,7 +290,8 @@ Os charts criam `Probe` por padrao, tambem com o label `release: monitoring`, ap
 http://bank-flow-accounts.<namespace>.svc:8084/actuator/health
 http://bank-flow-balance.<namespace>.svc:8082/actuator/health
 http://bank-flow-ledger.<namespace>.svc:8085/actuator/health
-http://bank-flow-transfer.<namespace>.svc:8083/actuator/health
+http://bank-flow-transfer-api.<namespace>.svc:8083/actuator/health
+http://bank-flow-transfer-worker.<namespace>.svc:8086/actuator/health
 ```
 
 Se o Blackbox Exporter tiver outro nome ou namespace, ajuste o endereco do prober:
@@ -420,15 +432,19 @@ Ele pode ser executado manualmente com `workflow_dispatch` escolhendo:
 - `accounts`
 - `balance`
 - `transfer`
+- `transfer-api`
+- `transfer-worker`
 - `ledger`
 
-Cada servico tambem possui um workflow proprio que roda `./gradlew test` no diretorio correspondente.
+Cada servico tambem possui um workflow proprio. Transferencias tem pipelines separados para `:api` e `:worker`, alem de um workflow agregado `transfer`.
 
 ## Testes
 
 ```bash
 cd bank-flow-accounts && ./gradlew test
 cd ../bank-flow-transfer && ./gradlew test
+cd ../bank-flow-transfer && ./gradlew :api:test
+cd ../bank-flow-transfer && ./gradlew :worker:test
 cd ../bank-flow-ledger && ./gradlew test
 cd ../bank-flow-balance && ./gradlew test
 ```

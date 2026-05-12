@@ -85,7 +85,7 @@ host.minikube.internal
 Exemplos:
 
 ```yaml
-KAFKA_BOOTSTRAP_SERVERS: host.minikube.internal:9094
+KAFKA_BOOTSTRAP_SERVERS: host.docker.internal:9094
 IMMUDB_HOST: host.minikube.internal
 POSTGRES_URL: jdbc:postgresql://host.minikube.internal:5432/bank_flow
 ```
@@ -93,7 +93,7 @@ POSTGRES_URL: jdbc:postgresql://host.minikube.internal:5432/bank_flow
 No Kafka, alem da porta, tambem e necessario anunciar um listener que faca sentido para o Minikube:
 
 ```text
-MINIKUBE://host.minikube.internal:9094
+MINIKUBE://host.docker.internal:9094
 ```
 
 ## 6. ServiceMonitor substitui scrape estatico do prometheus.yml

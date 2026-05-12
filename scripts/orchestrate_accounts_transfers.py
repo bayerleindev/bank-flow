@@ -87,7 +87,7 @@ def create_transfer(transfer_url, source_id, destination_id, amount_minor, descr
         "currency": "BRL",
         "description": description,
     }
-    idempotency_key = f"script-transfer-{uuid.uuid4()}"
+    idempotency_key = f"{uuid.uuid4()}"
     transfer = request_json(
         "POST",
         f"{transfer_url}/transfers",
@@ -153,7 +153,6 @@ def simulate_psp_webhook(transfer_url, transfer, decline_rate, min_delay_seconds
         f"{delay:.2f}s",
         status,
     )
-    time.sleep(delay)
 
     response = request_json(
         "POST",
@@ -207,8 +206,6 @@ def wait_for_transfers(
                 pending.pop(transfer_id)
                 completed[transfer_id] = transfer
                 print("transfer finished", transfer_id, status, transfer.get("failure_reason"))
-        if pending:
-            time.sleep(poll_interval_seconds)
 
     if pending:
         pending_ids = ", ".join(pending.keys())
@@ -228,8 +225,8 @@ def parse_args():
     parser = argparse.ArgumentParser(
         description="Create bank-flow accounts and orchestrate transfers between them."
     )
-    parser.add_argument("--accounts-url", default="http://localhost:8084")
-    parser.add_argument("--transfer-url", default="http://localhost:8083")
+    parser.add_argument("--accounts-url", default="http://localhost/accounts")
+    parser.add_argument("--transfer-url", default="http://localhost/transfer")
     parser.add_argument("--seed-digital-account-id", default=DEFAULT_SEED_DIGITAL_ACCOUNT_ID)
     parser.add_argument("--accounts", type=int, default=3)
     parser.add_argument(
@@ -325,7 +322,6 @@ def main():
     digital_account_ids = [account["digital_account_id"] for account in accounts]
 
     print(f"waiting {args.ledger_wait_seconds}s for account-created events to reach ledger")
-    time.sleep(args.ledger_wait_seconds)
 
     if not args.skip_external_inbound:
         external_destination_id = random.choice(digital_account_ids)
@@ -397,7 +393,6 @@ def main():
         completed_between_count += 1
         interval = random.uniform(args.loop_interval_min_seconds, args.loop_interval_max_seconds)
         print("waiting before next transfer", f"{interval:.2f}s")
-        time.sleep(interval)
 
     print("orchestration completed")
     print(json.dumps({"accounts": digital_account_ids}, indent=2))
@@ -414,7 +409,6 @@ def maybe_create_and_fund_account(args, accounts, digital_account_ids):
     digital_account_id = account["digital_account_id"]
 
     print(f"waiting {args.ledger_wait_seconds}s for new account-created event to reach ledger")
-    time.sleep(args.ledger_wait_seconds)
 
     transfer = create_transfer(
         args.transfer_url,
