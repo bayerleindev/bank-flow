@@ -67,8 +67,8 @@ Defaults nos charts:
 
 ```text
 Postgres: host.minikube.internal:5432
-Kafka:    host.minikube.internal:9094
-immudb:   host.minikube.internal:3322
+Kafka:    host.docker.internal:9094
+immudb:   host.docker.internal:3322
 ```
 
 Suba as dependencias:
@@ -119,8 +119,11 @@ cd bank-flow-accounts
 minikube image load bank-flow-accounts:local
 
 cd ../bank-flow-balance
-./gradlew bootBuildImage --imageName=bank-flow-balance:local
-minikube image load bank-flow-balance:local
+./gradlew :api:bootBuildImage --imageName=bank-flow-balance-api:local
+minikube image load bank-flow-balance-api:local
+
+./gradlew :worker:bootBuildImage --imageName=bank-flow-balance-worker:local
+minikube image load bank-flow-balance-worker:local
 
 cd ../bank-flow-ledger
 ./gradlew bootBuildImage --imageName=bank-flow-ledger:local
@@ -285,9 +288,9 @@ metadata:
 data:
   SERVER_PORT: "8083"
   POSTGRES_URL: "jdbc:postgresql://host.minikube.internal:5432/bank_flow?currentSchema=transfer,public"
-  KAFKA_BOOTSTRAP_SERVERS: "host.minikube.internal:9094"
+  KAFKA_BOOTSTRAP_SERVERS: "host.docker.internal:9094"
   ACCOUNTS_BASE_URL: "http://bank-flow-accounts:8084"
-  BALANCE_BASE_URL: "http://bank-flow-balance:8082"
+  BALANCE_BASE_URL: "http://bank-flow-balance-api:8082"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo.monitoring.svc.cluster.local:4318/v1/traces"
   LOG_FILE: ""
   BPL_JVM_THREAD_COUNT: "50"
@@ -296,7 +299,7 @@ data:
 Pontos importantes:
 
 - `host.minikube.internal` e usado para dependencias fora do cluster.
-- `bank-flow-accounts` e `bank-flow-balance` sao DNS internos de Services no mesmo namespace.
+- `bank-flow-accounts` e `bank-flow-balance-api` sao DNS internos de Services no mesmo namespace.
 - `LOG_FILE: ""` faz o app escrever em stdout/stderr.
 
 ### 9.2. Secret
@@ -613,7 +616,7 @@ Use `port-forward` para expor localmente:
 
 ```bash
 kubectl port-forward svc/bank-flow-accounts 8084:8084
-kubectl port-forward svc/bank-flow-balance 8082:8082
+kubectl port-forward svc/bank-flow-balance-api 8082:8082
 kubectl port-forward svc/bank-flow-transfer 8083:8083
 kubectl port-forward svc/bank-flow-ledger 8085:8085
 ```

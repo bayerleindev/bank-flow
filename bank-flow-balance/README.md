@@ -2,16 +2,24 @@
 
 Servico responsavel por projetar saldos/extratos a partir do `ledger-posting-created` e por gerenciar holds de saldo usados pelo transfer-service.
 
+O projeto agora e multi-modulo:
+
+| Modulo | Runtime | Porta padrao | Responsabilidade |
+| --- | --- | --- | --- |
+| `:shared` | biblioteca | n/a | Dominio, services, repositorios, metricas e migrations. |
+| `:api` | Spring Boot | `8082` | Endpoints HTTP de saldo, extrato e holds. |
+| `:worker` | Spring Boot | `8087` | Consumer Kafka, projecao de ledger e expiracao agendada de holds. |
+
 A API publica usa `digital_account_id`. O `ledger_account_id` numerico pode ser armazenado internamente em linhas de extrato, mas nao e identificador publico.
 
 ## Responsabilidades
 
-- Consumir `ledger-posting-created`.
-- Projetar `account_balances` por `digital_account_id`.
+- No worker, consumir `ledger-posting-created`.
+- No worker, projetar `account_balances` por `digital_account_id`.
 - Gravar linhas historicas em `account_balance_entries`.
 - Garantir idempotencia por `entry_id` e `external_id`.
 - Criar, capturar e liberar holds.
-- Expor saldo, extrato, health, métricas e traces.
+- Na API, expor saldo, extrato, health, métricas e traces.
 
 ## Fluxo de Projecao
 
@@ -118,7 +126,7 @@ curl -s -X POST http://localhost:8082/holds/{hold_id}/release
 
 ## Evento Consumido
 
-Topico: `ledger-posting-created`
+Topico consumido pelo `:worker`: `ledger-posting-created`
 
 Chave: `external_id`
 
@@ -159,7 +167,7 @@ Colunas legadas `account_id` podem existir por compatibilidade de migration, mas
 | `POSTGRES_USER` | `myuser` | Usuario Postgres. |
 | `POSTGRES_PASSWORD` | `mysecretpassword` | Senha Postgres. |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers. |
-| `KAFKA_CONSUMER_GROUP_ID` | `bank-flow-balance` | Consumer group. |
+| `KAFKA_CONSUMER_GROUP_ID` | `bank-flow-balance-worker` | Consumer group do worker. |
 | `KAFKA_AUTO_OFFSET_RESET` | `earliest` | Offset reset. |
 | `KAFKA_RETRY_INTERVAL_MS` | `1000` | Intervalo entre retries. |
 | `KAFKA_RETRY_MAX_ATTEMPTS` | `3` | Tentativas antes da DLT. |
@@ -196,7 +204,43 @@ Metricas customizadas do balance:
 ```bash
 docker compose up -d db kafka kafka-init
 cd bank-flow-balance
-./gradlew bootRun
+./gradlew :api:bootRun
+./gradlew :worker:bootRun
+```
+
+## Build de Imagem
+
+```bash
+cd bank-flow-balance
+./gradlew :api:bootBuildImage --imageName=bank-flow-balance-api:local
+./gradlew :worker:bootBuildImage --imageName=bank-flow-balance-worker:local
+```
+
+## Kubernetes
+
+O chart em `k8s/` cria deployments, services, ServiceMonitors e Probes separados:
+
+- `bank-flow-balance-api`
+- `bank-flow-balance-worker`
+
+Deploy dos dois modulos:
+
+```bash
+helm upgrade --install bank-flow-balance bank-flow-balance/k8s
+```
+
+Deploy individual da API:
+
+```bash
+helm upgrade --install bank-flow-balance bank-flow-balance/k8s \
+  --set components.worker.enabled=false
+```
+
+Deploy individual do Worker:
+
+```bash
+helm upgrade --install bank-flow-balance bank-flow-balance/k8s \
+  --set components.api.enabled=false
 ```
 
 ## Testes
@@ -204,6 +248,8 @@ cd bank-flow-balance
 ```bash
 cd bank-flow-balance
 ./gradlew test
+./gradlew :api:test
+./gradlew :worker:test
 ```
 
 Os testes usam PostgreSQL via Testcontainers para cobrir migrations com sintaxe PostgreSQL. Docker precisa estar disponivel no ambiente de CI/local.

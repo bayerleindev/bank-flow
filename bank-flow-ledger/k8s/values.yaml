@@ -1,10 +1,10 @@
 nameOverride: bank-flow-ledger
 
-replicaCount: 1
+replicaCount: 3
 
 image:
-  repository: bank-flow-ledger
-  tag: local
+  repository: gbcamargo/bank-flow-ledger
+  tag: 1.0.0
   pullPolicy: IfNotPresent
 
 service:
@@ -16,7 +16,7 @@ metrics:
 
 serviceMonitor:
   enabled: true
-  namespace: ""
+  namespace: "bank-flow"
   interval: 15s
   scrapeTimeout: 10s
   path: /actuator/prometheus
@@ -25,7 +25,7 @@ serviceMonitor:
 
 probe:
   enabled: true
-  namespace: ""
+  namespace: "bank-flow"
   jobName: bank-flow-health
   module: http_2xx
   proberUrl: prometheus-blackbox-exporter.monitoring.svc:9115
@@ -37,13 +37,13 @@ probe:
 
 env:
   SERVER_PORT: "8085"
-  KAFKA_BOOTSTRAP_SERVERS: "host.minikube.internal:9094"
+  KAFKA_BOOTSTRAP_SERVERS: "host.docker.internal:9094"
   KAFKA_CONSUMER_GROUP_ID: "bank-flow-ledger"
   KAFKA_AUTO_OFFSET_RESET: "latest"
   KAFKA_RETRY_INTERVAL_MS: "1000"
   KAFKA_RETRY_MAX_ATTEMPTS: "3"
   IMMUDB_ENABLED: "true"
-  IMMUDB_HOST: "host.minikube.internal"
+  IMMUDB_HOST: "host.docker.internal"
   IMMUDB_PORT: "3322"
   IMMUDB_DATABASE: "ledger"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo.monitoring.svc.cluster.local:4318/v1/traces"
@@ -77,3 +77,6 @@ resources:
   limits:
     cpu: 500m
     memory: 768Mi
+
+development:
+  useMinikubeHost: true

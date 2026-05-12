@@ -216,7 +216,7 @@ Quatro apps Java mais Prometheus, Grafana, Loki, Alloy, Tempo e Blackbox consome
 Para evitar instabilidade:
 
 ```bash
-minikube start --memory=8192 --cpus=4 --disk-size=30g
+minikube start --memory=7000 --cpus=4 --disk-size=30g
 ```
 
 Melhor ainda:

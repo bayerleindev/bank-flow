@@ -257,7 +257,7 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag{consumergroup=~\"bank-flow-(balance|transfer|ledger)\"})",
+          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag{consumergroup=~\"bank-flow-(balance-worker|transfer-worker|ledger)\"})",
           "legendFormat": "{{consumergroup}} {{topic}}"
         }
       ],
@@ -503,7 +503,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag{consumergroup=~\"bank-flow-(balance|transfer|ledger)\"})",
+          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag{consumergroup=~\"bank-flow-(balance-worker|transfer-worker|ledger)\"})",
           "legendFormat": "{{consumergroup}} {{topic}}"
         },
         {

@@ -2,6 +2,14 @@
 
 Servico responsavel por orquestrar transferencias entre contas digitais. Ele usa somente `digital_account_id` na API e nas integracoes com `accounts` e `balance`; o ledger resolve internamente o `account_id` contabil.
 
+O projeto agora e multi-modulo:
+
+| Modulo | Runtime | Porta padrao | Responsabilidade |
+| --- | --- | --- | --- |
+| `:shared` | biblioteca | n/a | Dominio, orquestracao, repositorios, clients, metricas e migrations. |
+| `:api` | Spring Boot | `8083` | Endpoints HTTP de transferencias e webhooks. |
+| `:worker` | Spring Boot | `8086` | Publisher outbox, consumer Kafka e conclusao pos-ledger. |
+
 ## Responsabilidades
 
 - Receber `POST /transfers` com `Idempotency-Key`.
@@ -10,7 +18,8 @@ Servico responsavel por orquestrar transferencias entre contas digitais. Ele usa
 - Chamar PSP e aguardar webhook.
 - Em PSP `CONFIRMED`, publicar comando para o ledger via outbox.
 - Receber transferencias de outras instituicoes via webhook inbound.
-- Consumir `ledger-posting-created`, capturar hold e marcar `COMPLETED`.
+- No worker, publicar eventos pendentes do outbox.
+- No worker, consumir `ledger-posting-created`, capturar hold e marcar `COMPLETED`.
 - Em PSP `FAILED`, liberar hold e marcar `FAILED`.
 
 ## Fluxo
@@ -27,9 +36,9 @@ POST /transfers
 POST /webhooks/psp/transfers CONFIRMED
   -> grava ledger.transfer_posted no outbox
   -> marca POSTING_REQUESTED
-  -> outbox publica ledger-movements
+  -> worker publica ledger-movements
   -> ledger publica ledger-posting-created
-  -> transfer captura hold
+  -> worker captura hold
   -> marca COMPLETED
 
 POST /webhooks/external-institutions/transfers
@@ -38,7 +47,7 @@ POST /webhooks/external-institutions/transfers
   -> grava ledger.transfer_posted no outbox
   -> marca POSTING_REQUESTED
   -> ledger publica ledger-posting-created
-  -> transfer marca COMPLETED
+  -> worker marca COMPLETED
 ```
 
 ## Regras de Negocio
@@ -144,7 +153,7 @@ source_account: SETTLEMENT_EXTERNAL_INBOUND_BRL
 
 ## Kafka e Outbox
 
-Topico publicado: `ledger-movements`
+Topico publicado pelo `:worker`: `ledger-movements`
 
 Chave: `source_digital_account_id`
 
@@ -164,7 +173,7 @@ Payload:
 }
 ```
 
-Topico consumido: `ledger-posting-created`, chave `external_id`.
+Topico consumido pelo `:worker`: `ledger-posting-created`, chave `external_id`.
 
 ## Configuracao
 
@@ -193,7 +202,7 @@ GET /actuator/metrics
 GET /actuator/prometheus
 ```
 
-O servico emite métricas HTTP/JVM/Hikari/Kafka, logs estruturados e traces OpenTelemetry.
+Os modulos `:api` e `:worker` emitem metricas HTTP/JVM/Hikari, logs estruturados e traces OpenTelemetry. O `:worker` tambem emite metricas Kafka.
 
 Metricas de negocio:
 
@@ -204,8 +213,8 @@ Metricas de negocio:
 - `transfer_end_to_end_latency_seconds`
 - `transfers_in_status{status}`
 - `transfer_oldest_in_status_age_seconds{status}`
-- `outbox_pending_events{service="bank-flow-transfer"}`
-- `outbox_oldest_pending_event_age_seconds{service="bank-flow-transfer"}`
+- `outbox_pending_events{service="bank-flow-transfer-worker"}`
+- `outbox_oldest_pending_event_age_seconds{service="bank-flow-transfer-worker"}`
 - `outbox_publish_failures_total{service,topic,event_type}`
 
 ## Rodando
@@ -213,14 +222,52 @@ Metricas de negocio:
 ```bash
 docker compose up -d db kafka kafka-init
 cd bank-flow-transfer
-./gradlew bootRun
+./gradlew :api:bootRun
+./gradlew :worker:bootRun
 ```
 
 Suba tambem `accounts`, `balance` e `ledger` para o fluxo completo.
+
+## Build de Imagem
+
+```bash
+cd bank-flow-transfer
+./gradlew :api:bootBuildImage --imageName=bank-flow-transfer-api:local
+./gradlew :worker:bootBuildImage --imageName=bank-flow-transfer-worker:local
+```
+
+## Kubernetes
+
+O chart em `k8s/` cria deployments, services, ServiceMonitors e Probes separados:
+
+- `bank-flow-transfer-api`
+- `bank-flow-transfer-worker`
+
+Deploy dos dois modulos:
+
+```bash
+helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s
+```
+
+Deploy individual da API:
+
+```bash
+helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s \
+  --set components.worker.enabled=false
+```
+
+Deploy individual do Worker:
+
+```bash
+helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s \
+  --set components.api.enabled=false
+```
 
 ## Testes
 
 ```bash
 cd bank-flow-transfer
 ./gradlew test
+./gradlew :api:test
+./gradlew :worker:test
 ```

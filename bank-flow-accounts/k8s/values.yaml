@@ -3,8 +3,8 @@ nameOverride: bank-flow-accounts
 replicaCount: 1
 
 image:
-  repository: bank-flow-accounts
-  tag: local
+  repository: gbcamargo/bank-flow-accounts
+  tag: 1.0.0
   pullPolicy: IfNotPresent
 
 service:
@@ -16,7 +16,7 @@ metrics:
 
 serviceMonitor:
   enabled: true
-  namespace: ""
+  namespace: "bank-flow"
   interval: 15s
   scrapeTimeout: 10s
   path: /actuator/prometheus
@@ -25,7 +25,7 @@ serviceMonitor:
 
 probe:
   enabled: true
-  namespace: ""
+  namespace: "bank-flow"
   jobName: bank-flow-health
   module: http_2xx
   proberUrl: prometheus-blackbox-exporter.monitoring.svc:9115
@@ -37,8 +37,8 @@ probe:
 
 env:
   SERVER_PORT: "8084"
-  POSTGRES_URL: "jdbc:postgresql://host.minikube.internal:5432/bank_flow?currentSchema=accounts,public"
-  KAFKA_BOOTSTRAP_SERVERS: "host.minikube.internal:9094"
+  POSTGRES_URL: "jdbc:postgresql://host.docker.internal:5432/bank_flow?currentSchema=accounts,public"
+  KAFKA_BOOTSTRAP_SERVERS: "host.docker.internal:9094"
   BAAS_MODE: "mock"
   BAAS_BASE_URL: "http://baas:9098"
   OUTBOX_PUBLISHER_FIXED_DELAY_MS: "1000"

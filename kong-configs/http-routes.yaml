@@ -1,0 +1,37 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: bank-flow-http-routes
+  namespace: bank-flow
+  annotations:
+    konghq.com/strip-path: "true"
+    # konghq.com/plugins: bank-flow-rate-limiting
+spec:
+  parentRefs:
+    - name: kong
+      namespace: kong
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /transfer
+      backendRefs:
+        - name: bank-flow-transfer-api
+          kind: Service
+          port: 8083
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /accounts
+      backendRefs:
+        - name: bank-flow-accounts
+          kind: Service
+          port: 8084
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /balance
+      backendRefs:
+        - name: bank-flow-balance-api
+          kind: Service
+          port: 8082

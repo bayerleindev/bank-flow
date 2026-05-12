@@ -1,0 +1,29 @@
+name: Balance Worker Tests
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: bank-flow-balance-worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bank-flow-balance
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Run worker tests
+        run: ./gradlew :worker:test
+
+      - name: Build worker jar
+        run: ./gradlew :worker:bootJar

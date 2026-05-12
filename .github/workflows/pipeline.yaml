@@ -12,7 +12,11 @@ on:
           - all
           - accounts
           - balance
+          - balance-api
+          - balance-worker
           - transfer
+          - transfer-api
+          - transfer-worker
           - ledger
 
 jobs:
@@ -24,9 +28,25 @@ jobs:
     if: ${{ inputs.service == 'all' || inputs.service == 'balance' }}
     uses: ./.github/workflows/balance-pipeline.yaml
 
+  balance-api:
+    if: ${{ inputs.service == 'balance-api' }}
+    uses: ./.github/workflows/balance-api-pipeline.yaml
+
+  balance-worker:
+    if: ${{ inputs.service == 'balance-worker' }}
+    uses: ./.github/workflows/balance-worker-pipeline.yaml
+
   transfer:
     if: ${{ inputs.service == 'all' || inputs.service == 'transfer' }}
     uses: ./.github/workflows/transfer-pipeline.yaml
+
+  transfer-api:
+    if: ${{ inputs.service == 'transfer-api' }}
+    uses: ./.github/workflows/transfer-api-pipeline.yaml
+
+  transfer-worker:
+    if: ${{ inputs.service == 'transfer-worker' }}
+    uses: ./.github/workflows/transfer-worker-pipeline.yaml
 
   ledger:
     if: ${{ inputs.service == 'all' || inputs.service == 'ledger' }}
