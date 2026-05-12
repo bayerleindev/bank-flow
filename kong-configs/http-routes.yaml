@@ -32,6 +32,6 @@ spec:
             type: PathPrefix
             value: /balance
       backendRefs:
-        - name: bank-flow-balance
+        - name: bank-flow-balance-api
           kind: Service
           port: 8082
