@@ -1,0 +1,25 @@
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: bank-flow-balance-worker-scaledobject
+spec:
+  scaleTargetRef:
+    kind: Deployment
+    name: "bank-flow-balance-worker"
+  minReplicaCount: 0
+  maxReplicaCount: 12
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: "host.docker.internal:9094"
+        consumerGroup: "bank-flow-balance-worker"
+        topic: "ledger-posting-created"
+        lagThreshold: '5'
+        activationLagThreshold: '3'
+        offsetResetPolicy: latest
+        allowIdleConsumers: 'false'
+        scaleToZeroOnInvalidOffset: 'false'
+        excludePersistentLag: 'false'
+        limitToPartitionsWithLag: 'false'
+        ensureEvenDistributionOfPartitions: 'false'
+        version: 1.0.0
