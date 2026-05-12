@@ -36,7 +36,7 @@ public class LedgerPostingCreatedConsumer {
 			autoStartup = "${spring.kafka.listener.auto-startup:true}"
 	)
 	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) throws Exception {
-		balanceMetrics.recordKafkaMessageReceived(record);
+		balanceMetrics.recordKafkaMessageReceived(record.topic());
 		try {
 			LedgerPostingCreatedEvent event = objectMapper.readValue(record.value(), LedgerPostingCreatedEvent.class);
 			validatePartitionKey(record.key(), event);
@@ -53,7 +53,7 @@ public class LedgerPostingCreatedConsumer {
 					event.externalId()
 			);
 		} catch (Exception exception) {
-			balanceMetrics.recordKafkaMessageFailed(record, exception);
+			balanceMetrics.recordKafkaMessageFailed(record.topic(), exception);
 			throw exception;
 		}
 	}

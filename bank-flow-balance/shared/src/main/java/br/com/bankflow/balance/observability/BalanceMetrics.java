@@ -5,7 +5,6 @@ import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -39,20 +38,20 @@ public class BalanceMetrics {
 				.register(meterRegistry);
 	}
 
-	public void recordKafkaMessageReceived(ConsumerRecord<String, String> record) {
+	public void recordKafkaMessageReceived(String topic) {
 		Counter.builder("bank_flow_balance_kafka_messages_total")
 				.description("Kafka messages received by bank-flow-balance")
-				.tag("topic", record.topic())
+				.tag("topic", topic)
 				.tag("result", "received")
 				.tag("exception", "none")
 				.register(meterRegistry)
 				.increment();
 	}
 
-	public void recordKafkaMessageFailed(ConsumerRecord<String, String> record, Exception exception) {
+	public void recordKafkaMessageFailed(String topic, Exception exception) {
 		Counter.builder("bank_flow_balance_kafka_messages_total")
 				.description("Kafka messages received by bank-flow-balance")
-				.tag("topic", record.topic())
+				.tag("topic", topic)
 				.tag("result", "failed")
 				.tag("exception", exception.getClass().getSimpleName())
 				.register(meterRegistry)
