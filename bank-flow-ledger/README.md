@@ -1,79 +1,45 @@
 # bank-flow-ledger
 
-Servico responsavel pelo livro contabil double-entry. Ele consome eventos e comandos com `digital_account_id`, resolve/cria contas contabeis internas e persiste postings no immudb.
+`bank-flow-ledger` owns the double-entry accounting ledger. It consumes Kafka events, resolves digital accounts into internal accounting accounts, persists postings in immudb and publishes `ledger-posting-created`.
 
-Somente este servico manipula o `account_id` numerico contabil.
+Only this service owns numeric accounting `account_id` values.
 
-## Responsabilidades
+## Responsibilities
 
-- Consumir `account-created` e criar conta contabil para o `digital_account_id`.
-- Consumir `ledger-movements` e criar postings de transferencia.
-- Consumir `ledger-reversals` e criar estornos.
-- Persistir entries/lines no immudb de forma idempotente.
-- Publicar `ledger-posting-created` com linhas contendo `account_id` e `digital_account_id`.
-- Usar conta contabil de liquidacao para transferencias inbound externas.
+- Consume `account-created` and create an accounting account for each digital account.
+- Consume `ledger-movements` and post balanced debit/credit entries.
+- Consume `ledger-reversals` and create reversal entries.
+- Persist ledger accounts, entries and lines in immudb.
+- Publish `ledger-posting-created` after successful posting.
+- Republish existing postings for idempotent duplicate movement commands.
 
-## Fluxo
+## Runtime API
 
-```text
-account-created
-  -> ledger cria ledger_account interno
+Default port: `8085`.
 
-ledger-movements
-  -> valida chave source_digital_account_id
-  -> resolve source/destination ledger account_id
-  -> cria debit/credit lines
-  -> persiste no immudb
-  -> publica ledger-posting-created
-```
+There is no public business HTTP API. The service exposes operational endpoints:
 
-## Regras de Negocio
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/actuator/health` | Health endpoint. |
+| `GET` | `/actuator/metrics` | Spring metrics. |
+| `GET` | `/actuator/prometheus` | Prometheus scrape endpoint. |
 
-- Apenas o ledger manipula `account_id` contabil.
-- Cada conta digital ativa vira uma conta contabil interna.
-- A conta de liquidacao `SETTLEMENT_EXTERNAL_INBOUND_BRL` deve existir antes de processar inbound externo.
-- Todo posting precisa ser double-entry: ao menos duas linhas e soma assinada igual a zero por moeda.
-- `external_id` e a idempotencia do posting.
-- Se um `ledger-movements` duplicado chega depois de o posting existir, o ledger republica o `ledger-posting-created` existente.
-- Estornos usam `reversal:<original_external_id>` como chave idempotente deterministica.
-- Uma reversao nao pode ser revertida; um posting original ja revertido nao pode receber segunda reversao.
+## Consumed Topics
 
-## Validacoes
+| Topic | Key | Purpose |
+| --- | --- | --- |
+| `account-created` | `digital_account_id` | Create internal accounting account. |
+| `ledger-movements` | `source_digital_account_id` | Post transfer movement. |
+| `ledger-reversals` | `original_external_id` | Reverse an existing posting. |
 
-- `account-created` deve ter chave Kafka igual ao `digital_account_id`.
-- `ledger-movements` deve ter chave Kafka igual ao `source_digital_account_id`.
-- `ledger-reversals` deve ter chave Kafka igual ao `original_external_id`.
-- `ledger-movements` exige `transfer_id`, `source_digital_account_id`, `source_account`, `destination_digital_account_id`, `destination_account`, `amount_cents` e `currency`.
-- `amount_cents` deve ser positivo e `currency` deve ser `BRL`.
-- Posting rejeita linhas com `entry_id` divergente, moeda misturada, direction invalida, sinal incorreto ou soma diferente de zero.
-- `ledger-reversals` exige `reversal_id`, `original_external_id` e `reason`.
+## Published Topic
 
-Mais detalhes estao em [../docs/fluxos-regras-validacoes.md](../docs/fluxos-regras-validacoes.md).
+| Topic | Key | Purpose |
+| --- | --- | --- |
+| `ledger-posting-created` | `external_id` | Notify projections and workflows that a posting exists. |
 
-## Kafka
-
-Consumidos:
-
-- `account-created`, chave `digital_account_id`
-- `ledger-movements`, chave `source_digital_account_id`
-- `ledger-reversals`, chave `original_external_id`
-
-Publicado:
-
-- `ledger-posting-created`, chave `external_id`
-
-No inbound externo, o transfer envia a origem como:
-
-```text
-source_digital_account_id: 00000000-0000-0000-0000-000000000100
-source_account: SETTLEMENT_EXTERNAL_INBOUND_BRL
-```
-
-Essa conta deve existir no immudb antes do primeiro evento inbound. Use `scripts/immudb/002_seed_settlement_accounts.sql`.
-
-## Contratos
-
-`ledger-movements`:
+## Ledger Movement Contract
 
 ```json
 {
@@ -87,7 +53,7 @@ Essa conta deve existir no immudb antes do primeiro evento inbound. Use `scripts
 }
 ```
 
-`ledger-posting-created`:
+## Posting Created Contract
 
 ```json
 {
@@ -117,44 +83,53 @@ Essa conta deve existir no immudb antes do primeiro evento inbound. Use `scripts
 }
 ```
 
-## Configuracao
+## Business Rules
 
-| Variavel | Padrao | Descricao |
-| --- | --- | --- |
-| `SERVER_PORT` | `8085` | Porta HTTP para Actuator. |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers. |
-| `KAFKA_AUTO_OFFSET_RESET` | `latest` | Offset reset. |
-| `ID_GENERATOR_WORKER_ID` | `0` | Worker id do gerador numerico. |
-| `IMMUDB_ENABLED` | `true` | Liga persistencia real. |
-| `IMMUDB_HOST` | `localhost` | Host immudb. |
-| `IMMUDB_PORT` | `3322` | Porta gRPC immudb. |
-| `IMMUDB_DATABASE` | `ledger` | Database immudb. |
-| `IMMUDB_USERNAME` | `immudb` | Usuario immudb. |
-| `IMMUDB_PASSWORD` | `immudb` | Senha immudb. |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Export de traces para Tempo. |
+- Every posting must have at least two lines.
+- Signed line amounts must sum to zero by currency.
+- `currency` is currently expected to be `BRL`.
+- `external_id` is the idempotency key for postings.
+- Duplicate movement commands republish the existing posting.
+- A reversal uses `reversal:<original_external_id>` as its deterministic posting key.
+- A reversal cannot be reversed again.
+- An already reversed original posting cannot be reversed twice.
 
-## Observability
+## Settlement Account
+
+External inbound transfers use this source:
 
 ```text
-GET /actuator/health
-GET /actuator/metrics
-GET /actuator/prometheus
+source_digital_account_id: 00000000-0000-0000-0000-000000000100
+source_account: SETTLEMENT_EXTERNAL_INBOUND_BRL
 ```
 
-O ledger nao possui API de negocio publica, mas expoe Actuator na porta `8085`.
+Seed it in immudb before processing inbound transfers:
 
-Metricas de negocio:
+```text
+scripts/immudb/001_create_ledger_tables.sql
+scripts/immudb/002_seed_settlement_accounts.sql
+```
 
-- `ledger_posting_created_total{entry_type}`
-- `ledger_posting_latency_seconds{entry_type}`
-- `ledger_publish_failures_total{topic,entry_type,exception}`
-- `ledger_validation_failures_total{operation,reason}`
-- `ledger_idempotency_hits_total{operation}`
-- `ledger_posting_unbalanced_total{entry_type}`
-- `ledger_posting_balance_difference_minor`
-- `ledger_reversals_created_total`
+## Configuration
 
-## Rodando
+| Environment variable | Default | Purpose |
+| --- | --- | --- |
+| `SERVER_PORT` | `8085` | Actuator HTTP port. |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers. |
+| `KAFKA_CONSUMER_GROUP_ID` | `bank-flow-ledger` | Consumer group. |
+| `KAFKA_AUTO_OFFSET_RESET` | `latest` | Offset reset policy. |
+| `KAFKA_RETRY_INTERVAL_MS` | `1000` | Retry interval. |
+| `KAFKA_RETRY_MAX_ATTEMPTS` | `3` | Attempts before DLT. |
+| `ID_GENERATOR_WORKER_ID` | `0` | Numeric id generator worker id. |
+| `IMMUDB_ENABLED` | `true` | Enable immudb persistence. |
+| `IMMUDB_HOST` | `localhost` | immudb host. |
+| `IMMUDB_PORT` | `3322` | immudb gRPC port. |
+| `IMMUDB_DATABASE` | `ledger` | immudb database. |
+| `IMMUDB_USERNAME` | `immudb` | immudb user. |
+| `IMMUDB_PASSWORD` | `immudb` | immudb password. |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Trace export endpoint. |
+
+## Run Locally
 
 ```bash
 docker compose up -d kafka kafka-init immudb
@@ -162,16 +137,16 @@ cd bank-flow-ledger
 ./gradlew bootRun
 ```
 
-Prepare as tabelas do immudb quando necessario:
-
-```text
-scripts/immudb/001_create_ledger_tables.sql
-scripts/immudb/002_seed_settlement_accounts.sql
-```
-
-## Testes
+## Tests
 
 ```bash
 cd bank-flow-ledger
 ./gradlew test
 ```
+
+## Contributing Notes
+
+- Keep double-entry invariants explicit and tested.
+- Do not leak internal `account_id` ownership into other services.
+- Add tests for idempotency when changing consumer behavior.
+- Update event examples when Kafka contracts change.

@@ -1,85 +1,42 @@
 # bank-flow-transfer
 
-Servico responsavel por orquestrar transferencias entre contas digitais. Ele usa somente `digital_account_id` na API e nas integracoes com `accounts` e `balance`; o ledger resolve internamente o `account_id` contabil.
+`bank-flow-transfer` orchestrates money transfers between digital accounts. It is a multi-module Spring project with an HTTP API, a Kafka worker and shared domain code.
 
-O projeto agora e multi-modulo:
+The API writes transfer state and ledger commands to Postgres. Ledger command publication is centralized in `bank-flow-outboxer`.
 
-| Modulo | Runtime | Porta padrao | Responsabilidade |
+## Modules
+
+| Module | Runtime | Port | Responsibility |
 | --- | --- | --- | --- |
-| `:shared` | biblioteca | n/a | Dominio, orquestracao, repositorios, clients, metricas e migrations. |
-| `:api` | Spring Boot | `8083` | Endpoints HTTP de transferencias e webhooks. |
-| `:worker` | Spring Boot | `8086` | Publisher outbox, consumer Kafka e conclusao pos-ledger. |
+| `:shared` | Library | n/a | Domain, services, repositories, clients, metrics and migrations. |
+| `:api` | Spring Boot | `8083` | Transfer API and webhook endpoints. |
+| `:worker` | Spring Boot | `8086` | Consumes ledger posting confirmations and completes transfers. |
 
-## Responsabilidades
+## Responsibilities
 
-- Receber `POST /transfers` com `Idempotency-Key`.
-- Consultar `bank-flow-accounts` para validar contas e obter `branch/account`.
-- Criar hold no `bank-flow-balance`.
-- Chamar PSP e aguardar webhook.
-- Em PSP `CONFIRMED`, publicar comando para o ledger via outbox.
-- Receber transferencias de outras instituicoes via webhook inbound.
-- No worker, publicar eventos pendentes do outbox.
-- No worker, consumir `ledger-posting-created`, capturar hold e marcar `COMPLETED`.
-- Em PSP `FAILED`, liberar hold e marcar `FAILED`.
+- Receive transfer requests with `Idempotency-Key`.
+- Validate source and destination accounts through `bank-flow-accounts`.
+- Create balance holds through `bank-flow-balance-api`.
+- Call a PSP implementation in `mock` or HTTP mode.
+- Handle PSP confirmation or failure webhooks.
+- Receive inbound transfers from external institutions.
+- Insert `ledger-movements` into `outboxer.outbox_events`.
+- Complete transfers after `ledger-posting-created`.
 
-## Fluxo
+## Public API
 
-```text
-POST /transfers
-  -> valida source/destination digital_account_id
-  -> busca contas no accounts-service
-  -> cria transferencia RECEIVED
-  -> cria hold no balance
-  -> chama PSP
-  -> aguarda webhook
+Default API port: `8083`.
 
-POST /webhooks/psp/transfers CONFIRMED
-  -> grava ledger.transfer_posted no outbox
-  -> marca POSTING_REQUESTED
-  -> worker publica ledger-movements
-  -> ledger publica ledger-posting-created
-  -> worker captura hold
-  -> marca COMPLETED
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/transfers` | Create an internal transfer. Requires `Idempotency-Key`. |
+| `GET` | `/transfers/{transfer_id}` | Return one transfer. |
+| `POST` | `/webhooks/psp/transfers` | Receive PSP status updates. |
+| `POST` | `/webhooks/external-institutions/transfers` | Receive inbound transfers from external institutions. |
+| `GET` | `/actuator/health` | Health endpoint. |
+| `GET` | `/actuator/prometheus` | Prometheus metrics. |
 
-POST /webhooks/external-institutions/transfers
-  -> valida destination digital_account_id
-  -> usa conta contabil de liquidacao como origem
-  -> grava ledger.transfer_posted no outbox
-  -> marca POSTING_REQUESTED
-  -> ledger publica ledger-posting-created
-  -> worker marca COMPLETED
-```
-
-## Regras de Negocio
-
-- `POST /transfers` exige `Idempotency-Key`.
-- Repetir a mesma chave retorna a transferencia ja persistida.
-- Conta origem e destino precisam existir no `accounts` e estar `ACTIVE`.
-- Origem e destino nao podem ser o mesmo `digital_account_id`.
-- Transferencia interna cria hold antes da chamada ao PSP.
-- PSP `CONFIRMED` solicita postagem contabil; PSP `FAILED` libera o hold e marca a transferencia como `FAILED`.
-- Transferencia inbound externa nao cria hold; ela usa a conta contabil de liquidacao como origem.
-- A idempotencia do inbound externo usa `source_institution_code` + `external_transfer_id`.
-- `COMPLETED`, `FAILED`, `EXPIRED` e `REVERSED` sao estados terminais.
-- O outbox usa lock com `FOR UPDATE SKIP LOCKED`, `locked_by` e `locked_until`, permitindo mais de uma replica sem publicar o mesmo evento simultaneamente.
-
-## Validacoes
-
-- `source_digital_account_id`, `destination_digital_account_id`, `amount_minor`, `currency` e `description` sao obrigatorios em transferencia interna.
-- `amount_minor` deve ser positivo.
-- `currency` deve ter 3 letras; no contrato contabil com o ledger, deve ser BRL.
-- Webhook PSP exige `psp_payment_id` e `status`; status aceitos: `CONFIRMED` e `FAILED`.
-- Webhook inbound exige `source_institution_code`, `external_transfer_id`, `destination_digital_account_id`, `amount_minor`, `currency` e `description`.
-- No inbound externo, `currency` deve ser `BRL`.
-- O consumer de `ledger-posting-created` exige chave Kafka igual ao `external_id` do payload.
-
-Mais detalhes estao em [../docs/fluxos-regras-validacoes.md](../docs/fluxos-regras-validacoes.md).
-
-## API
-
-Porta padrao: `8083`.
-
-Criar transferencia:
+Create transfer:
 
 ```bash
 curl -s -X POST http://localhost:8083/transfers \
@@ -94,13 +51,7 @@ curl -s -X POST http://localhost:8083/transfers \
   }'
 ```
 
-Consultar:
-
-```bash
-curl -s http://localhost:8083/transfers/{transfer_id}
-```
-
-Webhook PSP:
+Confirm PSP payment:
 
 ```bash
 curl -s -X POST http://localhost:8083/webhooks/psp/transfers \
@@ -112,52 +63,76 @@ curl -s -X POST http://localhost:8083/webhooks/psp/transfers \
   }'
 ```
 
-Status aceitos no webhook: `CONFIRMED` e `FAILED`.
-
-Webhook inbound de outras instituicoes:
+Receive external inbound transfer:
 
 ```bash
 curl -s -X POST http://localhost:8083/webhooks/external-institutions/transfers \
   -H "Content-Type: application/json" \
   -d '{
     "source_institution_code": "260",
-    "source_institution_name": "Instituicao Externa",
+    "source_institution_name": "External Bank",
     "external_transfer_id": "evt-123",
     "destination_digital_account_id": "530743d7-9663-453f-9ef5-3c68ec4f7929",
     "amount_minor": 2500,
     "currency": "BRL",
-    "description": "Transferencia recebida"
+    "description": "PIX recebido"
   }'
 ```
 
-Idempotencia inbound: `source_institution_code` + `external_transfer_id`.
+## Transfer Lifecycle
 
-Conta contabil usada como origem no inbound externo:
+```text
+POST /transfers
+  -> validate accounts
+  -> create transfer
+  -> create balance hold
+  -> create PSP payment
+  -> wait for PSP webhook
+
+PSP CONFIRMED
+  -> insert ledger-movements into central outbox
+  -> mark transfer POSTING_REQUESTED
+  -> outboxer publishes ledger-movements
+  -> ledger posts double-entry movement
+  -> ledger publishes ledger-posting-created
+  -> transfer-worker captures hold
+  -> transfer becomes COMPLETED
+
+PSP FAILED
+  -> release hold
+  -> transfer becomes FAILED
+```
+
+Inbound external transfers skip PSP and holds. They use the settlement account below as the source:
 
 ```text
 source_digital_account_id: 00000000-0000-0000-0000-000000000100
 source_account: SETTLEMENT_EXTERNAL_INBOUND_BRL
 ```
 
-## Status
+## Statuses
 
-- `RECEIVED`: transferencia registrada.
-- `HOLD_CREATED`: saldo reservado.
-- `PSP_PENDING`: PSP pendente.
-- `PSP_CONFIRMED`: confirmacao recebida.
-- `POSTING_REQUESTED`: comando contabil registrado no outbox.
-- `COMPLETED`: ledger postou e hold foi capturado.
-- `FAILED`: falha antes da postagem contabil.
-- `EXPIRED`: janela operacional da transferencia expirou antes da conclusao.
-- `REVERSED`: transferencia concluida foi revertida por um fluxo de estorno.
+| Status | Meaning |
+| --- | --- |
+| `RECEIVED` | Request was accepted. |
+| `HOLD_CREATED` | Funds were reserved. |
+| `PSP_PENDING` | PSP payment is pending. |
+| `PSP_CONFIRMED` | PSP confirmed the payment. |
+| `POSTING_REQUESTED` | Ledger command was recorded in the outbox. |
+| `COMPLETED` | Ledger posted and hold was captured. |
+| `FAILED` | Transfer failed before completion. |
+| `EXPIRED` | Transfer expired before completion. |
+| `REVERSED` | Completed transfer was reversed. |
 
-## Kafka e Outbox
+## Outbox Contract
 
-Topico publicado pelo `:worker`: `ledger-movements`
+`bank-flow-transfer-api` inserts ledger commands into `outboxer.outbox_events`.
 
-Chave: `source_digital_account_id`
-
-No inbound externo, a chave e a origem usam a conta de liquidacao `00000000-0000-0000-0000-000000000100`.
+| Field | Value |
+| --- | --- |
+| `producer_service` | `bank-flow-transfer` |
+| `topic` | `ledger-movements` |
+| `event_key` | `source_digital_account_id` |
 
 Payload:
 
@@ -173,97 +148,53 @@ Payload:
 }
 ```
 
-Topico consumido pelo `:worker`: `ledger-posting-created`, chave `external_id`.
+The worker consumes `ledger-posting-created` with key `external_id`.
 
-## Configuracao
+## Configuration
 
-| Variavel | Padrao | Descricao |
+| Environment variable | Default | Used by |
 | --- | --- | --- |
-| `SERVER_PORT` | `8083` | Porta HTTP. |
-| `POSTGRES_URL` | `jdbc:postgresql://localhost:5432/bank_flow?currentSchema=transfer,public` | JDBC URL. |
-| `BALANCE_BASE_URL` | `http://localhost:8082` | URL do balance. |
-| `ACCOUNTS_BASE_URL` | `http://localhost:8084` | URL do accounts. |
-| `PSP_MODE` | `mock` | Modo do PSP. |
-| `PSP_BASE_URL` | `http://localhost:9099` | URL do PSP externo. |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers. |
-| `OUTBOX_PUBLISHER_FIXED_DELAY_MS` | `1000` | Intervalo do publisher. |
-| `OUTBOX_PUBLISHER_BATCH_SIZE` | `50` | Tamanho do lote. |
-| `OUTBOX_PUBLISHER_LOCK_LEASE_MS` | `60000` | Tempo de posse do lock de evento em processamento. |
-| `OUTBOX_PUBLISHER_SEND_TIMEOUT_MS` | `30000` | Timeout para publish Kafka. |
-| `OUTBOX_PUBLISHER_MAX_ATTEMPTS` | `10` | Tentativas antes de marcar evento como `FAILED`. |
-| `KAFKA_PRODUCER_MAX_BLOCK_MS` | `30000` | Timeout maximo de bloqueio do producer Kafka. |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Export de traces para Tempo. |
+| `SERVER_PORT` | `8083` API, `8086` worker | API and worker |
+| `POSTGRES_URL` | `jdbc:postgresql://localhost:5432/bank_flow?currentSchema=transfer,public` | API and worker |
+| `POSTGRES_USER` | `myuser` | API and worker |
+| `POSTGRES_PASSWORD` | `mysecretpassword` | API and worker |
+| `ACCOUNTS_BASE_URL` | `http://localhost:8084` | API |
+| `BALANCE_BASE_URL` | `http://localhost:8082` | API and worker |
+| `PSP_MODE` | `mock` | API |
+| `PSP_BASE_URL` | `http://localhost:9099` | API |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Worker |
+| `KAFKA_CONSUMER_GROUP_ID` | `bank-flow-transfer-worker` | Worker |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | API and worker |
 
-## Observability
+The API and worker set `bank-flow.outbox.producer-service=bank-flow-transfer`.
 
-```text
-GET /actuator/health
-GET /actuator/metrics
-GET /actuator/prometheus
-```
+## Run Locally
 
-Os modulos `:api` e `:worker` emitem metricas HTTP/JVM/Hikari, logs estruturados e traces OpenTelemetry. O `:worker` tambem emite metricas Kafka.
-
-Metricas de negocio:
-
-- `transfers_created_total`
-- `transfers_completed_total`
-- `transfers_failed_total{reason}`
-- `transfer_psp_confirmed_total`
-- `transfer_end_to_end_latency_seconds`
-- `transfers_in_status{status}`
-- `transfer_oldest_in_status_age_seconds{status}`
-- `outbox_pending_events{service="bank-flow-transfer-worker"}`
-- `outbox_oldest_pending_event_age_seconds{service="bank-flow-transfer-worker"}`
-- `outbox_publish_failures_total{service,topic,event_type}`
-
-## Rodando
+Start shared infrastructure:
 
 ```bash
-docker compose up -d db kafka kafka-init
+docker compose up -d db kafka kafka-init immudb
+```
+
+Run required services for the full flow:
+
+```bash
+cd bank-flow-outboxer && ./gradlew bootRun
+cd bank-flow-accounts && ./gradlew bootRun
+cd bank-flow-balance && ./gradlew :api:bootRun
+cd bank-flow-balance && ./gradlew :worker:bootRun
+cd bank-flow-ledger && ./gradlew bootRun
+```
+
+Run transfer API and worker:
+
+```bash
 cd bank-flow-transfer
 ./gradlew :api:bootRun
 ./gradlew :worker:bootRun
 ```
 
-Suba tambem `accounts`, `balance` e `ledger` para o fluxo completo.
-
-## Build de Imagem
-
-```bash
-cd bank-flow-transfer
-./gradlew :api:bootBuildImage --imageName=bank-flow-transfer-api:local
-./gradlew :worker:bootBuildImage --imageName=bank-flow-transfer-worker:local
-```
-
-## Kubernetes
-
-O chart em `k8s/` cria deployments, services, ServiceMonitors e Probes separados:
-
-- `bank-flow-transfer-api`
-- `bank-flow-transfer-worker`
-
-Deploy dos dois modulos:
-
-```bash
-helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s
-```
-
-Deploy individual da API:
-
-```bash
-helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s \
-  --set components.worker.enabled=false
-```
-
-Deploy individual do Worker:
-
-```bash
-helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s \
-  --set components.api.enabled=false
-```
-
-## Testes
+## Tests
 
 ```bash
 cd bank-flow-transfer
@@ -271,3 +202,18 @@ cd bank-flow-transfer
 ./gradlew :api:test
 ./gradlew :worker:test
 ```
+
+## Build Images
+
+```bash
+cd bank-flow-transfer
+./gradlew :api:bootBuildImage --imageName=bank-flow-transfer-api:local
+./gradlew :worker:bootBuildImage --imageName=bank-flow-transfer-worker:local
+```
+
+## Contributing Notes
+
+- Keep API contracts based on `digital_account_id`.
+- Keep Kafka publishing out of this service; write outbox rows only.
+- Add tests for status transitions and idempotency.
+- Update event payload examples when ledger command contracts change.

@@ -1,55 +1,31 @@
 # bank-flow-accounts
 
-Servico responsavel por criar contas digitais. Ele valida dados cadastrais, chama um BaaS, salva `branch`/`account` retornados e publica `account-created` para o ledger.
+`bank-flow-accounts` owns digital account creation and account lookup. It talks to a BaaS provider, persists operational account data in Postgres and writes `account-created` events to the centralized outbox table.
 
-Este servico expõe e persiste o identificador operacional `digital_account_id`. O `account_id` numerico contabil e criado e usado apenas pelo `bank-flow-ledger`.
+It does not publish to Kafka directly. `bank-flow-outboxer` publishes the outbox row later.
 
-## Responsabilidades
+## Responsibilities
 
-- Receber `POST /accounts` com `Idempotency-Key`.
-- Validar CPF, email, telefone e data de nascimento.
-- Chamar BaaS em modo `mock` ou `http`.
-- Persistir `baas_account_id`, `branch`, `account`, `currency` e status.
-- Publicar `account-created` via outbox quando a conta fica `ACTIVE`.
-- Consultar conta por `GET /accounts/{digital_account_id}`.
+- Receive account creation requests with `Idempotency-Key`.
+- Validate account holder data.
+- Create or reuse accounts idempotently.
+- Call a BaaS implementation in `mock` or HTTP mode.
+- Persist `baas_account_id`, `branch`, `account`, `currency` and status.
+- Insert `account-created` into `outboxer.outbox_events` when the account becomes `ACTIVE`.
+- Serve account lookup by `digital_account_id`.
 
-## Fluxo
+## Public API
 
-```text
-POST /accounts
-  -> valida payload
-  -> cria conta RECEIVED
-  -> chama BaaS
-  -> salva branch/account
-  -> marca ACTIVE, BAAS_PENDING ou REJECTED
-  -> se ACTIVE, grava account.created no outbox
-  -> OutboxPublisher publica account-created no Kafka
-```
+Default port: `8084`.
 
-## Regras de Negocio
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/accounts` | Create an account. Requires `Idempotency-Key`. |
+| `GET` | `/accounts/{digital_account_id}` | Return one account. |
+| `GET` | `/actuator/health` | Health endpoint. |
+| `GET` | `/actuator/prometheus` | Prometheus metrics. |
 
-- `Idempotency-Key` e obrigatorio para criar conta.
-- Repetir a mesma chave retorna a conta ja persistida, sem duplicar cadastro.
-- O servico cria e expoe apenas `digital_account_id`; `account_id` contabil e responsabilidade do ledger.
-- Apenas contas que chegam a `ACTIVE` publicam `account-created`.
-- O BaaS define `baas_account_id`, `branch`, `account`, `currency` e status operacional.
-- O outbox usa lock com `FOR UPDATE SKIP LOCKED`, `locked_by` e `locked_until`, permitindo mais de uma replica sem publicar o mesmo evento simultaneamente.
-
-## Validacoes
-
-- `fullName`, `motherName`, `phoneNumber`, `birthDate` e `address` sao obrigatorios.
-- `documentNumber` deve ser CPF valido.
-- `email` deve ter formato valido.
-- A resposta do BaaS precisa ter status valido.
-- Evento `account-created` publicado com chave Kafka igual ao `digital_account_id`.
-
-Mais detalhes estao em [../docs/fluxos-regras-validacoes.md](../docs/fluxos-regras-validacoes.md).
-
-## API
-
-Porta padrao: `8084`.
-
-Criar conta:
+Create account:
 
 ```bash
 curl -s -X POST http://localhost:8084/accounts \
@@ -68,13 +44,13 @@ curl -s -X POST http://localhost:8084/accounts \
   }'
 ```
 
-Consultar:
+Lookup:
 
 ```bash
 curl -s http://localhost:8084/accounts/{digital_account_id}
 ```
 
-Resposta:
+Example response:
 
 ```json
 {
@@ -92,11 +68,16 @@ Resposta:
 }
 ```
 
-## Evento Publicado
+## Outbox Contract
 
-Topico: `account-created`
+When an account becomes `ACTIVE`, this service inserts an event into `outboxer.outbox_events`.
 
-Chave Kafka: `digital_account_id`
+| Field | Value |
+| --- | --- |
+| `producer_service` | `bank-flow-accounts` |
+| `topic` | `account-created` |
+| `event_type` | account creation event name from domain code |
+| `event_key` | `digital_account_id` |
 
 Payload:
 
@@ -109,57 +90,60 @@ Payload:
 }
 ```
 
-## Configuracao
+`bank-flow-outboxer` publishes this row to Kafka. `bank-flow-ledger` consumes the Kafka event and creates the internal accounting account.
 
-| Variavel | Padrao | Descricao |
+## Data Ownership
+
+This service owns the `accounts` Postgres schema. It exposes only `digital_account_id`. Numeric accounting ids are owned by `bank-flow-ledger`.
+
+Historical local outbox tables are dropped by migration because outbox storage is now centralized.
+
+## Configuration
+
+| Environment variable | Default | Purpose |
 | --- | --- | --- |
-| `SERVER_PORT` | `8084` | Porta HTTP. |
-| `POSTGRES_URL` | `jdbc:postgresql://localhost:5432/bank_flow?currentSchema=accounts,public` | JDBC URL. |
-| `POSTGRES_USER` | `myuser` | Usuario Postgres. |
-| `POSTGRES_PASSWORD` | `mysecretpassword` | Senha Postgres. |
-| `BAAS_MODE` | `mock` | Modo do BaaS. |
-| `BAAS_BASE_URL` | `http://localhost:9098` | URL base do BaaS HTTP. |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers. |
-| `OUTBOX_PUBLISHER_FIXED_DELAY_MS` | `1000` | Intervalo do publisher. |
-| `OUTBOX_PUBLISHER_BATCH_SIZE` | `50` | Tamanho do lote. |
-| `OUTBOX_PUBLISHER_LOCK_LEASE_MS` | `60000` | Tempo de posse do lock de evento em processamento. |
-| `OUTBOX_PUBLISHER_SEND_TIMEOUT_MS` | `30000` | Timeout para publish Kafka. |
-| `OUTBOX_PUBLISHER_MAX_ATTEMPTS` | `10` | Tentativas antes de marcar evento como `FAILED`. |
-| `KAFKA_PRODUCER_MAX_BLOCK_MS` | `30000` | Timeout maximo de bloqueio do producer Kafka. |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Export de traces para Tempo. |
+| `SERVER_PORT` | `8084` | HTTP port. |
+| `POSTGRES_URL` | `jdbc:postgresql://localhost:5432/bank_flow?currentSchema=accounts,public` | Accounts datasource. |
+| `POSTGRES_USER` | `myuser` | Postgres user. |
+| `POSTGRES_PASSWORD` | `mysecretpassword` | Postgres password. |
+| `BAAS_MODE` | `mock` | `mock` or HTTP BaaS mode. |
+| `BAAS_BASE_URL` | `http://localhost:9098` | HTTP BaaS base URL. |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Trace export endpoint. |
 
-## Observability
+The application also sets `bank-flow.outbox.producer-service=bank-flow-accounts`.
 
-Endpoints:
+## Run Locally
 
-```text
-GET /actuator/health
-GET /actuator/metrics
-GET /actuator/prometheus
-```
-
-O servico emite métricas Prometheus, logs estruturados e traces OpenTelemetry.
-
-Metricas de negocio:
-
-- `accounts_created_total`
-- `accounts_in_status{status}`
-- `account_oldest_in_status_age_seconds{status}`
-- `outbox_pending_events{service="bank-flow-accounts"}`
-- `outbox_oldest_pending_event_age_seconds{service="bank-flow-accounts"}`
-- `outbox_publish_failures_total{service,topic,event_type}`
-
-## Rodando
+Start dependencies from the repository root:
 
 ```bash
-docker compose up -d db kafka kafka-init
+docker compose up -d db kafka kafka-init immudb
+```
+
+Start the outboxer first in a separate terminal:
+
+```bash
+cd bank-flow-outboxer
+./gradlew bootRun
+```
+
+Then run accounts:
+
+```bash
 cd bank-flow-accounts
 ./gradlew bootRun
 ```
 
-## Testes
+## Tests
 
 ```bash
 cd bank-flow-accounts
 ./gradlew test
 ```
+
+## Contributing Notes
+
+- Keep idempotency behavior intact.
+- Do not reintroduce Kafka publishing into this service.
+- Update this README when request or response payloads change.
+- Add tests for validation, idempotency and outbox row creation when changing account creation behavior.

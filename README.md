@@ -1,371 +1,230 @@
 # Bank Flow Backend
 
-Este diretorio contem os servicos Spring Boot para abertura de contas digitais, transferencias, ledger contabil e projecao de saldo. O dominio de transferencias e dividido em API HTTP e Worker.
+Bank Flow is a study project for a banking backend built with Spring Boot, Kafka, Postgres and immudb. The repository models account opening, transfers, double-entry ledger posting, balance projection and a centralized transactional outbox publisher.
 
-Regra de identificadores: `accounts`, `transfer` e `balance` usam somente `digital_account_id`. Apenas o `ledger` manipula o `account_id` numerico contabil.
+The project is intended to be open source. New contributors should be able to run the stack locally, understand each service boundary and submit focused changes without reverse-engineering the whole codebase.
 
-Fluxos completos, regras de negocio e validacoes estao documentados em [docs/fluxos-regras-validacoes.md](docs/fluxos-regras-validacoes.md).
+## Repository Status
 
-## Servicos
+This is not production banking software. It is a learning and architecture project. Treat APIs, schemas and event contracts as evolving unless they are explicitly documented as stable.
 
-| Servico | Porta | Responsabilidade |
-| --- | --- | --- |
-| `bank-flow-accounts` | `8084` | Cria contas digitais, chama BaaS e publica `account-created`. |
-| `bank-flow-transfer-api` | `8083` | API HTTP de transferencias, PSP webhook e inbound externo. |
-| `bank-flow-transfer-worker` | `8086` | Publica outbox para Kafka, consome `ledger-posting-created` e conclui transferencias. |
-| `bank-flow-ledger` | `8085` | Mantem double-entry no immudb e publica `ledger-posting-created`. |
-| `bank-flow-balance-api` | `8082` | API HTTP de saldo, extrato e holds por `digital_account_id`. |
-| `bank-flow-balance-worker` | `8087` | Consome `ledger-posting-created`, projeta saldo/extrato e expira holds. |
+Before publishing this repository publicly, add a license file and any project governance files you want to enforce, such as `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`.
 
-## Arquitetura
+## Services
+
+| Service | Runtime | Port | Main responsibility |
+| --- | --- | --- | --- |
+| `bank-flow-accounts` | Spring Boot | `8084` | Creates digital accounts and records `account-created` events in the central outbox. |
+| `bank-flow-outboxer` | Spring Boot | `8088` | Publishes pending outbox events from Postgres to Kafka. |
+| `bank-flow-transfer-api` | Spring Boot | `8083` | Receives transfer requests, PSP webhooks and external inbound transfer webhooks. |
+| `bank-flow-transfer-worker` | Spring Boot | `8086` | Consumes ledger posting confirmations and completes transfers after ledger posting. |
+| `bank-flow-ledger` | Spring Boot | `8085` | Maintains double-entry ledger state in immudb and publishes posting events. |
+| `bank-flow-balance-api` | Spring Boot | `8082` | Exposes balances, statements and account holds. |
+| `bank-flow-balance-worker` | Spring Boot | `8087` | Projects ledger postings into balances and statements. |
+
+Only `bank-flow-ledger` owns the numeric accounting `account_id`. Public APIs and cross-service contracts use `digital_account_id`.
+
+## Architecture
 
 ```mermaid
 flowchart LR
-    user[Cliente / Script de carga]
-    external[Instituicao externa]
-    psp[PSP]
-    baas[BaaS]
+    client[Client or load script]
+    accounts[bank-flow-accounts]
+    transferApi[bank-flow-transfer-api]
+    transferWorker[bank-flow-transfer-worker]
+    outboxer[bank-flow-outboxer]
+    ledger[bank-flow-ledger]
+    balanceApi[bank-flow-balance-api]
+    balanceWorker[bank-flow-balance-worker]
 
-    subgraph apps[Servicos Bank Flow]
-        accounts[bank-flow-accounts<br/>8084]
-        transferApi[bank-flow-transfer-api<br/>8083]
-        transferWorker[bank-flow-transfer-worker<br/>8086]
-        ledger[bank-flow-ledger<br/>8085]
-        balanceApi[bank-flow-balance-api<br/>8082]
-        balanceWorker[bank-flow-balance-worker<br/>8087]
-    end
+    pg[(Postgres)]
+    immudb[(immudb)]
+    kafka[(Kafka)]
 
-    subgraph storage[Persistencia]
-        pgAccounts[(Postgres<br/>schema accounts)]
-        pgTransfer[(Postgres<br/>schema transfer)]
-        pgBalance[(Postgres<br/>balance projection<br/>holds)]
-        immudb[(immudb<br/>ledger accounts<br/>entries / lines)]
-    end
+    client -->|POST /accounts| accounts
+    accounts --> pg
+    accounts -->|insert outbox row| pg
 
-    subgraph kafka[Kafka]
-        tAccountCreated[account-created]
-        tLedgerMovements[ledger-movements]
-        tLedgerReversals[ledger-reversals]
-        tLedgerPostingCreated[ledger-posting-created]
-        dlt[*.DLT]
-    end
+    client -->|POST /transfers| transferApi
+    transferApi --> accounts
+    transferApi --> balanceApi
+    transferApi --> pg
+    transferApi -->|insert outbox row| pg
 
-    subgraph observability[Observability]
-        prometheus[Prometheus]
-        grafana[Grafana]
-        tempo[Tempo]
-        loki[Loki]
-        otel[OTLP Collector]
-    end
+    outboxer -->|claim pending events| pg
+    outboxer -->|account-created, ledger-movements| kafka
 
-    user -->|POST /accounts| accounts
-    accounts -->|create account| baas
-    accounts --> pgAccounts
-    accounts -->|outbox publish| tAccountCreated
+    kafka --> ledger
+    ledger --> immudb
+    ledger -->|ledger-posting-created| kafka
 
-    tAccountCreated --> ledger
-    ledger -->|create CUSTOMER_ACCOUNT_*| immudb
+    kafka --> balanceWorker
+    balanceWorker --> pg
 
-    user -->|POST /transfers| transferApi
-    transferApi -->|GET account by digital_account_id| accounts
-    transferApi -->|POST /holds| balanceApi
-    balanceApi --> pgBalance
-    transferApi -->|create payment| psp
-    psp -->|POST /webhooks/psp/transfers| transferApi
-    transferApi --> pgTransfer
-    transferWorker -->|outbox publish| tLedgerMovements
+    kafka --> transferWorker
+    transferWorker --> balanceApi
+    transferWorker --> pg
 
-    external -->|POST /webhooks/external-institutions/transfers| transferApi
-    transferApi -->|validate destination account| accounts
-    transferApi --> pgTransfer
-    transferWorker -->|debit SETTLEMENT_EXTERNAL_INBOUND_BRL| tLedgerMovements
-
-    tLedgerMovements --> ledger
-    tLedgerReversals --> ledger
-    ledger -->|double-entry posting| immudb
-    ledger -->|publish posting| tLedgerPostingCreated
-
-    tLedgerPostingCreated --> balanceWorker
-    balanceWorker -->|project balance and statement| pgBalance
-    tLedgerPostingCreated --> transferWorker
-    transferWorker -->|capture hold and mark COMPLETED| balanceApi
-
-    tAccountCreated -. failure .-> dlt
-    tLedgerMovements -. failure .-> dlt
-    tLedgerReversals -. failure .-> dlt
-    tLedgerPostingCreated -. failure .-> dlt
-
-    accounts -->|/actuator/prometheus| prometheus
-    transferApi -->|/actuator/prometheus| prometheus
-    transferWorker -->|/actuator/prometheus| prometheus
-    ledger -->|/actuator/prometheus| prometheus
-    balanceApi -->|/actuator/prometheus| prometheus
-    balanceWorker -->|/actuator/prometheus| prometheus
-    accounts -->|traces/logs| otel
-    transferApi -->|traces/logs| otel
-    transferWorker -->|traces/logs| otel
-    ledger -->|traces/logs| otel
-    balanceApi -->|traces/logs| otel
-    balanceWorker -->|traces/logs| otel
-    otel --> tempo
-    otel --> loki
-    prometheus --> grafana
-    tempo --> grafana
-    loki --> grafana
+    client -->|GET /balances| balanceApi
+    balanceApi --> pg
 ```
 
-## Fluxo Principal
+The outbox pattern is centralized:
 
-Criacao de conta:
+- Producer services write business data and an outbox row in the same Postgres transaction.
+- `bank-flow-outboxer` is the only service that claims outbox rows and publishes to Kafka.
+- Existing producer services no longer run local outbox publishers.
 
-```text
-POST /accounts
-  -> accounts chama BaaS
-  -> accounts salva branch/account
-  -> accounts publica account-created via outbox
-  -> ledger cria ledger account interno para o digital_account_id
-```
+## Event Topics
 
-Transferencia:
-
-```text
-POST /transfers
-  -> transfer-api consulta accounts por digital_account_id
-  -> transfer-api cria hold no balance
-  -> transfer-api chama PSP
-  -> webhook PSP CONFIRMED
-  -> transfer-api grava ledger-movements no outbox
-  -> transfer-worker publica ledger-movements
-  -> ledger cria posting double-entry
-  -> ledger publica ledger-posting-created
-  -> balance-worker projeta saldo/extrato
-  -> transfer-worker captura hold e marca COMPLETED
-```
-
-Se o PSP retorna `FAILED`, o transfer-api libera o hold e marca a transferencia como `FAILED`.
-
-Transferencia inbound de outra instituicao:
-
-```text
-POST /webhooks/external-institutions/transfers
-  -> transfer-api valida a conta destino no accounts
-  -> usa a conta contabil de liquidacao como origem
-  -> transfer-api grava ledger-movements no outbox
-  -> transfer-worker publica ledger-movements
-  -> ledger debita liquidacao e credita a conta destino
-  -> balance-worker projeta saldo/extrato
-  -> transfer-worker marca COMPLETED apos ledger-posting-created
-```
-
-## Kafka
-
-| Topico | Produtor | Consumidor | Chave |
+| Topic | Producer | Consumers | Key |
 | --- | --- | --- | --- |
-| `account-created` | accounts | ledger | `digital_account_id` |
-| `ledger-movements` | transfer-worker | ledger | `source_digital_account_id` |
-| `ledger-reversals` | externo/scripts | ledger | `original_external_id` |
-| `ledger-posting-created` | ledger | balance-worker, transfer-worker | `external_id` |
+| `account-created` | `bank-flow-outboxer`, from accounts outbox rows | `bank-flow-ledger` | `digital_account_id` |
+| `ledger-movements` | `bank-flow-outboxer`, from transfer outbox rows | `bank-flow-ledger` | `source_digital_account_id` |
+| `ledger-reversals` | external scripts or tools | `bank-flow-ledger` | `original_external_id` |
+| `ledger-posting-created` | `bank-flow-ledger` | `bank-flow-balance-worker`, `bank-flow-transfer-worker` | `external_id` |
 
-Cada topico possui DLT com sufixo `.DLT`.
+Kafka topics are created by the `kafka-init` service in `docker-compose.yaml`. Each main topic has a `.DLT` companion topic.
 
-Conta contabil de liquidacao inbound:
+## Local Requirements
 
-```text
-account_code: SETTLEMENT_EXTERNAL_INBOUND_BRL
-owner_id: 00000000-0000-0000-0000-000000000100
-```
+- Java 21
+- Docker and Docker Compose
+- Bash-compatible shell
+- Optional: Python 3 for load scripts
+- Optional: Helm and Minikube for Kubernetes work
 
-Antes de processar inbound externo em ambiente novo, rode o seed em `scripts/immudb/002_seed_settlement_accounts.sql`.
+Each Spring project ships its own Gradle wrapper, so a system Gradle installation is not required.
 
-## Infra Local
+## Start Dependencies
 
-Suba dependencias principais:
+From the repository root:
 
 ```bash
 docker compose up -d db kafka kafka-init kafka-ui immudb
 ```
 
-Servicos:
+Local endpoints:
 
-- Postgres: `localhost:5432`, database `bank_flow`, user `myuser`, password `mysecretpassword`
-- Kafka: `localhost:9092`
-- Kafka UI: `http://localhost:8081`
-- immudb: `localhost:3322`
+| Component | URL or address |
+| --- | --- |
+| Postgres | `localhost:5432`, database `bank_flow`, user `myuser`, password `mysecretpassword` |
+| Kafka | `localhost:9092` |
+| Kafka UI | `http://localhost:8081` |
+| immudb | `localhost:3322` |
 
-## Rodando Aplicacoes
+## Run The Applications
 
-Em terminais separados:
+Run each command in a separate terminal:
 
 ```bash
+cd bank-flow-outboxer && ./gradlew bootRun
 cd bank-flow-accounts && ./gradlew bootRun
+cd bank-flow-ledger && ./gradlew bootRun
 cd bank-flow-balance && ./gradlew :api:bootRun
 cd bank-flow-balance && ./gradlew :worker:bootRun
-cd bank-flow-ledger && ./gradlew bootRun
 cd bank-flow-transfer && ./gradlew :api:bootRun
 cd bank-flow-transfer && ./gradlew :worker:bootRun
 ```
 
-## Kubernetes
+Start `bank-flow-outboxer` before creating accounts or transfers in a fresh database, because it owns the `outboxer.outbox_events` table migration.
 
-Cada servico possui um chart Helm proprio em `k8s/`, permitindo deploy individualizado:
+## Smoke Test
 
-```bash
-helm upgrade --install bank-flow-accounts bank-flow-accounts/k8s
-helm upgrade --install bank-flow-balance bank-flow-balance/k8s
-helm upgrade --install bank-flow-ledger bank-flow-ledger/k8s
-helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s
-```
-
-Recursos criados por servico:
-
-- `ConfigMap`: variaveis de ambiente nao sensiveis, definidas em `values.yaml`.
-- `Secret`: credenciais de Postgres ou immudb, definidas em `values.yaml`.
-- `Deployment`: container, replicas, probes de liveness/readiness e recursos.
-- `Service`: exposicao interna `ClusterIP`.
-
-Observacao: `bank-flow-ledger` usa `StatefulSet`, nao `Deployment`, para manter nomes de pods estaveis. O app deriva `ID_GENERATOR_WORKER_ID` do ordinal do pod, por exemplo `bank-flow-ledger-0` usa worker `0`.
-
-As imagens padrao usam `bank-flow-<servico>:local`, adequadas para Minikube com imagens carregadas localmente. Para trocar imagem/tag:
+Create an account:
 
 ```bash
-helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s \
-  --set components.api.image.repository=ghcr.io/bayerleindev/bank-flow-transfer-api \
-  --set components.api.image.tag=<tag> \
-  --set components.worker.image.repository=ghcr.io/bayerleindev/bank-flow-transfer-worker \
-  --set components.worker.image.tag=<tag>
+curl -s -X POST http://localhost:8084/accounts \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: account-001" \
+  -d '{
+    "fullName": "Maria Silva",
+    "documentNumber": "35225454860",
+    "email": "maria@example.com",
+    "motherName": "Ana Silva",
+    "socialName": "Maria",
+    "phoneNumber": "+5511999999999",
+    "birthDate": "18-12-1996",
+    "address": "Rua Teste, 123",
+    "isPoliticallyExposed": false
+  }'
 ```
 
-Para alterar replicas ou fazer deploy de apenas um modulo:
+Query a balance:
 
 ```bash
-helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s \
-  --set components.api.replicaCount=2 \
-  --set components.worker.enabled=false
+curl -s http://localhost:8082/balances/{digital_account_id}
 ```
 
-Para escalar o ledger:
+For end-to-end traffic, use:
 
 ```bash
-helm upgrade --install bank-flow-ledger bank-flow-ledger/k8s \
-  --set replicaCount=2
+python3 scripts/orchestrate_accounts_transfers.py --accounts 3 --max-between-transfers 10
 ```
 
-Mantenha no maximo 100 replicas do ledger, porque o `worker_id` aceito vai de `0` a `99`.
+## Tests
 
-Defaults atuais para Minikube:
-
-- Postgres acessivel em `host.minikube.internal:5432`.
-- Kafka acessivel em `host.docker.internal:9094`.
-- immudb acessivel em `host.docker.internal:3322`.
-- OTLP Collector acessivel em `host.minikube.internal:4318`.
-
-### Prometheus no Kubernetes
-
-Para métricas dentro do Minikube, use o `kube-prometheus-stack`:
+Run all currently documented service tests:
 
 ```bash
-helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-helm repo update
-
-helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
-  --namespace monitoring \
-  --create-namespace \
-  -f observability/k8s/kube-prometheus-stack-values.yaml
+cd bank-flow-accounts && ./gradlew test
+cd ../bank-flow-outboxer && ./gradlew test
+cd ../bank-flow-ledger && ./gradlew test
+cd ../bank-flow-balance && ./gradlew test
+cd ../bank-flow-transfer && ./gradlew test
 ```
 
-Os charts dos servicos criam `ServiceMonitor` por padrão, com o label `release: monitoring`, e expõem `/actuator/prometheus` pela porta `http`.
+Some integration tests may require Docker because they use external infrastructure or Testcontainers.
 
-```bash
-helm upgrade --install bank-flow-accounts bank-flow-accounts/k8s
-helm upgrade --install bank-flow-balance bank-flow-balance/k8s
-helm upgrade --install bank-flow-ledger bank-flow-ledger/k8s
-helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s
-```
-
-Para os paineis de health que usam `probe_success{job="bank-flow-health"}`, instale tambem o Blackbox Exporter:
-
-```bash
-helm upgrade --install prometheus-blackbox-exporter prometheus-community/prometheus-blackbox-exporter \
-  --namespace monitoring
-```
-
-Os charts criam `Probe` por padrao, tambem com o label `release: monitoring`, apontando para o `/actuator/health` do respectivo servico:
+## Project Layout
 
 ```text
-http://bank-flow-accounts.<namespace>.svc:8084/actuator/health
-http://bank-flow-balance-api.<namespace>.svc:8082/actuator/health
-http://bank-flow-balance-worker.<namespace>.svc:8087/actuator/health
-http://bank-flow-ledger.<namespace>.svc:8085/actuator/health
-http://bank-flow-transfer-api.<namespace>.svc:8083/actuator/health
-http://bank-flow-transfer-worker.<namespace>.svc:8086/actuator/health
+bank-flow-accounts/    Account API and account outbox producer
+bank-flow-outboxer/    Central outbox publisher
+bank-flow-transfer/    Transfer API, worker and shared module
+bank-flow-ledger/      Accounting ledger service
+bank-flow-balance/     Balance API, worker and shared module
+docs/                  Architecture notes and deployment learnings
+scripts/               Local orchestration and immudb setup helpers
+observability/         Prometheus, Grafana, Loki and Tempo configs
+kong-configs/          Gateway examples
 ```
 
-Se o Blackbox Exporter tiver outro nome ou namespace, ajuste o endereco do prober:
+## Kubernetes
+
+Most services have Helm charts under their service directory. The current exception is `bank-flow-outboxer`, which still needs a chart before full Kubernetes deployment parity.
+
+Example:
 
 ```bash
-helm upgrade --install bank-flow-ledger bank-flow-ledger/k8s \
-  --set probe.proberUrl=<blackbox-service>.<namespace>.svc:9115
+helm upgrade --install bank-flow-accounts bank-flow-accounts/k8s
+helm upgrade --install bank-flow-balance bank-flow-balance/k8s
+helm upgrade --install bank-flow-ledger bank-flow-ledger/k8s
+helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s
 ```
 
-Para logs e traces, adicione os charts da Grafana:
+Kubernetes and observability notes live in:
 
-```bash
-helm repo add grafana https://grafana.github.io/helm-charts
-helm repo update
-
-helm upgrade --install loki grafana/loki \
-  --namespace monitoring \
-  -f observability/k8s/loki-values.yaml
-
-helm upgrade --install alloy grafana/alloy \
-  --namespace monitoring \
-  -f observability/k8s/alloy-values.yaml
-
-helm upgrade --install tempo grafana/tempo \
-  --namespace monitoring \
-  -f observability/k8s/tempo-values.yaml
-```
-
-O Alloy roda como `DaemonSet`, descobre pods no Kubernetes, processa logs CRI, extrai campos JSON dos logs estruturados e envia para o Loki.
-
-Os servicos enviam traces para `http://tempo.monitoring.svc.cluster.local:4318/v1/traces` por padrao nos charts Kubernetes.
-
-Para importar os dashboards existentes no Grafana do cluster:
-
-```bash
-kubectl create configmap bank-flow-dashboards \
-  -n monitoring \
-  --from-file=observability/grafana/dashboards \
-  --dry-run=client -o yaml | kubectl apply -f -
-
-kubectl label configmap bank-flow-dashboards \
-  -n monitoring \
-  grafana_dashboard=1 \
-  --overwrite
-```
-
-Para acessar o Grafana do stack:
-
-```bash
-kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80
-```
+- [docs/deploy-kubernetes-minikube.md](docs/deploy-kubernetes-minikube.md)
+- [docs/aprendizados-deploy-kubernetes-minikube.md](docs/aprendizados-deploy-kubernetes-minikube.md)
+- [docs/aprendizados-kubernetes-observabilidade.md](docs/aprendizados-kubernetes-observabilidade.md)
 
 ## Observability
 
-Suba a stack:
+Run the local observability stack:
 
 ```bash
 docker compose -f docker-compose.observability.yml up -d
 ```
 
-URLs:
+| Tool | URL |
+| --- | --- |
+| Grafana | `http://localhost:3000` |
+| Prometheus | `http://localhost:9090` |
+| Loki | `http://localhost:3100` |
+| Tempo | `http://localhost:3200` |
 
-- Grafana: `http://localhost:3000` (`admin`/`admin`)
-- Prometheus: `http://localhost:9090`
-- Loki: `http://localhost:3100`
-- Tempo: `http://localhost:3200`
-
-Todos os servicos expõem:
+All Spring services expose:
 
 ```text
 /actuator/health
@@ -373,95 +232,31 @@ Todos os servicos expõem:
 /actuator/prometheus
 ```
 
-Tempo recebe traces via OTLP em `localhost:4318/v1/traces`. O service graph usa métricas geradas pelo Tempo e enviadas ao Prometheus via remote write.
+## Contributing
 
-Aprendizados do setup Kubernetes/observabilidade estao em [docs/aprendizados-kubernetes-observabilidade.md](docs/aprendizados-kubernetes-observabilidade.md).
+Contributions are welcome. Keep pull requests small, explain the behavior change, and include tests for non-trivial logic.
 
-Passo a passo operacional para deploy no Minikube esta em [docs/deploy-kubernetes-minikube.md](docs/deploy-kubernetes-minikube.md).
+Recommended workflow:
 
-Aprendizados especificos do deploy no Minikube estao em [docs/aprendizados-deploy-kubernetes-minikube.md](docs/aprendizados-deploy-kubernetes-minikube.md).
+1. Create or pick an issue.
+2. Run the affected service locally.
+3. Add or update tests close to the changed code.
+4. Run the relevant Gradle test task.
+5. Update README or docs when contracts, setup or operations change.
 
-Fluxos, regras de negocio e validacoes estao em [docs/fluxos-regras-validacoes.md](docs/fluxos-regras-validacoes.md).
+Engineering conventions:
 
-Metricas de negocio criticas:
+- Preserve service ownership boundaries.
+- Keep public contracts based on `digital_account_id`.
+- Keep outbox publishing centralized in `bank-flow-outboxer`.
+- Prefer idempotent consumers and deterministic keys.
+- Do not mix unrelated refactors into behavior changes.
 
-- `accounts_in_status` e `account_oldest_in_status_age_seconds`
-- `transfers_in_status` e `transfer_oldest_in_status_age_seconds`
-- `transfer_end_to_end_latency_seconds`
-- `outbox_pending_events` e `outbox_oldest_pending_event_age_seconds`
-- `ledger_posting_created_total`, `ledger_publish_failures_total` e `ledger_posting_unbalanced_total`
-- `balance_projection_lag_seconds`, `bank_flow_balance_projection_total` e `balance_hold_close_failures_total`
+## More Documentation
 
-## Script de Carga
-
-O script abaixo cria contas, envia uma transferencia inbound externa para uma conta criada na propria execucao, faz funding inicial pela conta seed e mantém transferencias contínuas entre as contas. Ele também cria novas contas aleatoriamente durante o loop.
-
-```bash
-python3 scripts/orchestrate_accounts_transfers.py \
-  --accounts 3 \
-  --seed-amount-minor 10000 \
-  --between-min-amount-minor 50 \
-  --between-max-amount-minor 500 \
-  --account-create-rate 0.2 \
-  --between-decline-rate 0.2
-```
-
-Conta seed padrao:
-
-```text
-3f20291f-c0ba-4c8e-b0b2-7ff1cccb3833
-```
-
-Use `Ctrl+C` para parar. Para uma execucao finita:
-
-```bash
-python3 scripts/orchestrate_accounts_transfers.py --max-between-transfers 10 --max-created-accounts 5
-```
-
-Opcoes relacionadas ao inbound externo:
-
-```bash
-python3 scripts/orchestrate_accounts_transfers.py \
-  --external-inbound-amount-minor 750
-
-python3 scripts/orchestrate_accounts_transfers.py \
-  --skip-external-inbound
-```
-
-## GitHub Actions
-
-Workflow principal: `.github/workflows/pipeline.yaml`.
-
-Ele pode ser executado manualmente com `workflow_dispatch` escolhendo:
-
-- `all`
-- `accounts`
-- `balance`
-- `balance-api`
-- `balance-worker`
-- `transfer`
-- `transfer-api`
-- `transfer-worker`
-- `ledger`
-
-Cada servico tambem possui um workflow proprio. Balance e transferencias tem pipelines separados para `:api` e `:worker`, alem dos workflows agregados `balance` e `transfer`.
-
-## Testes
-
-```bash
-cd bank-flow-accounts && ./gradlew test
-cd ../bank-flow-balance && ./gradlew test
-cd ../bank-flow-balance && ./gradlew :api:test
-cd ../bank-flow-balance && ./gradlew :worker:test
-cd ../bank-flow-transfer && ./gradlew test
-cd ../bank-flow-transfer && ./gradlew :api:test
-cd ../bank-flow-transfer && ./gradlew :worker:test
-cd ../bank-flow-ledger && ./gradlew test
-```
-
-## Bancos
-
-- `bank-flow-accounts`: schema Postgres `accounts`.
-- `bank-flow-transfer`: schema Postgres `transfer`.
-- `bank-flow-balance`: tabelas de projecao e holds no Postgres.
-- `bank-flow-ledger`: immudb para contas contabeis, entries e lines.
+- [docs/fluxos-regras-validacoes.md](docs/fluxos-regras-validacoes.md)
+- [bank-flow-accounts/README.md](bank-flow-accounts/README.md)
+- [bank-flow-outboxer/README.md](bank-flow-outboxer/README.md)
+- [bank-flow-transfer/README.md](bank-flow-transfer/README.md)
+- [bank-flow-ledger/README.md](bank-flow-ledger/README.md)
+- [bank-flow-balance/README.md](bank-flow-balance/README.md)

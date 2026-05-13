@@ -1,108 +1,53 @@
 # bank-flow-balance
 
-Servico responsavel por projetar saldos/extratos a partir do `ledger-posting-created` e por gerenciar holds de saldo usados pelo transfer-service.
+`bank-flow-balance` projects ledger postings into balances and statements, and manages account holds used by transfers.
 
-O projeto agora e multi-modulo:
+It is a projection service. It does not decide accounting rules; it reflects what `bank-flow-ledger` has posted.
 
-| Modulo | Runtime | Porta padrao | Responsabilidade |
+## Modules
+
+| Module | Runtime | Port | Responsibility |
 | --- | --- | --- | --- |
-| `:shared` | biblioteca | n/a | Dominio, services, repositorios, metricas e migrations. |
-| `:api` | Spring Boot | `8082` | Endpoints HTTP de saldo, extrato e holds. |
-| `:worker` | Spring Boot | `8087` | Consumer Kafka, projecao de ledger e expiracao agendada de holds. |
+| `:shared` | Library | n/a | Domain, services, repositories, metrics and migrations. |
+| `:api` | Spring Boot | `8082` | Balance, statement and hold HTTP endpoints. |
+| `:worker` | Spring Boot | `8087` | Kafka consumer, projection worker and hold expiration scheduler. |
 
-A API publica usa `digital_account_id`. O `ledger_account_id` numerico pode ser armazenado internamente em linhas de extrato, mas nao e identificador publico.
+## Responsibilities
 
-## Responsabilidades
+- Consume `ledger-posting-created`.
+- Project posted ledger lines into account balances.
+- Store statement lines.
+- Enforce idempotency for processed ledger entries.
+- Create, capture, release and expire holds.
+- Expose balance and statement read APIs.
 
-- No worker, consumir `ledger-posting-created`.
-- No worker, projetar `account_balances` por `digital_account_id`.
-- Gravar linhas historicas em `account_balance_entries`.
-- Garantir idempotencia por `entry_id` e `external_id`.
-- Criar, capturar e liberar holds.
-- Na API, expor saldo, extrato, health, métricas e traces.
+## Public API
 
-## Fluxo de Projecao
+Default API port: `8082`.
 
-```text
-ledger-posting-created
-  -> valida payload e chave external_id
-  -> registra processed_ledger_entries
-  -> grava account_balance_entries
-  -> atualiza account_balances por digital_account_id
-```
+| Method | Path | Description |
+| --- | --- | --- |
+| `GET` | `/balances/{digital_account_id}` | Return current balance. |
+| `GET` | `/balances/{digital_account_id}/statement` | Return paged statement lines. |
+| `POST` | `/holds` | Create a balance hold. |
+| `POST` | `/holds/{hold_id}/capture` | Capture a held amount. |
+| `POST` | `/holds/{hold_id}/release` | Release a held amount. |
+| `GET` | `/actuator/health` | Health endpoint. |
+| `GET` | `/actuator/prometheus` | Prometheus metrics. |
 
-## Fluxo de Hold
-
-```text
-transfer POST /holds
-  -> cria account_holds HELD por digital_account_id
-  -> incrementa held_minor se available_minor for suficiente
-
-transfer POST /holds/{hold_id}/capture
-  -> muda HELD para CAPTURED
-  -> decrementa held_minor
-  -> se ja CAPTURED, retorna sucesso idempotente
-
-transfer POST /holds/{hold_id}/release
-  -> muda HELD para RELEASED
-  -> decrementa held_minor
-  -> se ja RELEASED, retorna sucesso idempotente
-```
-
-## Regras de Negocio
-
-- O balance projeta o resultado do ledger; ele nao decide partida contabil.
-- `available_minor = posted_minor - held_minor`.
-- `ledger-posting-created` e idempotente por `entry_id` e `external_id`.
-- Criar hold exige saldo disponivel suficiente.
-- Hold altera apenas `held_minor`; `posted_minor` muda somente pela projecao do ledger.
-- Capturar ou liberar um hold reduz `held_minor` e fecha o hold.
-- Repetir a mesma operacao terminal de hold e idempotente.
-- Capturar hold `RELEASED` ou liberar hold `CAPTURED` e transicao invalida.
-
-## Validacoes
-
-- A chave Kafka de `ledger-posting-created` deve ser igual ao `external_id`.
-- Evento de posting precisa ter `entry_id`, `external_id`, `entry_type`, `status`, `description`, `occurred_at`, `created_at` e ao menos duas linhas.
-- `status` do posting deve ser `POSTED`.
-- Linhas do posting precisam balancear para zero por moeda.
-- Cada linha precisa ter `line_id`, `entry_id`, `account_id`, `digital_account_id`, `direction`, `amount_minor`, `signed_amount_minor`, `currency`, `line_memo` e `created_at`.
-- `POST /holds` exige `transfer_id`, `digital_account_id`, `amount_minor`, `currency`, `reason` e `expires_at`.
-- `amount_minor` deve ser positivo e `expires_at` deve estar no futuro.
-- Consulta de extrato exige `limit` positivo e `cursor` valido quando informado.
-
-Mais detalhes estao em [../docs/fluxos-regras-validacoes.md](../docs/fluxos-regras-validacoes.md).
-
-## API
-
-Porta padrao: `8082`.
-
-Consultar saldo:
+Query balance:
 
 ```bash
 curl -s http://localhost:8082/balances/{digital_account_id}
 ```
 
-Resposta:
-
-```json
-{
-  "digital_account_id": "530743d7-9663-453f-9ef5-3c68ec4f7929",
-  "currency": "BRL",
-  "posted_minor": 10000,
-  "held_minor": 100,
-  "available_minor": 9900,
-  "updated_at": 1778122436000
-}
-```
-
-Consultar extrato:
+Query statement:
 
 ```bash
 curl -s "http://localhost:8082/balances/{digital_account_id}/statement?limit=20"
 ```
 
-Criar hold:
+Create hold:
 
 ```bash
 curl -s -X POST http://localhost:8082/holds \
@@ -117,20 +62,36 @@ curl -s -X POST http://localhost:8082/holds \
   }'
 ```
 
-Capturar/liberar:
+Capture or release:
 
 ```bash
 curl -s -X POST http://localhost:8082/holds/{hold_id}/capture
 curl -s -X POST http://localhost:8082/holds/{hold_id}/release
 ```
 
-## Evento Consumido
+## Projection Rules
 
-Topico consumido pelo `:worker`: `ledger-posting-created`
+- `posted_minor` changes only when a ledger posting is projected.
+- `held_minor` changes when holds are created, captured, released or expired.
+- `available_minor = posted_minor - held_minor`.
+- `ledger-posting-created` processing is idempotent by ledger entry identity.
+- Statement lines preserve the ledger `account_id` internally, but public APIs use `digital_account_id`.
 
-Chave: `external_id`
+## Hold Rules
 
-Cada linha deve conter:
+- A hold can be created only when `available_minor` is sufficient.
+- Capture and release are idempotent for already matching terminal states.
+- Capturing a released hold is invalid.
+- Releasing a captured hold is invalid.
+- Expired holds are released by the worker scheduler.
+
+## Consumed Event
+
+Topic: `ledger-posting-created`
+
+Key: `external_id`
+
+The worker expects posted entries with balanced ledger lines. Example line:
 
 ```json
 {
@@ -147,59 +108,34 @@ Cada linha deve conter:
 }
 ```
 
-## Modelo de Dados
+## Data Ownership
 
-Tabelas principais:
+Main tables:
 
-- `account_balances`: saldo atual por `digital_account_id`.
-- `account_balance_entries`: extrato, com `digital_account_id` e `ledger_account_id`.
-- `account_holds`: holds por `digital_account_id`.
-- `processed_ledger_entries`: idempotencia de eventos processados.
+| Table | Purpose |
+| --- | --- |
+| `account_balances` | Current projected balances. |
+| `account_balance_entries` | Statement lines. |
+| `account_holds` | Holds and their status transitions. |
+| `processed_ledger_entries` | Idempotency for consumed ledger postings. |
 
-Colunas legadas `account_id` podem existir por compatibilidade de migration, mas nao devem ser usadas por APIs publicas.
+## Configuration
 
-## Configuracao
-
-| Variavel | Padrao | Descricao |
+| Environment variable | Default | Used by |
 | --- | --- | --- |
-| `SERVER_PORT` | `8082` | Porta HTTP. |
-| `POSTGRES_URL` | `jdbc:postgresql://localhost:5432/bank_flow` | JDBC URL. |
-| `POSTGRES_USER` | `myuser` | Usuario Postgres. |
-| `POSTGRES_PASSWORD` | `mysecretpassword` | Senha Postgres. |
-| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers. |
-| `KAFKA_CONSUMER_GROUP_ID` | `bank-flow-balance-worker` | Consumer group do worker. |
-| `KAFKA_AUTO_OFFSET_RESET` | `earliest` | Offset reset. |
-| `KAFKA_RETRY_INTERVAL_MS` | `1000` | Intervalo entre retries. |
-| `KAFKA_RETRY_MAX_ATTEMPTS` | `3` | Tentativas antes da DLT. |
-| `KAFKA_HEALTH_TIMEOUT_MS` | `2000` | Timeout health Kafka. |
-| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Export de traces para Tempo. |
+| `SERVER_PORT` | `8082` API, `8087` worker | API and worker |
+| `POSTGRES_URL` | `jdbc:postgresql://localhost:5432/bank_flow` | API and worker |
+| `POSTGRES_USER` | `myuser` | API and worker |
+| `POSTGRES_PASSWORD` | `mysecretpassword` | API and worker |
+| `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Worker |
+| `KAFKA_CONSUMER_GROUP_ID` | `bank-flow-balance-worker` | Worker |
+| `KAFKA_AUTO_OFFSET_RESET` | `earliest` | Worker |
+| `KAFKA_RETRY_INTERVAL_MS` | `1000` | Worker |
+| `KAFKA_RETRY_MAX_ATTEMPTS` | `3` | Worker |
+| `KAFKA_HEALTH_TIMEOUT_MS` | `2000` | Worker |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | API and worker |
 
-## Observability
-
-```text
-GET /actuator/health
-GET /actuator/health/liveness
-GET /actuator/health/readiness
-GET /actuator/metrics
-GET /actuator/prometheus
-```
-
-Metricas customizadas do balance:
-
-- `bank_flow_balance_kafka_messages_total`
-- `bank_flow_balance_projection_total`
-- `bank_flow_balance_projection_duration`
-- `bank_flow_balance_projection_lines`
-- `balance_projection_lag_seconds`
-- `balance_available_minor`
-- `balance_held_minor`
-- `balance_holds_created_total`
-- `balance_holds_captured_total`
-- `balance_holds_released_total`
-- `balance_holds_expired_total`
-- `balance_hold_close_failures_total`
-
-## Rodando
+## Run Locally
 
 ```bash
 docker compose up -d db kafka kafka-init
@@ -208,42 +144,9 @@ cd bank-flow-balance
 ./gradlew :worker:bootRun
 ```
 
-## Build de Imagem
+For the full projection flow, also run `bank-flow-ledger`.
 
-```bash
-cd bank-flow-balance
-./gradlew :api:bootBuildImage --imageName=bank-flow-balance-api:local
-./gradlew :worker:bootBuildImage --imageName=bank-flow-balance-worker:local
-```
-
-## Kubernetes
-
-O chart em `k8s/` cria deployments, services, ServiceMonitors e Probes separados:
-
-- `bank-flow-balance-api`
-- `bank-flow-balance-worker`
-
-Deploy dos dois modulos:
-
-```bash
-helm upgrade --install bank-flow-balance bank-flow-balance/k8s
-```
-
-Deploy individual da API:
-
-```bash
-helm upgrade --install bank-flow-balance bank-flow-balance/k8s \
-  --set components.worker.enabled=false
-```
-
-Deploy individual do Worker:
-
-```bash
-helm upgrade --install bank-flow-balance bank-flow-balance/k8s \
-  --set components.api.enabled=false
-```
-
-## Testes
+## Tests
 
 ```bash
 cd bank-flow-balance
@@ -252,12 +155,16 @@ cd bank-flow-balance
 ./gradlew :worker:test
 ```
 
-Os testes usam PostgreSQL via Testcontainers para cobrir migrations com sintaxe PostgreSQL. Docker precisa estar disponivel no ambiente de CI/local.
-
-## Comandos Uteis
+## Build Images
 
 ```bash
-docker compose exec -T db psql -U myuser -d bank_flow -c "SELECT * FROM account_balances LIMIT 10;"
-docker compose exec -T db psql -U myuser -d bank_flow -c "SELECT * FROM account_holds ORDER BY created_at DESC LIMIT 10;"
-docker compose exec -T db psql -U myuser -d bank_flow -c "SELECT * FROM account_balance_entries ORDER BY occurred_at DESC LIMIT 10;"
+cd bank-flow-balance
+./gradlew :api:bootBuildImage --imageName=bank-flow-balance-api:local
+./gradlew :worker:bootBuildImage --imageName=bank-flow-balance-worker:local
 ```
+
+## Contributing Notes
+
+- Keep this service as a projection and hold service, not an accounting engine.
+- Add tests for projection idempotency and hold state transitions.
+- Keep public API examples aligned with controller DTOs.
