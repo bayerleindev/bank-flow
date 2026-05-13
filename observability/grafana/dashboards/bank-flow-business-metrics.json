@@ -175,7 +175,7 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum(transfers_completed_total)",
+          "expr": "sum(transfers_completed_total) or sum(transfers_in_status{status=\"COMPLETED\"})",
           "legendFormat": "completed"
         }
       ],
@@ -402,11 +402,11 @@
           "legendFormat": "transfers_created"
         },
         {
-          "expr": "sum(rate(transfers_completed_total[$__rate_interval]))",
+          "expr": "sum(rate(transfers_completed_total[$__rate_interval])) or vector(0)",
           "legendFormat": "transfers_completed"
         },
         {
-          "expr": "sum(rate(transfers_failed_total[$__rate_interval]))",
+          "expr": "sum(rate(transfers_failed_total[$__rate_interval])) or vector(0)",
           "legendFormat": "transfers_failed"
         }
       ],
@@ -668,11 +668,11 @@
       },
       "targets": [
         {
-          "expr": "sum(rate(transfers_completed_total[$__rate_interval])) / clamp_min((sum(rate(transfers_created_total[$__rate_interval])) or sum(rate(transfers_total[$__rate_interval]))), 1)",
+          "expr": "(sum(rate(transfers_completed_total[$__rate_interval])) or vector(0)) / clamp_min((sum(rate(transfers_created_total[$__rate_interval])) or sum(rate(transfers_total[$__rate_interval]))), 1)",
           "legendFormat": "completed_rate"
         },
         {
-          "expr": "sum(rate(transfers_failed_total[$__rate_interval])) / clamp_min((sum(rate(transfers_created_total[$__rate_interval])) or sum(rate(transfers_total[$__rate_interval]))), 1)",
+          "expr": "(sum(rate(transfers_failed_total[$__rate_interval])) or vector(0)) / clamp_min((sum(rate(transfers_created_total[$__rate_interval])) or sum(rate(transfers_total[$__rate_interval]))), 1)",
           "legendFormat": "failed_rate"
         }
       ],

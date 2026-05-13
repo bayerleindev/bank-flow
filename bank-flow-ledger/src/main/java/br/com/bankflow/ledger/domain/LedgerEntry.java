@@ -13,6 +13,7 @@ public record LedgerEntry(
 ) {
 	private static final String ENTRY_TYPE = "TRANSFER";
 	private static final String REVERSAL_ENTRY_TYPE = "REVERSAL";
+	private static final String YIELD_ENTRY_TYPE = "YIELD_CDI";
 	private static final String STATUS = "POSTED";
 
 	public static LedgerEntry from(
@@ -90,6 +91,44 @@ public record LedgerEntry(
 				REVERSAL_ENTRY_TYPE,
 				STATUS,
 				description,
+				occurredAt,
+				createdAt,
+				reversalOfEntryId,
+				metadata
+		);
+	}
+
+	public static LedgerEntry yield(
+			long entryId,
+			long occurredAt,
+			long createdAt,
+			long reversalOfEntryId,
+			String metadata,
+			YieldAccrualEvent event
+	) {
+		event.validate();
+		if (entryId <= 0) {
+			throw new IllegalArgumentException("entry_id must be positive");
+		}
+		if (occurredAt <= 0) {
+			throw new IllegalArgumentException("occurred_at must be positive");
+		}
+		if (createdAt <= 0) {
+			throw new IllegalArgumentException("created_at must be positive");
+		}
+		if (metadata == null || metadata.isBlank()) {
+			throw new IllegalArgumentException("metadata is required");
+		}
+
+		return new LedgerEntry(
+				entryId,
+				event.accrualId().toString(),
+				YIELD_ENTRY_TYPE,
+				STATUS,
+				"Rendimento CDI %s para conta %s".formatted(
+						event.referenceDate(),
+						event.digitalAccountId()
+				),
 				occurredAt,
 				createdAt,
 				reversalOfEntryId,

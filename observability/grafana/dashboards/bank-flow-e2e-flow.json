@@ -3,6 +3,10 @@
     "list": []
   },
   "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
   "panels": [
     {
       "datasource": {
@@ -30,7 +34,7 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
+        "w": 4,
         "x": 0,
         "y": 0
       },
@@ -40,7 +44,6 @@
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -55,11 +58,11 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum(transfers_created_total) or sum(transfers_total) or vector(0)",
-          "legendFormat": "created"
+          "expr": "sum(accounts_created_total) or vector(0)",
+          "legendFormat": "accounts"
         }
       ],
-      "title": "Transfers Created",
+      "title": "Accounts Created",
       "type": "stat"
     },
     {
@@ -88,8 +91,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
-        "x": 3,
+        "w": 4,
+        "x": 4,
         "y": 0
       },
       "id": 2,
@@ -98,7 +101,6 @@
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -113,11 +115,11 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum(balance_holds_created_total) or sum(balance_holds_total) or vector(0)",
-          "legendFormat": "holds"
+          "expr": "sum(transfers_created_total) or sum(transfers_total) or vector(0)",
+          "legendFormat": "transfers"
         }
       ],
-      "title": "Holds Created",
+      "title": "Transfers Created",
       "type": "stat"
     },
     {
@@ -146,8 +148,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
-        "x": 6,
+        "w": 4,
+        "x": 8,
         "y": 0
       },
       "id": 3,
@@ -156,7 +158,6 @@
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -171,11 +172,11 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum(transfer_psp_confirmed_total) or vector(0)",
-          "legendFormat": "psp"
+          "expr": "sum(transfers_completed_total) or sum(transfers_in_status{status=\"COMPLETED\"}) or vector(0)",
+          "legendFormat": "completed"
         }
       ],
-      "title": "PSP Confirmed",
+      "title": "Transfers Completed",
       "type": "stat"
     },
     {
@@ -204,8 +205,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
-        "x": 9,
+        "w": 4,
+        "x": 12,
         "y": 0
       },
       "id": 4,
@@ -214,7 +215,6 @@
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -230,7 +230,7 @@
       "targets": [
         {
           "expr": "sum(ledger_posting_created_total) or sum(ledger_posting_total) or vector(0)",
-          "legendFormat": "ledger"
+          "legendFormat": "postings"
         }
       ],
       "title": "Ledger Postings",
@@ -262,8 +262,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
-        "x": 12,
+        "w": 4,
+        "x": 16,
         "y": 0
       },
       "id": 5,
@@ -272,7 +272,6 @@
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -287,69 +286,11 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum(balance_holds_captured_total) or vector(0)",
-          "legendFormat": "captured"
+          "expr": "sum(bank_flow_balance_projection_total{result=\"projected\"}) or vector(0)",
+          "legendFormat": "projected"
         }
       ],
-      "title": "Holds Captured",
-      "type": "stat"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              }
-            ]
-          },
-          "unit": "short"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 3,
-        "x": 15,
-        "y": 0
-      },
-      "id": 6,
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "center",
-        "orientation": "auto",
-        "percentChangeColorMode": "standard",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "showPercentChange": false,
-        "textMode": "auto",
-        "wideLayout": true
-      },
-      "pluginVersion": "11.4.0",
-      "targets": [
-        {
-          "expr": "sum(transfers_completed_total) or vector(0)",
-          "legendFormat": "completed"
-        }
-      ],
-      "title": "Transfers Completed",
+      "title": "Balance Projections",
       "type": "stat"
     },
     {
@@ -382,17 +323,16 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 3,
-        "x": 18,
+        "w": 4,
+        "x": 20,
         "y": 0
       },
-      "id": 7,
+      "id": 6,
       "options": {
-        "colorMode": "value",
+        "colorMode": "background",
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
-        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -407,7 +347,7 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum(transfers_failed_total) or vector(0)",
+          "expr": "sum(transfers_failed_total) or sum(transfers_in_status{status=\"FAILED\"}) or vector(0)",
           "legendFormat": "failed"
         }
       ],
@@ -423,12 +363,70 @@
         "defaults": {
           "unit": "short"
         },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byRegexp",
+              "options": "oldest.*"
+            },
+            "properties": [
+              {
+                "id": "unit",
+                "value": "s"
+              },
+              {
+                "id": "custom.axisPlacement",
+                "value": "right"
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 4
+      },
+      "id": 7,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (transfers_in_status) or vector(0)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "title": "Transfers In Status",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
         "overrides": []
       },
       "gridPos": {
-        "h": 9,
-        "w": 24,
-        "x": 0,
+        "h": 8,
+        "w": 12,
+        "x": 12,
         "y": 4
       },
       "id": 8,
@@ -438,7 +436,7 @@
           "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
-          "showLegend": false
+          "showLegend": true
         },
         "minVizHeight": 10,
         "minVizWidth": 0,
@@ -459,30 +457,22 @@
       "targets": [
         {
           "expr": "sum(transfers_created_total) or sum(transfers_total) or vector(0)",
-          "legendFormat": "01 created"
+          "legendFormat": "01 transfer created"
         },
         {
-          "expr": "sum(balance_holds_created_total) or sum(balance_holds_total) or vector(0)",
-          "legendFormat": "02 hold created"
+          "expr": "sum(ledger_posting_created_total{entry_type=\"TRANSFER\"}) or sum(ledger_posting_total{entry_type=\"TRANSFER\"}) or vector(0)",
+          "legendFormat": "02 ledger transfer posted"
         },
         {
-          "expr": "sum(transfer_psp_confirmed_total) or vector(0)",
-          "legendFormat": "03 psp confirmed"
+          "expr": "sum(bank_flow_balance_projection_total{result=\"projected\"}) or vector(0)",
+          "legendFormat": "03 balance projected"
         },
         {
-          "expr": "sum(ledger_posting_created_total) or sum(ledger_posting_total) or vector(0)",
-          "legendFormat": "04 ledger posted"
-        },
-        {
-          "expr": "sum(balance_holds_captured_total) or vector(0)",
-          "legendFormat": "05 hold captured"
-        },
-        {
-          "expr": "sum(transfers_completed_total) or vector(0)",
-          "legendFormat": "06 completed"
+          "expr": "sum(transfers_completed_total) or sum(transfers_in_status{status=\"COMPLETED\"}) or vector(0)",
+          "legendFormat": "04 transfer completed"
         }
       ],
-      "title": "Transfer Funnel Totals",
+      "title": "Core Money Movement Stages",
       "type": "bargauge"
     },
     {
@@ -498,9 +488,9 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
+        "w": 8,
         "x": 0,
-        "y": 13
+        "y": 12
       },
       "id": 9,
       "options": {
@@ -520,34 +510,18 @@
       "targets": [
         {
           "expr": "sum(rate(transfers_created_total[$__rate_interval])) or sum(rate(transfers_total[$__rate_interval])) or vector(0)",
-          "legendFormat": "created"
+          "legendFormat": "transfers_created"
         },
         {
-          "expr": "sum(rate(balance_holds_created_total[$__rate_interval])) or sum(rate(balance_holds_total[$__rate_interval])) or vector(0)",
-          "legendFormat": "hold_created"
+          "expr": "sum by (entry_type) (rate(ledger_posting_created_total[$__rate_interval])) or sum by (entry_type) (rate(ledger_posting_total[$__rate_interval]))",
+          "legendFormat": "ledger {{entry_type}}"
         },
         {
-          "expr": "sum(rate(transfer_psp_confirmed_total[$__rate_interval])) or vector(0)",
-          "legendFormat": "psp_confirmed"
-        },
-        {
-          "expr": "sum(rate(ledger_posting_created_total[$__rate_interval])) or sum(rate(ledger_posting_total[$__rate_interval])) or vector(0)",
-          "legendFormat": "ledger_posted"
-        },
-        {
-          "expr": "sum(rate(balance_holds_captured_total[$__rate_interval])) or vector(0)",
-          "legendFormat": "hold_captured"
-        },
-        {
-          "expr": "sum(rate(transfers_completed_total[$__rate_interval])) or vector(0)",
-          "legendFormat": "completed"
-        },
-        {
-          "expr": "sum(rate(transfers_failed_total[$__rate_interval])) or vector(0)",
-          "legendFormat": "failed"
+          "expr": "sum by (result) (rate(bank_flow_balance_projection_total[$__rate_interval]))",
+          "legendFormat": "balance {{result}}"
         }
       ],
-      "title": "Funnel Event Rate",
+      "title": "E2E Event Rate",
       "type": "timeseries"
     },
     {
@@ -557,15 +531,15 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "percentunit"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 13
+        "w": 8,
+        "x": 8,
+        "y": 12
       },
       "id": 10,
       "options": {
@@ -584,81 +558,15 @@
       },
       "targets": [
         {
-          "expr": "(sum(balance_holds_created_total) or sum(balance_holds_total) or vector(0)) / clamp_min((sum(transfers_created_total) or sum(transfers_total) or vector(0)), 1)",
-          "legendFormat": "created_to_hold"
+          "expr": "sum by (service) (outbox_pending_events)",
+          "legendFormat": "pending {{service}}"
         },
         {
-          "expr": "(sum(transfer_psp_confirmed_total) or vector(0)) / clamp_min((sum(balance_holds_created_total) or sum(balance_holds_total) or vector(0)), 1)",
-          "legendFormat": "hold_to_psp"
-        },
-        {
-          "expr": "(sum(ledger_posting_created_total) or sum(ledger_posting_total) or vector(0)) / clamp_min((sum(transfer_psp_confirmed_total) or vector(0)), 1)",
-          "legendFormat": "psp_to_ledger"
-        },
-        {
-          "expr": "(sum(balance_holds_captured_total) or vector(0)) / clamp_min((sum(ledger_posting_created_total) or sum(ledger_posting_total) or vector(0)), 1)",
-          "legendFormat": "ledger_to_capture"
-        },
-        {
-          "expr": "(sum(transfers_completed_total) or vector(0)) / clamp_min((sum(transfers_created_total) or sum(transfers_total) or vector(0)), 1)",
-          "legendFormat": "created_to_completed"
-        },
-        {
-          "expr": "(sum(transfers_failed_total) or vector(0)) / clamp_min((sum(transfers_created_total) or sum(transfers_total) or vector(0)), 1)",
-          "legendFormat": "created_to_failed"
+          "expr": "sum by (service) (outbox_oldest_pending_event_age_seconds)",
+          "legendFormat": "oldest {{service}}"
         }
       ],
-      "title": "Funnel Conversion Ratios",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 24,
-        "x": 0,
-        "y": 21
-      },
-      "id": 11,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull",
-            "max"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "targets": [
-        {
-          "expr": "((sum(increase(transfer_end_to_end_latency_seconds_sum[$__range])) or vector(0)) / clamp_min((sum(increase(transfer_end_to_end_latency_seconds_count[$__range])) or vector(0)), 1))",
-          "legendFormat": "avg"
-        },
-        {
-          "expr": "(histogram_quantile(0.95, sum(rate(transfer_end_to_end_latency_seconds_bucket[$__rate_interval])) by (le)) and (sum(increase(transfer_end_to_end_latency_seconds_count[$__range])) > 0)) or vector(0)",
-          "legendFormat": "p95"
-        },
-        {
-          "expr": "max(transfer_end_to_end_latency_seconds_max) or vector(0)",
-          "legendFormat": "max"
-        }
-      ],
-      "title": "Transfer End-to-End Latency",
+      "title": "Outbox Backlog By Service",
       "type": "timeseries"
     },
     {
@@ -674,42 +582,37 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 29
+        "w": 8,
+        "x": 16,
+        "y": 12
       },
-      "id": 12,
+      "id": 11,
       "options": {
-        "displayMode": "gradient",
         "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "minVizHeight": 10,
-        "minVizWidth": 0,
-        "namePlacement": "auto",
-        "orientation": "horizontal",
-        "reduceOptions": {
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "",
-          "values": false
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
         },
-        "showUnfilled": true,
-        "sizing": "auto",
-        "valueMode": "color"
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
       },
       "targets": [
         {
-          "expr": "sum by (status) (transfers_in_status) or vector(0)",
-          "legendFormat": "{{status}}"
+          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag)",
+          "legendFormat": "{{consumergroup}} {{topic}}"
+        },
+        {
+          "expr": "sum by (service, group_id) (kafka_consumer_lag)",
+          "legendFormat": "{{service}} {{group_id}} internal"
         }
       ],
-      "title": "Transfers In Status",
-      "type": "bargauge"
+      "title": "Kafka Consumer Lag",
+      "type": "timeseries"
     },
     {
       "datasource": {
@@ -724,16 +627,15 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 29
+        "w": 8,
+        "x": 0,
+        "y": 20
       },
-      "id": 13,
+      "id": 12,
       "options": {
         "legend": {
           "calcs": [
-            "lastNotNull",
-            "max"
+            "lastNotNull"
           ],
           "displayMode": "table",
           "placement": "bottom",
@@ -741,25 +643,274 @@
         },
         "tooltip": {
           "mode": "multi",
-          "sort": "desc"
+          "sort": "none"
         }
       },
       "targets": [
         {
           "expr": "max by (status) (transfer_oldest_in_status_age_seconds) or vector(0)",
-          "legendFormat": "{{status}}"
+          "legendFormat": "transfer {{status}}"
+        },
+        {
+          "expr": "max by (service) (outbox_oldest_pending_event_age_seconds) or vector(0)",
+          "legendFormat": "outbox {{service}}"
+        },
+        {
+          "expr": "max(balance_projection_lag_seconds) or vector(0)",
+          "legendFormat": "balance projection"
         }
       ],
-      "title": "Oldest Transfer Age By Status",
+      "title": "Oldest Work Age",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 20
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (entry_type) (ledger_posting_created_total) or sum by (entry_type) (ledger_posting_total)",
+          "legendFormat": "{{entry_type}}"
+        }
+      ],
+      "title": "Ledger Postings By Type",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 20
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "(sum(ledger_posting_created_total{entry_type=\"TRANSFER\"}) or sum(ledger_posting_total{entry_type=\"TRANSFER\"}) or vector(0)) / clamp_min((sum(transfers_created_total) or sum(transfers_total) or vector(0)), 1)",
+          "legendFormat": "runtime_transfer_to_ledger"
+        },
+        {
+          "expr": "sum(transfers_in_status{status=\"COMPLETED\"}) / clamp_min(sum(transfers_in_status), 1)",
+          "legendFormat": "current_completed_share"
+        },
+        {
+          "expr": "sum(transfers_in_status{status=\"FAILED\"}) / clamp_min(sum(transfers_in_status), 1)",
+          "legendFormat": "current_failed_share"
+        },
+        {
+          "expr": "sum(transfers_in_status{status=~\"RECEIVED|HOLD_CREATED|PSP_PENDING|PSP_CONFIRMED|POSTING_REQUESTED\"}) / clamp_min(sum(transfers_in_status), 1)",
+          "legendFormat": "current_in_flight_share"
+        }
+      ],
+      "title": "E2E Reconciliation Ratios",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 28
+      },
+      "id": 15,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (service, topic, event_type) (rate(outbox_publish_failures_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "outbox {{service}} {{topic}} {{event_type}}"
+        },
+        {
+          "expr": "sum by (operation, reason) (rate(ledger_validation_failures_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "ledger validation {{operation}} {{reason}}"
+        },
+        {
+          "expr": "sum by (exception) (rate(balance_projection_failures_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "balance {{exception}}"
+        }
+      ],
+      "title": "Failure Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyBRL"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 28
+      },
+      "id": 16,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(balance_available_minor) / 100",
+          "legendFormat": "available"
+        },
+        {
+          "expr": "sum(balance_held_minor) / 100",
+          "legendFormat": "held"
+        },
+        {
+          "expr": "(sum(balance_available_minor) + sum(balance_held_minor)) / 100",
+          "legendFormat": "posted"
+        }
+      ],
+      "title": "Projected Balance Snapshot",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 28
+      },
+      "id": 17,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (yield_accruals_in_status) or vector(0)",
+          "legendFormat": "{{status}}"
+        },
+        {
+          "expr": "yield_cdi_rates_total or vector(0)",
+          "legendFormat": "cdi_rates"
+        },
+        {
+          "expr": "sum(ledger_posting_created_total{entry_type=\"YIELD_CDI\"}) or sum(ledger_posting_total{entry_type=\"YIELD_CDI\"}) or vector(0)",
+          "legendFormat": "ledger_yield_postings"
+        }
+      ],
+      "title": "Yield Flow",
       "type": "timeseries"
     }
   ],
   "refresh": "10s",
-  "schemaVersion": 39,
+  "schemaVersion": 40,
   "tags": [
     "bank-flow",
-    "transfer",
-    "funnel"
+    "e2e",
+    "system"
   ],
   "templating": {
     "list": []
@@ -768,7 +919,10 @@
     "from": "now-1h",
     "to": "now"
   },
-  "title": "Bank Flow Transfer Funnel",
-  "uid": "bank-flow-transfer-funnel",
-  "version": 1
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Bank Flow E2E Flow",
+  "uid": "bank-flow-e2e-flow",
+  "version": 1,
+  "weekStart": ""
 }

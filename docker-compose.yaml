@@ -85,6 +85,11 @@ services:
       LEDGER_POSTING_CREATED_PARTITIONS: 12
       LEDGER_POSTING_CREATED_REPLICATION_FACTOR: 1
       LEDGER_POSTING_CREATED_KEY: external_id
+      YIELD_ACCRUALS_TOPIC: yield-accruals
+      YIELD_ACCRUALS_DLT_TOPIC: yield-accruals.DLT
+      YIELD_ACCRUALS_PARTITIONS: 12
+      YIELD_ACCRUALS_REPLICATION_FACTOR: 1
+      YIELD_ACCRUALS_KEY: digital_account_id
     command:
       - /bin/sh
       - -c
@@ -145,6 +150,20 @@ services:
           --topic "$${LEDGER_POSTING_CREATED_DLT_TOPIC}" \
           --partitions "$${LEDGER_POSTING_CREATED_PARTITIONS}" \
           --replication-factor "$${LEDGER_POSTING_CREATED_REPLICATION_FACTOR}"
+        kafka-topics \
+          --bootstrap-server kafka:29092 \
+          --create \
+          --if-not-exists \
+          --topic "$${YIELD_ACCRUALS_TOPIC}" \
+          --partitions "$${YIELD_ACCRUALS_PARTITIONS}" \
+          --replication-factor "$${YIELD_ACCRUALS_REPLICATION_FACTOR}"
+        kafka-topics \
+          --bootstrap-server kafka:29092 \
+          --create \
+          --if-not-exists \
+          --topic "$${YIELD_ACCRUALS_DLT_TOPIC}" \
+          --partitions "$${YIELD_ACCRUALS_PARTITIONS}" \
+          --replication-factor "$${YIELD_ACCRUALS_REPLICATION_FACTOR}"
     restart: "no"
     networks:
       - bankflow-network

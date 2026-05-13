@@ -15,11 +15,12 @@ Nao crie HPA manual para um workload ja controlado por KEDA. O `ScaledObject` cr
 | --- | --- | --- | --- | --- | --- | --- |
 | `bank-flow-accounts` | `Deployment` | HPA CPU 70% | 1 | 5 | `minAvailable: 1` | API HTTP de criacao/consulta de contas. |
 | `bank-flow-outboxer` | `Deployment` | HPA CPU 70% | 1 | 6 | `minAvailable: 1` | Publisher central de outbox. Locks no banco evitam dupla publicacao. |
+| `bank-flow-yield` | `Deployment` | HPA CPU 70% | 1 | 4 | `minAvailable: 1` | Fecha rendimento D-1, consulta CDI e grava eventos no outbox central. |
 | `bank-flow-transfer-api` | `Deployment` | HPA CPU 70% | 1 | 6 | `minAvailable: 1` | API HTTP de transferencias e webhooks. |
 | `bank-flow-transfer-worker` | `Deployment` | KEDA Kafka lag | 1 | 12 | `maxUnavailable: 1` | Consome `ledger-posting-created`. |
 | `bank-flow-balance-api` | `Deployment` | HPA CPU 70% | 1 | 6 | `minAvailable: 1` | API HTTP de saldos, extratos e holds. |
 | `bank-flow-balance-worker` | `Deployment` | KEDA Kafka lag | 0 | 12 | desabilitado | Consome `ledger-posting-created`; pode ir a zero quando nao ha lag. |
-| `bank-flow-ledger` | `StatefulSet` | KEDA Kafka lag | 1 | 12 | `maxUnavailable: 1` | Consome `account-created`, `ledger-movements` e `ledger-reversals`. |
+| `bank-flow-ledger` | `StatefulSet` | KEDA Kafka lag | 1 | 4 | `maxUnavailable: 1` | Consome `account-created`, `ledger-movements`, `ledger-reversals` e `yield-accruals`. |
 
 ## Quando usar HPA
 
@@ -29,6 +30,7 @@ Charts atuais com HPA:
 
 - `bank-flow-accounts`
 - `bank-flow-outboxer`
+- `bank-flow-yield`
 - `bank-flow-transfer-api`
 - `bank-flow-balance-api`
 
@@ -108,8 +110,11 @@ consumerGroup: bank-flow-ledger
 topic: ledger-reversals
 consumerGroup: bank-flow-ledger
 
+topic: yield-accruals
+consumerGroup: bank-flow-ledger
+
 minReplicaCount: 1
-maxReplicaCount: 12
+maxReplicaCount: 4
 ```
 
 O ledger usa `StatefulSet` porque o identificador numerico depende do ordinal do pod. Mantenha `maxReplicaCount` dentro do limite aceito pelo gerador de ids. Hoje o limite operacional documentado do projeto e ate 100 replicas.
@@ -145,6 +150,7 @@ Renderizar os charts:
 ```bash
 helm template bank-flow-accounts bank-flow-accounts/k8s
 helm template bank-flow-outboxer bank-flow-outboxer/k8s
+helm template bank-flow-yield bank-flow-yield/k8s
 helm template bank-flow-balance bank-flow-balance/k8s
 helm template bank-flow-ledger bank-flow-ledger/k8s
 helm template bank-flow-transfer bank-flow-transfer/k8s
@@ -155,6 +161,7 @@ Validar os charts:
 ```bash
 helm lint bank-flow-accounts/k8s
 helm lint bank-flow-outboxer/k8s
+helm lint bank-flow-yield/k8s
 helm lint bank-flow-balance/k8s
 helm lint bank-flow-ledger/k8s
 helm lint bank-flow-transfer/k8s

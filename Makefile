@@ -17,6 +17,7 @@ BALANCE_API_IMAGE ?= bank-flow-balance-api:local
 BALANCE_WORKER_IMAGE ?= bank-flow-balance-worker:local
 TRANSFER_API_IMAGE ?= bank-flow-transfer-api:local
 TRANSFER_WORKER_IMAGE ?= bank-flow-transfer-worker:local
+YIELD_IMAGE ?= bank-flow-yield:local
 
 .PHONY: help
 help:
@@ -38,9 +39,12 @@ help:
 	@printf "\nQuality:\n"
 	@printf "  make test                  Run all Gradle tests\n"
 	@printf "  make helm-lint             Lint all Helm charts\n"
+	@printf "\nLoad tests:\n"
+	@printf "  make k6-smoke              Run a short low-rate k6 E2E smoke test\n"
+	@printf "  make k6-heavy              Run the heavy k6 E2E load test\n"
 
 .PHONY: docker-build
-docker-build: docker-build-accounts docker-build-outboxer docker-build-balance-api docker-build-balance-worker docker-build-ledger docker-build-transfer-api docker-build-transfer-worker
+docker-build: docker-build-accounts docker-build-outboxer docker-build-yield docker-build-balance-api docker-build-balance-worker docker-build-ledger docker-build-transfer-api docker-build-transfer-worker
 
 .PHONY: docker-build-accounts
 docker-build-accounts:
@@ -49,6 +53,10 @@ docker-build-accounts:
 .PHONY: docker-build-outboxer
 docker-build-outboxer:
 	cd bank-flow-outboxer && ./gradlew bootBuildImage --imageName=$(OUTBOXER_IMAGE)
+
+.PHONY: docker-build-yield
+docker-build-yield:
+	cd bank-flow-yield && ./gradlew bootBuildImage --imageName=$(YIELD_IMAGE)
 
 .PHONY: docker-build-ledger
 docker-build-ledger:
@@ -80,7 +88,7 @@ compose-up-infra:
 
 .PHONY: compose-up-apps
 compose-up-apps:
-	$(COMPOSE) $(COMPOSE_ALL) up -d bank-flow-outboxer bank-flow-accounts bank-flow-ledger bank-flow-balance-api bank-flow-balance-worker bank-flow-transfer-api bank-flow-transfer-worker
+	$(COMPOSE) $(COMPOSE_ALL) up -d bank-flow-outboxer bank-flow-accounts bank-flow-yield bank-flow-ledger bank-flow-balance-api bank-flow-balance-worker bank-flow-transfer-api bank-flow-transfer-worker
 
 .PHONY: compose-down
 compose-down:
@@ -99,7 +107,7 @@ compose-ps:
 	$(COMPOSE) $(COMPOSE_ALL) ps
 
 .PHONY: test
-test: test-accounts test-outboxer test-ledger test-balance test-transfer
+test: test-accounts test-outboxer test-yield test-ledger test-balance test-transfer
 
 .PHONY: test-accounts
 test-accounts:
@@ -108,6 +116,10 @@ test-accounts:
 .PHONY: test-outboxer
 test-outboxer:
 	cd bank-flow-outboxer && ./gradlew test
+
+.PHONY: test-yield
+test-yield:
+	cd bank-flow-yield && ./gradlew test
 
 .PHONY: test-ledger
 test-ledger:
@@ -125,6 +137,7 @@ test-transfer:
 minikube-load-images: docker-build
 	$(MINIKUBE) image load $(ACCOUNTS_IMAGE)
 	$(MINIKUBE) image load $(OUTBOXER_IMAGE)
+	$(MINIKUBE) image load $(YIELD_IMAGE)
 	$(MINIKUBE) image load $(BALANCE_API_IMAGE)
 	$(MINIKUBE) image load $(BALANCE_WORKER_IMAGE)
 	$(MINIKUBE) image load $(LEDGER_IMAGE)
@@ -135,9 +148,18 @@ minikube-load-images: docker-build
 helm-lint:
 	$(HELM) lint bank-flow-accounts/k8s
 	$(HELM) lint bank-flow-outboxer/k8s
+	$(HELM) lint bank-flow-yield/k8s
 	$(HELM) lint bank-flow-balance/k8s
 	$(HELM) lint bank-flow-ledger/k8s
 	$(HELM) lint bank-flow-transfer/k8s
+
+.PHONY: k6-smoke
+k6-smoke:
+	DURATION=1m SEED_ACCOUNTS=5 ACCOUNT_RATE=1 EXTERNAL_RATE=2 INTERNAL_RATE=1 BALANCE_READ_RATE=5 k6 run scripts/k6/heavy-e2e.js
+
+.PHONY: k6-heavy
+k6-heavy:
+	k6 run scripts/k6/heavy-e2e.js
 
 .PHONY: k8s-namespace
 k8s-namespace:
@@ -148,6 +170,7 @@ k8s-render:
 	mkdir -p $(K8S_RENDER_DIR)
 	$(HELM) template bank-flow-accounts bank-flow-accounts/k8s --namespace $(K8S_NAMESPACE) > $(K8S_RENDER_DIR)/bank-flow-accounts.yaml
 	$(HELM) template bank-flow-outboxer bank-flow-outboxer/k8s --namespace $(K8S_NAMESPACE) > $(K8S_RENDER_DIR)/bank-flow-outboxer.yaml
+	$(HELM) template bank-flow-yield bank-flow-yield/k8s --namespace $(K8S_NAMESPACE) > $(K8S_RENDER_DIR)/bank-flow-yield.yaml
 	$(HELM) template bank-flow-balance bank-flow-balance/k8s --namespace $(K8S_NAMESPACE) > $(K8S_RENDER_DIR)/bank-flow-balance.yaml
 	$(HELM) template bank-flow-ledger bank-flow-ledger/k8s --namespace $(K8S_NAMESPACE) > $(K8S_RENDER_DIR)/bank-flow-ledger.yaml
 	$(HELM) template bank-flow-transfer bank-flow-transfer/k8s --namespace $(K8S_NAMESPACE) > $(K8S_RENDER_DIR)/bank-flow-transfer.yaml
@@ -156,6 +179,7 @@ k8s-render:
 k8s-apply: k8s-namespace k8s-render
 	$(KUBECTL) apply -n $(K8S_NAMESPACE) -f $(K8S_RENDER_DIR)/bank-flow-accounts.yaml
 	$(KUBECTL) apply -n $(K8S_NAMESPACE) -f $(K8S_RENDER_DIR)/bank-flow-outboxer.yaml
+	$(KUBECTL) apply -n $(K8S_NAMESPACE) -f $(K8S_RENDER_DIR)/bank-flow-yield.yaml
 	$(KUBECTL) apply -n $(K8S_NAMESPACE) -f $(K8S_RENDER_DIR)/bank-flow-balance.yaml
 	$(KUBECTL) apply -n $(K8S_NAMESPACE) -f $(K8S_RENDER_DIR)/bank-flow-ledger.yaml
 	$(KUBECTL) apply -n $(K8S_NAMESPACE) -f $(K8S_RENDER_DIR)/bank-flow-transfer.yaml
@@ -171,6 +195,7 @@ k8s-status:
 k8s-rollout-status:
 	$(KUBECTL) rollout status deployment/bank-flow-accounts -n $(K8S_NAMESPACE)
 	$(KUBECTL) rollout status deployment/bank-flow-outboxer -n $(K8S_NAMESPACE)
+	$(KUBECTL) rollout status deployment/bank-flow-yield -n $(K8S_NAMESPACE)
 	$(KUBECTL) rollout status deployment/bank-flow-balance-api -n $(K8S_NAMESPACE)
 	$(KUBECTL) rollout status deployment/bank-flow-balance-worker -n $(K8S_NAMESPACE)
 	$(KUBECTL) rollout status statefulset/bank-flow-ledger -n $(K8S_NAMESPACE)
@@ -182,5 +207,6 @@ k8s-delete: k8s-render
 	$(KUBECTL) delete -n $(K8S_NAMESPACE) -f $(K8S_RENDER_DIR)/bank-flow-transfer.yaml --ignore-not-found=true
 	$(KUBECTL) delete -n $(K8S_NAMESPACE) -f $(K8S_RENDER_DIR)/bank-flow-ledger.yaml --ignore-not-found=true
 	$(KUBECTL) delete -n $(K8S_NAMESPACE) -f $(K8S_RENDER_DIR)/bank-flow-balance.yaml --ignore-not-found=true
+	$(KUBECTL) delete -n $(K8S_NAMESPACE) -f $(K8S_RENDER_DIR)/bank-flow-yield.yaml --ignore-not-found=true
 	$(KUBECTL) delete -n $(K8S_NAMESPACE) -f $(K8S_RENDER_DIR)/bank-flow-accounts.yaml --ignore-not-found=true
 	$(KUBECTL) delete -n $(K8S_NAMESPACE) -f $(K8S_RENDER_DIR)/bank-flow-outboxer.yaml --ignore-not-found=true

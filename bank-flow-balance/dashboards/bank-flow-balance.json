@@ -11,40 +11,19 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 1
-              },
-              {
-                "color": "red",
-                "value": 10
-              }
-            ]
-          },
           "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
+        "w": 4,
         "x": 0,
         "y": 0
       },
       "id": 1,
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
@@ -57,17 +36,17 @@
           "values": false
         },
         "showPercentChange": false,
-        "textMode": "value_and_name",
+        "textMode": "auto",
         "wideLayout": true
       },
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum by (service) (outbox_pending_events)",
-          "legendFormat": "{{service}}"
+          "expr": "sum(balance_holds_created_total) or vector(0)",
+          "legendFormat": "created"
         }
       ],
-      "title": "Outbox Pending Events",
+      "title": "Holds Created",
       "type": "stat"
     },
     {
@@ -77,40 +56,19 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green",
-                "value": null
-              },
-              {
-                "color": "orange",
-                "value": 30
-              },
-              {
-                "color": "red",
-                "value": 120
-              }
-            ]
-          },
-          "unit": "s"
+          "unit": "short"
         },
         "overrides": []
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 6,
+        "w": 4,
+        "x": 4,
         "y": 0
       },
       "id": 2,
       "options": {
-        "colorMode": "background",
+        "colorMode": "value",
         "graphMode": "area",
         "justifyMode": "center",
         "orientation": "auto",
@@ -123,17 +81,17 @@
           "values": false
         },
         "showPercentChange": false,
-        "textMode": "value_and_name",
+        "textMode": "auto",
         "wideLayout": true
       },
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum by (service) (outbox_oldest_pending_event_age_seconds)",
-          "legendFormat": "{{service}}"
+          "expr": "sum(balance_holds_captured_total) or vector(0)",
+          "legendFormat": "captured"
         }
       ],
-      "title": "Oldest Pending Event Age",
+      "title": "Holds Captured",
       "type": "stat"
     },
     {
@@ -143,10 +101,96 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 8,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "expr": "sum(balance_holds_released_total) or vector(0)",
+          "legendFormat": "released"
+        }
+      ],
+      "title": "Holds Released",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 4,
+        "x": 12,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "expr": "sum(balance_holds_expired_total) or vector(0)",
+          "legendFormat": "expired"
+        }
+      ],
+      "title": "Holds Expired",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -166,11 +210,11 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 12,
+        "w": 4,
+        "x": 16,
         "y": 0
       },
-      "id": 3,
+      "id": 5,
       "options": {
         "colorMode": "background",
         "graphMode": "area",
@@ -191,11 +235,11 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum(outbox_publish_failures_total) or vector(0)",
+          "expr": "sum(balance_hold_close_failures_total) or vector(0)",
           "legendFormat": "failures"
         }
       ],
-      "title": "Outbox Publish Failures",
+      "title": "Hold Close Failures",
       "type": "stat"
     },
     {
@@ -205,10 +249,6 @@
       },
       "fieldConfig": {
         "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "mappings": [],
           "thresholds": {
             "mode": "absolute",
             "steps": [
@@ -217,12 +257,8 @@
                 "value": null
               },
               {
-                "color": "orange",
-                "value": 1
-              },
-              {
                 "color": "red",
-                "value": 50
+                "value": 1
               }
             ]
           },
@@ -232,11 +268,11 @@
       },
       "gridPos": {
         "h": 5,
-        "w": 6,
-        "x": 18,
+        "w": 4,
+        "x": 20,
         "y": 0
       },
-      "id": 4,
+      "id": 6,
       "options": {
         "colorMode": "background",
         "graphMode": "area",
@@ -251,17 +287,17 @@
           "values": false
         },
         "showPercentChange": false,
-        "textMode": "value_and_name",
+        "textMode": "auto",
         "wideLayout": true
       },
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag{consumergroup=~\"bank-flow-(balance-worker|transfer-worker|ledger)\"})",
-          "legendFormat": "{{consumergroup}} {{topic}}"
+          "expr": "sum(balance_projection_failures_total) or sum(bank_flow_balance_projection_total{result=\"failed\"}) or vector(0)",
+          "legendFormat": "failures"
         }
       ],
-      "title": "Kafka Consumer Lag",
+      "title": "Projection Failures",
       "type": "stat"
     },
     {
@@ -271,7 +307,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "currencyBRL"
         },
         "overrides": []
       },
@@ -280,88 +316,6 @@
         "w": 12,
         "x": 0,
         "y": 5
-      },
-      "id": 5,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (service) (outbox_pending_events)",
-          "legendFormat": "{{service}}"
-        }
-      ],
-      "title": "Outbox Pending By Service",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "s"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 5
-      },
-      "id": 6,
-      "options": {
-        "legend": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "displayMode": "table",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "expr": "sum by (service) (outbox_oldest_pending_event_age_seconds)",
-          "legendFormat": "{{service}}"
-        }
-      ],
-      "title": "Oldest Pending Event Age",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "type": "prometheus",
-        "uid": "Prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "unit": "ops"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 13
       },
       "id": 7,
       "options": {
@@ -380,11 +334,15 @@
       },
       "targets": [
         {
-          "expr": "sum by (service, topic, event_type) (rate(outbox_publish_failures_total[$__rate_interval]))",
-          "legendFormat": "{{service}} {{topic}} {{event_type}}"
+          "expr": "(balance_available_minor or vector(0)) / 100",
+          "legendFormat": "available"
+        },
+        {
+          "expr": "(balance_held_minor or vector(0)) / 100",
+          "legendFormat": "held"
         }
       ],
-      "title": "Outbox Publish Failure Rate",
+      "title": "Available vs Held Balance",
       "type": "timeseries"
     },
     {
@@ -394,7 +352,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "opm"
+          "unit": "ops"
         },
         "overrides": []
       },
@@ -402,7 +360,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 13
+        "y": 5
       },
       "id": 8,
       "options": {
@@ -421,11 +379,15 @@
       },
       "targets": [
         {
-          "expr": "sum by (service, topic) (rate(kafka_producer_topic_record_send_total{job=\"bank-flow-services\"}[$__rate_interval]) * 60)",
-          "legendFormat": "{{service}} {{topic}}"
+          "expr": "sum by (result) (rate(bank_flow_balance_projection_total[$__rate_interval]))",
+          "legendFormat": "{{result}}"
+        },
+        {
+          "expr": "sum(rate(balance_projection_failures_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "failures_total"
         }
       ],
-      "title": "Kafka Messages Produced Per Minute",
+      "title": "Projection Processing Rate",
       "type": "timeseries"
     },
     {
@@ -435,7 +397,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "opm"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -443,7 +405,7 @@
         "h": 8,
         "w": 12,
         "x": 0,
-        "y": 21
+        "y": 13
       },
       "id": 9,
       "options": {
@@ -462,11 +424,11 @@
       },
       "targets": [
         {
-          "expr": "sum by (service, topic) (rate(kafka_consumer_fetch_manager_records_consumed_total{job=\"bank-flow-services\"}[$__rate_interval]) * 60)",
-          "legendFormat": "{{service}} {{topic}}"
+          "expr": "balance_projection_lag_seconds or vector(0)",
+          "legendFormat": "last_projected_event_age"
         }
       ],
-      "title": "Kafka Messages Consumed Per Minute",
+      "title": "Last Projected Ledger Event Age",
       "type": "timeseries"
     },
     {
@@ -476,7 +438,7 @@
       },
       "fieldConfig": {
         "defaults": {
-          "unit": "short"
+          "unit": "s"
         },
         "overrides": []
       },
@@ -484,7 +446,7 @@
         "h": 8,
         "w": 12,
         "x": 12,
-        "y": 21
+        "y": 13
       },
       "id": 10,
       "options": {
@@ -503,15 +465,113 @@
       },
       "targets": [
         {
-          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag{consumergroup=~\"bank-flow-(balance-worker|transfer-worker|ledger)\"})",
-          "legendFormat": "{{consumergroup}} {{topic}}"
+          "expr": "sum by (result) (rate(bank_flow_balance_projection_duration_seconds_sum[$__rate_interval])) / sum by (result) (rate(bank_flow_balance_projection_duration_seconds_count[$__rate_interval]))",
+          "legendFormat": "{{result}} avg"
         },
         {
-          "expr": "sum by (group_id) (kafka_consumer_lag{job=\"bank-flow-services\"})",
-          "legendFormat": "{{group_id}} total"
+          "expr": "max by (result) (bank_flow_balance_projection_duration_seconds_max)",
+          "legendFormat": "{{result}} max"
         }
       ],
-      "title": "Kafka Consumer Lag By Group / Topic",
+      "title": "Projection Duration",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(balance_holds_created_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "created"
+        },
+        {
+          "expr": "sum(rate(balance_holds_captured_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "captured"
+        },
+        {
+          "expr": "sum(rate(balance_holds_released_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "released"
+        },
+        {
+          "expr": "sum(rate(balance_holds_expired_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "expired"
+        }
+      ],
+      "title": "Hold Lifecycle Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "id": 12,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (operation, reason) (rate(balance_hold_close_failures_total[$__rate_interval]))",
+          "legendFormat": "{{operation}} {{reason}}"
+        },
+        {
+          "expr": "sum by (exception) (rate(balance_projection_failures_total[$__rate_interval]))",
+          "legendFormat": "projection {{exception}}"
+        }
+      ],
+      "title": "Failure Rate",
       "type": "timeseries"
     }
   ],
@@ -519,8 +579,7 @@
   "schemaVersion": 39,
   "tags": [
     "bank-flow",
-    "outbox",
-    "kafka"
+    "balance"
   ],
   "templating": {
     "list": []
@@ -529,7 +588,7 @@
     "from": "now-1h",
     "to": "now"
   },
-  "title": "Bank Flow Outbox / Kafka",
-  "uid": "bank-flow-outbox-kafka",
+  "title": "Bank Flow Balance",
+  "uid": "bank-flow-balance",
   "version": 1
 }

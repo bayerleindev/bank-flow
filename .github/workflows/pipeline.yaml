@@ -11,6 +11,8 @@ on:
         options:
           - all
           - accounts
+          - outboxer
+          - yield
           - balance
           - balance-api
           - balance-worker
@@ -23,6 +25,14 @@ jobs:
   accounts:
     if: ${{ inputs.service == 'all' || inputs.service == 'accounts' }}
     uses: ./.github/workflows/accounts-pipeline.yaml
+
+  outboxer:
+    if: ${{ inputs.service == 'all' || inputs.service == 'outboxer' }}
+    uses: ./.github/workflows/outboxer-pipeline.yaml
+
+  yield:
+    if: ${{ inputs.service == 'all' || inputs.service == 'yield' }}
+    uses: ./.github/workflows/yield-pipeline.yaml
 
   balance:
     if: ${{ inputs.service == 'all' || inputs.service == 'balance' }}

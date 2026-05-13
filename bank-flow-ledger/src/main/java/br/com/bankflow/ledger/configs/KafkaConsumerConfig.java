@@ -45,6 +45,14 @@ public class KafkaConsumerConfig {
 		return kafkaListenerContainerFactory(consumerFactory, kafkaErrorHandler);
 	}
 
+	@Bean
+	ConcurrentKafkaListenerContainerFactory<String, String> yieldAccrualKafkaListenerContainerFactory(
+			ConsumerFactory<String, String> consumerFactory,
+			CommonErrorHandler kafkaErrorHandler
+	) {
+		return kafkaListenerContainerFactory(consumerFactory, kafkaErrorHandler);
+	}
+
 	private ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
 			ConsumerFactory<String, String> consumerFactory,
 			CommonErrorHandler kafkaErrorHandler
@@ -54,6 +62,7 @@ public class KafkaConsumerConfig {
 		factory.setConsumerFactory(consumerFactory);
 		factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 		factory.setCommonErrorHandler(kafkaErrorHandler);
+        factory.setConcurrency(3);
 		return factory;
 	}
 
