@@ -1,8 +1,8 @@
-package br.com.bankflow.accounts.services;
+package br.com.bankflow.outboxer.services;
 
-import br.com.bankflow.accounts.domain.OutboxEvent;
-import br.com.bankflow.accounts.observability.AccountBusinessMetrics;
-import br.com.bankflow.accounts.repositories.OutboxEventRepository;
+import br.com.bankflow.outboxer.domain.OutboxEvent;
+import br.com.bankflow.outboxer.observability.OutboxerMetrics;
+import br.com.bankflow.outboxer.repositories.OutboxEventRepository;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.internals.RecordHeader;
 import org.springframework.beans.factory.annotation.Value;
@@ -20,7 +20,7 @@ import java.util.concurrent.TimeoutException;
 public class OutboxPublisher {
 	private final OutboxEventRepository outboxEventRepository;
 	private final KafkaTemplate<String, String> kafkaTemplate;
-	private final AccountBusinessMetrics accountBusinessMetrics;
+	private final OutboxerMetrics metrics;
 	private final Clock clock;
 	private final int batchSize;
 	private final String instanceId;
@@ -31,7 +31,7 @@ public class OutboxPublisher {
 	public OutboxPublisher(
 			OutboxEventRepository outboxEventRepository,
 			KafkaTemplate<String, String> kafkaTemplate,
-			AccountBusinessMetrics accountBusinessMetrics,
+			OutboxerMetrics metrics,
 			Clock clock,
 			@Value("${bank-flow.outbox.publisher.batch-size}") int batchSize,
 			@Value("${bank-flow.outbox.publisher.instance-id:${HOSTNAME:local}}") String instanceId,
@@ -41,7 +41,7 @@ public class OutboxPublisher {
 	) {
 		this.outboxEventRepository = outboxEventRepository;
 		this.kafkaTemplate = kafkaTemplate;
-		this.accountBusinessMetrics = accountBusinessMetrics;
+		this.metrics = metrics;
 		this.clock = clock;
 		this.batchSize = batchSize;
 		this.instanceId = instanceId;
@@ -68,17 +68,21 @@ public class OutboxPublisher {
 		ProducerRecord<String, String> record = new ProducerRecord<>(event.topic(), event.eventKey(), event.payload());
 		record.headers().add(new RecordHeader("event_name", event.eventType().getBytes(StandardCharsets.UTF_8)));
 		record.headers().add(new RecordHeader("content_type", "application/json".getBytes(StandardCharsets.UTF_8)));
+		record.headers().add(new RecordHeader("producer_service", event.producerService().getBytes(StandardCharsets.UTF_8)));
 		try {
 			kafkaTemplate.send(record).get(sendTimeoutMillis, TimeUnit.MILLISECONDS);
 			outboxEventRepository.markPublished(event.eventId(), clock.millis(), instanceId);
 		} catch (InterruptedException exception) {
 			Thread.currentThread().interrupt();
-			outboxEventRepository.markFailed(event.eventId(), exception.getMessage(), instanceId, maxAttempts);
-			accountBusinessMetrics.recordOutboxPublishFailure(event.topic(), event.eventType());
+			markFailed(event, exception);
 			throw new IllegalStateException("interrupted while publishing outbox event", exception);
 		} catch (ExecutionException | TimeoutException exception) {
-			outboxEventRepository.markFailed(event.eventId(), exception.getMessage(), instanceId, maxAttempts);
-			accountBusinessMetrics.recordOutboxPublishFailure(event.topic(), event.eventType());
+			markFailed(event, exception);
 		}
+	}
+
+	private void markFailed(OutboxEvent event, Exception exception) {
+		outboxEventRepository.markFailed(event.eventId(), exception.getMessage(), instanceId, maxAttempts);
+		metrics.recordPublishFailure(event.producerService(), event.topic(), event.eventType());
 	}
 }
