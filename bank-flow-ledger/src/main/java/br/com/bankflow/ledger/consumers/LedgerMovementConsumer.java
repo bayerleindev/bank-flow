@@ -1,6 +1,8 @@
 package br.com.bankflow.ledger.consumers;
 
 import br.com.bankflow.ledger.domain.TransferPostedEvent;
+import br.com.bankflow.ledger.observability.KafkaTraceContext;
+import br.com.bankflow.ledger.observability.LedgerBusinessMetrics;
 import br.com.bankflow.ledger.services.LedgerMovementService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -18,10 +20,16 @@ public class LedgerMovementConsumer {
 
 	private final ObjectMapper objectMapper;
 	private final LedgerMovementService ledgerMovementService;
+	private final LedgerBusinessMetrics ledgerBusinessMetrics;
 
-	public LedgerMovementConsumer(ObjectMapper objectMapper, LedgerMovementService ledgerMovementService) {
+	public LedgerMovementConsumer(
+			ObjectMapper objectMapper,
+			LedgerMovementService ledgerMovementService,
+			LedgerBusinessMetrics ledgerBusinessMetrics
+	) {
 		this.objectMapper = objectMapper;
 		this.ledgerMovementService = ledgerMovementService;
+		this.ledgerBusinessMetrics = ledgerBusinessMetrics;
 	}
 
 	@KafkaListener(
@@ -31,19 +39,25 @@ public class LedgerMovementConsumer {
 			autoStartup = "${spring.kafka.listener.auto-startup:true}"
 	)
 	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) throws Exception {
-		TransferPostedEvent event = objectMapper.readValue(record.value(), TransferPostedEvent.class);
-		validatePartitionKey(record.key(), event);
+		KafkaTraceContext.setFrom(record.headers());
+		ledgerBusinessMetrics.recordKafkaTraceContext(record.topic(), traceContextLabel(KafkaTraceContext.traceparent()));
+		try {
+			TransferPostedEvent event = objectMapper.readValue(record.value(), TransferPostedEvent.class);
+			validatePartitionKey(record.key(), event);
 
-		ledgerMovementService.postTransfer(event);
-		acknowledgment.acknowledge();
+			ledgerMovementService.postTransfer(event);
+			acknowledgment.acknowledge();
 
-		log.debug(
-				"ledger-movements consumed topic={} partition={} offset={} transferId={}",
-				record.topic(),
-				record.partition(),
-				record.offset(),
-				event.transferId()
-		);
+			log.debug(
+					"ledger-movements consumed topic={} partition={} offset={} transferId={}",
+					record.topic(),
+					record.partition(),
+					record.offset(),
+					event.transferId()
+			);
+		} finally {
+			KafkaTraceContext.clear();
+		}
 	}
 
 	private void validatePartitionKey(String key, TransferPostedEvent event) {
@@ -55,5 +69,9 @@ public class LedgerMovementConsumer {
 		if (!sourceDigitalAccountIdKey.equals(event.sourceDigitalAccountId())) {
 			throw new IllegalArgumentException("Kafka key source_digital_account_id must match event source_digital_account_id");
 		}
+	}
+
+	private String traceContextLabel(String traceparent) {
+		return traceparent == null || traceparent.isBlank() ? "missing_trace" : "with_trace";
 	}
 }

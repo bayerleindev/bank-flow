@@ -31,4 +31,15 @@ public class OutboxerMetrics {
 				.register(meterRegistry)
 				.increment();
 	}
+
+	public void recordPublished(String producerService, String topic, String eventType, String traceContext) {
+		Counter.builder("outbox_published_events")
+				.description("Outbox events published to Kafka")
+				.tag("producer_service", producerService == null ? "unknown" : producerService)
+				.tag("topic", topic == null ? "unknown" : topic)
+				.tag("event_type", eventType == null ? "unknown" : eventType)
+				.tag("trace_context", traceContext == null ? "unknown" : traceContext)
+				.register(meterRegistry)
+				.increment();
+	}
 }

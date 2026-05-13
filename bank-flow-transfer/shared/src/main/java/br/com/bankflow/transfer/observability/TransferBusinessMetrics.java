@@ -77,6 +77,19 @@ public class TransferBusinessMetrics {
 	public void recordTransferCreated() {
 		Counter.builder("transfers_created")
 				.description("Created transfers")
+				.tag("flow", "internal")
+				.register(meterRegistry)
+				.increment();
+	}
+
+	public void recordExternalInboundTransferCreated() {
+		Counter.builder("transfers_created")
+				.description("Created transfers")
+				.tag("flow", "external_inbound")
+				.register(meterRegistry)
+				.increment();
+		Counter.builder("external_inbound_transfers_created")
+				.description("Created external inbound transfers")
 				.register(meterRegistry)
 				.increment();
 	}
@@ -103,6 +116,15 @@ public class TransferBusinessMetrics {
 	public void recordTransferPspConfirmed() {
 		Counter.builder("transfer_psp_confirmed")
 				.description("PSP-confirmed transfers")
+				.register(meterRegistry)
+				.increment();
+	}
+
+	public void recordTraceContext(String stage, String result) {
+		Counter.builder("transfer_trace_context")
+				.description("Transfer trace context coverage by stage")
+				.tag("stage", stage == null ? "unknown" : stage)
+				.tag("result", result == null ? "unknown" : result)
 				.register(meterRegistry)
 				.increment();
 	}

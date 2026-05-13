@@ -11,7 +11,8 @@ public record TransferPostedCommand(
 		@JsonProperty("destination_digital_account_id") UUID destinationDigitalAccountId,
 		@JsonProperty("destination_account") String destinationAccount,
 		@JsonProperty("amount_cents") long amountCents,
-		String currency
+		String currency,
+		@JsonProperty("transfer_created_at") long transferCreatedAt
 ) {
 	public static TransferPostedCommand from(Transfer transfer) {
 		return new TransferPostedCommand(
@@ -21,7 +22,8 @@ public record TransferPostedCommand(
 				transfer.destinationDigitalAccountId(),
 				transfer.destinationAccount(),
 				transfer.amountMinor(),
-				transfer.currency()
+				transfer.currency(),
+				transfer.createdAt()
 		);
 	}
 }

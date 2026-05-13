@@ -23,9 +23,13 @@ import br.com.bankflow.transfer.repositories.TransferRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.TraceContext;
+import io.micrometer.tracing.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -49,6 +53,7 @@ public class TransferOrchestrationService {
 	private final PspClient pspClient;
 	private final ObjectMapper objectMapper;
 	private final TransferBusinessMetrics transferBusinessMetrics;
+	private final Tracer tracer;
 	private final Clock clock;
 	private final String ledgerMovementsTopic;
 
@@ -70,6 +75,32 @@ public class TransferOrchestrationService {
 				pspClient,
 				objectMapper,
 				new TransferBusinessMetrics(new SimpleMeterRegistry(), outboxEventRepository, transferRepository, clock, "bank-flow-transfer", true),
+				null,
+				clock,
+				ledgerMovementsTopic
+		);
+	}
+
+	public TransferOrchestrationService(
+			TransferRepository transferRepository,
+			OutboxEventRepository outboxEventRepository,
+			AccountClient accountClient,
+			BalanceClient balanceClient,
+			PspClient pspClient,
+			ObjectMapper objectMapper,
+			TransferBusinessMetrics transferBusinessMetrics,
+			Clock clock,
+			String ledgerMovementsTopic
+	) {
+		this(
+				transferRepository,
+				outboxEventRepository,
+				accountClient,
+				balanceClient,
+				pspClient,
+				objectMapper,
+				transferBusinessMetrics,
+				null,
 				clock,
 				ledgerMovementsTopic
 		);
@@ -84,6 +115,7 @@ public class TransferOrchestrationService {
 			PspClient pspClient,
 			ObjectMapper objectMapper,
 			TransferBusinessMetrics transferBusinessMetrics,
+			ObjectProvider<Tracer> tracerProvider,
 			Clock clock,
 			@Value("${bank-flow.kafka.topics.ledger-movements}") String ledgerMovementsTopic
 	) {
@@ -94,6 +126,7 @@ public class TransferOrchestrationService {
 		this.pspClient = pspClient;
 		this.objectMapper = objectMapper;
 		this.transferBusinessMetrics = transferBusinessMetrics;
+		this.tracer = tracerProvider == null ? null : tracerProvider.getIfAvailable();
 		this.clock = clock;
 		this.ledgerMovementsTopic = ledgerMovementsTopic;
 	}
@@ -115,6 +148,10 @@ public class TransferOrchestrationService {
 		command.validate();
 		Transfer transfer = transferRepository.findByPspPaymentId(command.pspPaymentId())
 				.orElseThrow(() -> new TransferNotFoundException(command.pspPaymentId()));
+		return resumeTransferTrace(transfer, () -> handlePspWebhook(command, transfer));
+	}
+
+	private Transfer handlePspWebhook(PspWebhookCommand command, Transfer transfer) {
 		if (transfer.status().isTerminal()) {
 			return transfer;
 		}
@@ -221,6 +258,7 @@ public class TransferOrchestrationService {
 	protected Transfer createReceivedTransfer(CreateTransferCommand command, String sourceAccount, String destinationAccount) {
 		Transfer transfer = transferRepository.create(UUID.randomUUID(), command, sourceAccount, destinationAccount, clock.millis());
 		transferBusinessMetrics.recordTransferCreated();
+		transferBusinessMetrics.recordTraceContext("create", hasTraceContext(transfer.traceparent()));
 		return transfer;
 	}
 
@@ -236,7 +274,10 @@ public class TransferOrchestrationService {
 				command.currency(),
 				command.description()
 		);
-		return createReceivedTransfer(transferCommand, EXTERNAL_INBOUND_SETTLEMENT_ACCOUNT, destinationAccount.account());
+		Transfer transfer = transferRepository.create(UUID.randomUUID(), transferCommand, EXTERNAL_INBOUND_SETTLEMENT_ACCOUNT, destinationAccount.account(), clock.millis());
+		transferBusinessMetrics.recordExternalInboundTransferCreated();
+		transferBusinessMetrics.recordTraceContext("external_inbound_create", hasTraceContext(transfer.traceparent()));
+		return transfer;
 	}
 
 	@Transactional
@@ -298,5 +339,61 @@ public class TransferOrchestrationService {
 					exception
 			);
 		}
+	}
+
+	private Transfer resumeTransferTrace(Transfer transfer, java.util.function.Supplier<Transfer> operation) {
+		Span span = resumedSpan(transfer);
+		if (span == null) {
+			transferBusinessMetrics.recordTraceContext("psp_webhook_resume", hasTraceContext(transfer.traceparent()));
+			return operation.get();
+		}
+		transferBusinessMetrics.recordTraceContext("psp_webhook_resume", "resumed");
+		try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
+			return operation.get();
+		} catch (RuntimeException exception) {
+			span.error(exception);
+			throw exception;
+		} finally {
+			span.end();
+		}
+	}
+
+	private Span resumedSpan(Transfer transfer) {
+		if (tracer == null) {
+			return null;
+		}
+		TraceContext parent = traceContext(transfer.traceparent());
+		if (parent == null) {
+			return null;
+		}
+		Span currentSpan = tracer.currentSpan();
+		if (currentSpan != null && currentSpan.context().traceId().equals(parent.traceId())) {
+			return null;
+		}
+		return tracer.spanBuilder()
+				.setParent(parent)
+				.name("psp webhook resume")
+				.tag("transfer.id", transfer.transferId().toString())
+				.tag("psp.payment_id", transfer.pspPaymentId())
+				.start();
+	}
+
+	private TraceContext traceContext(String traceparent) {
+		if (traceparent == null || traceparent.isBlank()) {
+			return null;
+		}
+		String[] parts = traceparent.split("-");
+		if (parts.length != 4 || parts[1].length() != 32 || parts[2].length() != 16) {
+			return null;
+		}
+		return tracer.traceContextBuilder()
+				.traceId(parts[1])
+				.spanId(parts[2])
+				.sampled("01".equals(parts[3]))
+				.build();
+	}
+
+	private String hasTraceContext(String traceparent) {
+		return traceparent == null || traceparent.isBlank() ? "missing_trace" : "with_trace";
 	}
 }

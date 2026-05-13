@@ -199,6 +199,8 @@ class TransferOrchestrationServiceTests {
 		assertEquals(0, balanceClient.createdHolds);
 		assertEquals(1, outboxRepository.events.size());
 		assertEquals(EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID.toString(), outboxRepository.events.getFirst().eventKey());
+		assertEquals(1.0, meterRegistry.find("transfers_created").tag("flow", "external_inbound").counter().count());
+		assertEquals(1.0, meterRegistry.find("external_inbound_transfers_created").counter().count());
 	}
 
 	@Test

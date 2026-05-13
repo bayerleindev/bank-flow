@@ -11,8 +11,30 @@ public record TransferPostedEvent(
 		@JsonProperty("destination_digital_account_id") UUID destinationDigitalAccountId,
 		@JsonProperty("destination_account") String destinationAccount,
 		@JsonProperty("amount_cents") long amountCents,
-		String currency
+		String currency,
+		@JsonProperty("transfer_created_at") long transferCreatedAt
 ) {
+	public TransferPostedEvent(
+			UUID transferId,
+			UUID sourceDigitalAccountId,
+			String sourceAccount,
+			UUID destinationDigitalAccountId,
+			String destinationAccount,
+			long amountCents,
+			String currency
+	) {
+		this(
+				transferId,
+				sourceDigitalAccountId,
+				sourceAccount,
+				destinationDigitalAccountId,
+				destinationAccount,
+				amountCents,
+				currency,
+				0
+		);
+	}
+
 	public void validate() {
 		if (transferId == null) {
 			throw new IllegalArgumentException("transfer_id is required");

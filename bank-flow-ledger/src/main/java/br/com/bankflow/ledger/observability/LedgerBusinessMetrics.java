@@ -24,6 +24,15 @@ public class LedgerBusinessMetrics {
 				.increment();
 	}
 
+	public void recordKafkaTraceContext(String topic, String traceContext) {
+		Counter.builder("ledger_kafka_trace_context")
+				.description("Trace context coverage on Kafka records consumed by ledger")
+				.tag("topic", topic == null ? "unknown" : topic)
+				.tag("trace_context", traceContext == null ? "unknown" : traceContext)
+				.register(meterRegistry)
+				.increment();
+	}
+
 	public void recordLedgerPostingLatency(long latencyMillis, String entryType) {
 		Timer.builder("ledger_posting_latency")
 				.description("Latency from ledger posting occurrence to publication")

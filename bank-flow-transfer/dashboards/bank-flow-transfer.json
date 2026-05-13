@@ -752,6 +752,102 @@
       ],
       "title": "Oldest Transfer Age By Status",
       "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 37
+      },
+      "id": 14,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum by (flow) (rate(transfers_created_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "{{flow}}"
+        },
+        {
+          "expr": "sum(rate(external_inbound_transfers_created_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "external_inbound_explicit"
+        }
+      ],
+      "title": "Transfer Creation Rate By Flow",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 37
+      },
+      "id": 15,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "expr": "sum by (source_topic, dlq_topic) (kafka_dlq_records_total{service=~\"bank-flow-transfer.*\"}) or vector(0)",
+          "legendFormat": "{{source_topic}} -> {{dlq_topic}}"
+        }
+      ],
+      "title": "DLQ Count By Topic",
+      "type": "bargauge"
     }
   ],
   "refresh": "10s",

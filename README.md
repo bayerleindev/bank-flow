@@ -260,7 +260,7 @@ Defaults:
 ```text
 GRAFANA_URL=http://localhost:3000
 GRAFANA_USER=admin
-GRAFANA_PASSWORD=AuroraRomeu12@
+GRAFANA_PASSWORD=admin
 ```
 
 You can use `GRAFANA_TOKEN` instead of user/password. Dashboards provisioned by
@@ -274,6 +274,106 @@ All Spring services expose:
 /actuator/metrics
 /actuator/prometheus
 ```
+
+### End-to-End Tracing
+
+Tracing uses W3C context propagation through the `traceparent` header. For a
+transfer, the root trace is created by `POST /transfers` unless the caller
+already sends a `traceparent` header. If the caller sends one, the service keeps
+the caller-provided `trace_id`; otherwise Spring creates a new one.
+
+Example:
+
+```http
+traceparent: 00-44444444444444444444444444444444-1111111111111111-01
+```
+
+In that header, the `trace_id` is:
+
+```text
+44444444444444444444444444444444
+```
+
+The intended transfer trace is:
+
+```text
+POST /transfers
+  -> bank-flow-accounts lookups
+  -> bank-flow-balance-api hold creation
+  -> PSP payment request or mock PSP pending state
+  -> PSP webhook
+  -> transfer outbox row
+  -> bank-flow-outboxer Kafka publish
+  -> bank-flow-ledger consume ledger-movements
+  -> bank-flow-ledger publish ledger-posting-created
+  -> bank-flow-transfer-worker complete transfer
+  -> bank-flow-balance-api hold capture
+  -> bank-flow-balance-worker project ledger posting
+```
+
+The PSP part is asynchronous. With the local mock PSP, `POST /transfers` usually
+creates a transfer in `PSP_PENDING`; the later `POST /webhooks/psp/transfers`
+continues the business flow. Real PSPs often call back without the original
+HTTP tracing header, so the transfer service stores the original `traceparent`
+on the transfer row and resumes that trace when processing the webhook. Without
+that persisted context, Tempo would show a second trace that starts at the
+webhook, for example:
+
+```text
+webhook -> outboxer -> ledger -> transfer-worker -> balance-api -> balance-worker
+```
+
+That sequence means the technical callback trace was visible, but it was not
+linked back to the original `POST /transfers` trace. New transfers created after
+the tracing migration should keep the same `trace_id` across the webhook and
+Kafka path.
+
+Trace context is also persisted in the central outbox:
+
+- `outboxer.outbox_events.traceparent`
+- `outboxer.outbox_events.tracestate`
+
+Kafka events published by the outboxer carry these headers:
+
+- `traceparent`
+- `tracestate`, when present
+
+Kafka listener factories for `bank-flow-ledger`, `bank-flow-transfer-worker`
+and `bank-flow-balance-worker` explicitly enable observation so consumers create
+spans in Tempo instead of only forwarding headers.
+
+To find the trace for a transfer, query the transfer row or the outbox row:
+
+```sql
+SELECT transfer_id, psp_payment_id, traceparent
+FROM transfer.transfers
+WHERE transfer_id = '<transfer_id>';
+```
+
+```sql
+SELECT aggregate_id, event_type, status, traceparent
+FROM outboxer.outbox_events
+WHERE aggregate_id = '<transfer_id>';
+```
+
+Extract the middle part of `traceparent`:
+
+```text
+00-<trace_id>-<span_id>-<flags>
+```
+
+Then open Grafana, go to `Explore`, select `Tempo`, and search by that
+`trace_id`.
+
+Notes:
+
+- Old traces do not change retroactively. Re-run a new transfer after restarting
+  the changed services.
+- Existing transfers created before `traceparent` was stored may still produce a
+  webhook-rooted trace.
+- `tracestate` is accepted, stored and republished when present. The current
+  Micrometer API used by the services does not expose a generated `tracestate`,
+  so the critical propagation field is `traceparent`.
 
 ## Contributing
 
