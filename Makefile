@@ -4,6 +4,9 @@ up:
 	cd bank-flow-accounts; ./gradlew bootBuildImage --imageName=bank-flow-accounts:local
 	minikube image load bank-flow-accounts:local
 
+	cd bank-flow-outboxer; ./gradlew bootBuildImage --imageName=bank-flow-outboxer:local
+	minikube image load bank-flow-outboxer:local
+
 	cd bank-flow-balance; ./gradlew :api:bootBuildImage --imageName=bank-flow-balance-api:local
 	minikube image load bank-flow-balance-api:local
 

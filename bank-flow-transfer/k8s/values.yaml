@@ -44,6 +44,16 @@ components:
     enabled: true
     name: bank-flow-transfer-api
     replicaCount: 1
+    autoscaling:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 70
+    keda:
+      enabled: false
+    pdb:
+      enabled: true
+      minAvailable: 1
     image:
       repository: gbcamargo/bank-flow-transfer-api
       tag: 1.0.0
@@ -77,6 +87,32 @@ components:
     enabled: true
     name: bank-flow-transfer-worker
     replicaCount: 1
+    autoscaling:
+      enabled: false
+    keda:
+      enabled: true
+      minReplicaCount: 1
+      maxReplicaCount: 12
+      pollingInterval: 30
+      cooldownPeriod: 300
+      triggers:
+        - type: kafka
+          metadata:
+            bootstrapServers: "host.docker.internal:9094"
+            consumerGroup: "bank-flow-transfer-worker"
+            topic: "ledger-posting-created"
+            lagThreshold: "5"
+            activationLagThreshold: "3"
+            offsetResetPolicy: latest
+            allowIdleConsumers: "false"
+            scaleToZeroOnInvalidOffset: "false"
+            excludePersistentLag: "false"
+            limitToPartitionsWithLag: "false"
+            ensureEvenDistributionOfPartitions: "false"
+            version: 1.0.0
+    pdb:
+      enabled: true
+      maxUnavailable: 1
     image:
       repository: gbcamargo/bank-flow-transfer-worker
       tag: 1.0.0
@@ -91,12 +127,6 @@ components:
       KAFKA_AUTO_OFFSET_RESET: "earliest"
       KAFKA_RETRY_INTERVAL_MS: "1000"
       KAFKA_RETRY_MAX_ATTEMPTS: "3"
-      OUTBOX_PUBLISHER_FIXED_DELAY_MS: "1000"
-      OUTBOX_PUBLISHER_BATCH_SIZE: "50"
-      OUTBOX_PUBLISHER_LOCK_LEASE_MS: "60000"
-      OUTBOX_PUBLISHER_SEND_TIMEOUT_MS: "30000"
-      OUTBOX_PUBLISHER_MAX_ATTEMPTS: "10"
-      KAFKA_PRODUCER_MAX_BLOCK_MS: "30000"
       BANK_FLOW_KAFKA_LAG_ENABLED: "false"
     readinessProbe:
       path: /actuator/health/readiness

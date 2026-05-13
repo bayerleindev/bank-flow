@@ -1,0 +1,22 @@
+{{- range $componentKey, $component := .Values.components }}
+{{- if and $component.enabled $component.pdb.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ $component.name }}
+  labels:
+    app.kubernetes.io/name: {{ $component.name }}
+    app.kubernetes.io/component: {{ $componentKey }}
+    app.kubernetes.io/part-of: bank-flow
+spec:
+  {{- if hasKey $component.pdb "minAvailable" }}
+  minAvailable: {{ $component.pdb.minAvailable }}
+  {{- else }}
+  maxUnavailable: {{ $component.pdb.maxUnavailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ $component.name }}
+---
+{{- end }}
+{{- end }}

@@ -1,0 +1,27 @@
+{{- range $componentKey, $component := .Values.components }}
+{{- if and $component.enabled $component.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ $component.name }}
+  labels:
+    app.kubernetes.io/name: {{ $component.name }}
+    app.kubernetes.io/component: {{ $componentKey }}
+    app.kubernetes.io/part-of: bank-flow
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ $component.name }}
+  minReplicas: {{ $component.autoscaling.minReplicas }}
+  maxReplicas: {{ $component.autoscaling.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ $component.autoscaling.targetCPUUtilizationPercentage }}
+---
+{{- end }}
+{{- end }}

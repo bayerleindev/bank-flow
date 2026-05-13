@@ -9,7 +9,9 @@ metadata:
     app.kubernetes.io/component: {{ $componentKey }}
     app.kubernetes.io/part-of: bank-flow
 spec:
+  {{- if not (or $component.autoscaling.enabled $component.keda.enabled) }}
   replicas: {{ $component.replicaCount }}
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ $component.name }}

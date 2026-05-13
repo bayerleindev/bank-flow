@@ -366,4 +366,4 @@ Cada topico possui DLT com sufixo `.DLT`.
 - Expiracao automatica de transferencia e de hold existe como estado/modelo, mas nao e um produto operacional completo de chargeback, disputa ou conciliacao.
 - Tarifas, chargeback, contas de impostos e outras contas contabeis operacionais ainda nao formam um catalogo amplo.
 - O `ledger` depende do seed das contas de liquidacao para inbound externo em ambientes novos.
-- A stack Kubernetes atual e preparada para Minikube e simulacao; para producao ainda faltam registry, secrets gerenciados, TLS, autoscaling, politicas de rede, backups e retencao formal.
+- A stack Kubernetes atual e preparada para Minikube e simulacao. Autoscaling e PDBs estao documentados em `docs/kubernetes-autoscaling-disruption.md`; para producao ainda faltam registry, secrets gerenciados, TLS, politicas de rede, backups e retencao formal.
