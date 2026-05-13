@@ -356,6 +356,7 @@ FAILED
 | `account-created` | accounts | ledger | `digital_account_id` | chave igual ao payload. |
 | `ledger-movements` | transfer | ledger | `source_digital_account_id` | chave igual ao payload. |
 | `ledger-reversals` | externo/scripts | ledger | `original_external_id` | chave igual ao payload. |
+| `yield-accruals` | yield | ledger | `digital_account_id` | rendimento diario D-1 com CDI usado persistido em `yield.daily_cdi_yield_rates`. |
 | `ledger-posting-created` | ledger | balance, transfer | `external_id` | chave igual ao payload. |
 
 Cada topico possui DLT com sufixo `.DLT`.

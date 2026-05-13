@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.nameOverride }}-config
+  labels:
+    app.kubernetes.io/name: {{ .Values.nameOverride }}
+    app.kubernetes.io/part-of: bank-flow
+data:
+{{- range $key, $value := .Values.env }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}

@@ -9,6 +9,7 @@ Only this service owns numeric accounting `account_id` values.
 - Consume `account-created` and create an accounting account for each digital account.
 - Consume `ledger-movements` and post balanced debit/credit entries.
 - Consume `ledger-reversals` and create reversal entries.
+- Consume `yield-accruals` and post CDI yield for customer accounts.
 - Persist ledger accounts, entries and lines in immudb.
 - Publish `ledger-posting-created` after successful posting.
 - Republish existing postings for idempotent duplicate movement commands.
@@ -32,6 +33,7 @@ There is no public business HTTP API. The service exposes operational endpoints:
 | `account-created` | `digital_account_id` | Create internal accounting account. |
 | `ledger-movements` | `source_digital_account_id` | Post transfer movement. |
 | `ledger-reversals` | `original_external_id` | Reverse an existing posting. |
+| `yield-accruals` | `digital_account_id` | Post account yield. |
 
 ## Published Topic
 
@@ -93,6 +95,8 @@ There is no public business HTTP API. The service exposes operational endpoints:
 - A reversal uses `reversal:<original_external_id>` as its deterministic posting key.
 - A reversal cannot be reversed again.
 - An already reversed original posting cannot be reversed twice.
+- A yield posting uses `accrual_id` as the idempotency key.
+- Yield debits the internal CDI interest expense account and credits the customer account.
 
 ## Settlement Account
 
@@ -108,6 +112,21 @@ Seed it in immudb before processing inbound transfers:
 ```text
 scripts/immudb/001_create_ledger_tables.sql
 scripts/immudb/002_seed_settlement_accounts.sql
+```
+
+## Interest Expense Account
+
+Daily CDI yield uses this internal expense account:
+
+```text
+digital_account_id: 00000000-0000-0000-0000-000000000200
+account_code: INTEREST_EXPENSE_CDI_BRL
+```
+
+Seed it in immudb before processing `yield-accruals`:
+
+```text
+scripts/immudb/003_seed_interest_expense_account.sql
 ```
 
 ## Configuration
@@ -127,6 +146,7 @@ scripts/immudb/002_seed_settlement_accounts.sql
 | `IMMUDB_DATABASE` | `ledger` | immudb database. |
 | `IMMUDB_USERNAME` | `immudb` | immudb user. |
 | `IMMUDB_PASSWORD` | `immudb` | immudb password. |
+| `INTEREST_EXPENSE_DIGITAL_ACCOUNT_ID` | `00000000-0000-0000-0000-000000000200` | Internal account debited by CDI yield. |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Trace export endpoint. |
 
 ## Run Locally

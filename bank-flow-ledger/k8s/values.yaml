@@ -51,6 +51,20 @@ keda:
         limitToPartitionsWithLag: "false"
         ensureEvenDistributionOfPartitions: "false"
         version: 1.0.0
+    - type: kafka
+      metadata:
+        bootstrapServers: "host.docker.internal:9094"
+        consumerGroup: "bank-flow-ledger"
+        topic: "yield-accruals"
+        lagThreshold: "5"
+        activationLagThreshold: "3"
+        offsetResetPolicy: latest
+        allowIdleConsumers: "false"
+        scaleToZeroOnInvalidOffset: "false"
+        excludePersistentLag: "false"
+        limitToPartitionsWithLag: "false"
+        ensureEvenDistributionOfPartitions: "false"
+        version: 1.0.0
 
 pdb:
   enabled: true
@@ -105,6 +119,7 @@ env:
   BPL_JVM_THREAD_COUNT: "50"
   LOG_FILE: ""
   BANK_FLOW_KAFKA_LAG_ENABLED: "false"
+  INTEREST_EXPENSE_DIGITAL_ACCOUNT_ID: "00000000-0000-0000-0000-000000000200"
 
 secretEnv:
   IMMUDB_USERNAME: "immudb"

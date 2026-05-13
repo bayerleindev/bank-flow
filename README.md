@@ -16,6 +16,7 @@ Before publishing this repository publicly, add a license file and any project g
 | --- | --- | --- | --- |
 | `bank-flow-accounts` | Spring Boot | `8084` | Creates digital accounts and records `account-created` events in the central outbox. |
 | `bank-flow-outboxer` | Spring Boot | `8088` | Publishes pending outbox events from Postgres to Kafka. |
+| `bank-flow-yield` | Spring Boot | `8089` | Closes D-1 CDI yield, stores the rate used and records yield accrual events in the central outbox. |
 | `bank-flow-transfer-api` | Spring Boot | `8083` | Receives transfer requests, PSP webhooks and external inbound transfer webhooks. |
 | `bank-flow-transfer-worker` | Spring Boot | `8086` | Consumes ledger posting confirmations and completes transfers after ledger posting. |
 | `bank-flow-ledger` | Spring Boot | `8085` | Maintains double-entry ledger state in immudb and publishes posting events. |
@@ -30,6 +31,7 @@ Only `bank-flow-ledger` owns the numeric accounting `account_id`. Public APIs an
 flowchart LR
     client[Client or load script]
     accounts[bank-flow-accounts]
+    yield[bank-flow-yield]
     transferApi[bank-flow-transfer-api]
     transferWorker[bank-flow-transfer-worker]
     outboxer[bank-flow-outboxer]
@@ -45,6 +47,10 @@ flowchart LR
     accounts --> pg
     accounts -->|insert outbox row| pg
 
+    yield -->|fetch D-1 CDI| bcb[BCB SGS 12]
+    yield --> pg
+    yield -->|insert outbox row| pg
+
     client -->|POST /transfers| transferApi
     transferApi --> accounts
     transferApi --> balanceApi
@@ -52,7 +58,7 @@ flowchart LR
     transferApi -->|insert outbox row| pg
 
     outboxer -->|claim pending events| pg
-    outboxer -->|account-created, ledger-movements| kafka
+    outboxer -->|account-created, ledger-movements, yield-accruals| kafka
 
     kafka --> ledger
     ledger --> immudb
@@ -82,6 +88,7 @@ The outbox pattern is centralized:
 | `account-created` | `bank-flow-outboxer`, from accounts outbox rows | `bank-flow-ledger` | `digital_account_id` |
 | `ledger-movements` | `bank-flow-outboxer`, from transfer outbox rows | `bank-flow-ledger` | `source_digital_account_id` |
 | `ledger-reversals` | external scripts or tools | `bank-flow-ledger` | `original_external_id` |
+| `yield-accruals` | `bank-flow-outboxer`, from yield outbox rows | `bank-flow-ledger` | `digital_account_id` |
 | `ledger-posting-created` | `bank-flow-ledger` | `bank-flow-balance-worker`, `bank-flow-transfer-worker` | `external_id` |
 
 Kafka topics are created by the `kafka-init` service in `docker-compose.yaml`. Each main topic has a `.DLT` companion topic.
@@ -128,6 +135,7 @@ Run each command in a separate terminal:
 
 ```bash
 cd bank-flow-outboxer && ./gradlew bootRun
+cd bank-flow-yield && ./gradlew bootRun
 cd bank-flow-accounts && ./gradlew bootRun
 cd bank-flow-ledger && ./gradlew bootRun
 cd bank-flow-balance && ./gradlew :api:bootRun
@@ -178,6 +186,7 @@ Run all currently documented service tests:
 ```bash
 cd bank-flow-accounts && ./gradlew test
 cd ../bank-flow-outboxer && ./gradlew test
+cd ../bank-flow-yield && ./gradlew test
 cd ../bank-flow-ledger && ./gradlew test
 cd ../bank-flow-balance && ./gradlew test
 cd ../bank-flow-transfer && ./gradlew test
@@ -190,6 +199,7 @@ Some integration tests may require Docker because they use external infrastructu
 ```text
 bank-flow-accounts/    Account API and account outbox producer
 bank-flow-outboxer/    Central outbox publisher
+bank-flow-yield/       CDI yield service
 bank-flow-transfer/    Transfer API, worker and shared module
 bank-flow-ledger/      Accounting ledger service
 bank-flow-balance/     Balance API, worker and shared module

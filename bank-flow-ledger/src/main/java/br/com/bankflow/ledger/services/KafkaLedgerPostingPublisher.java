@@ -86,16 +86,16 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 				"created_at", entry.createdAt(),
 				"reversal_of_entry_id", entry.reversalOfEntryId(),
 				"metadata", entry.metadata(),
-				"lines", posting.lines().stream().map(line -> toLineEvent(line, metadata)).toList()
+				"lines", posting.lines().stream().map(line -> toLineEvent(entry, line, metadata)).toList()
 		);
 	}
 
-	private Map<String, Object> toLineEvent(LedgerEntryLine line, Map<String, Object> metadata) {
+	private Map<String, Object> toLineEvent(LedgerEntry entry, LedgerEntryLine line, Map<String, Object> metadata) {
 		return Map.of(
 				"line_id", line.lineId(),
 				"entry_id", line.entryId(),
 				"account_id", line.accountId(),
-				"digital_account_id", digitalAccountIdFor(line, metadata),
+				"digital_account_id", digitalAccountIdFor(entry, line, metadata),
 				"direction", line.direction(),
 				"amount_minor", line.amountMinor(),
 				"signed_amount_minor", line.signedAmountMinor(),
@@ -105,7 +105,15 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 		);
 	}
 
-	private String digitalAccountIdFor(LedgerEntryLine line, Map<String, Object> metadata) {
+	private String digitalAccountIdFor(LedgerEntry entry, LedgerEntryLine line, Map<String, Object> metadata) {
+		if ("YIELD_CDI".equals(entry.entryType())) {
+			String key = "DEBIT".equals(line.direction()) ? "interest_expense_digital_account_id" : "digital_account_id";
+			Object value = metadata.get(key);
+			if (value == null) {
+				throw new IllegalStateException("ledger posting metadata missing " + key);
+			}
+			return value.toString();
+		}
 		String key = "DEBIT".equals(line.direction()) ? "source_digital_account_id" : "destination_digital_account_id";
 		Object value = metadata.get(key);
 		if (value == null) {
