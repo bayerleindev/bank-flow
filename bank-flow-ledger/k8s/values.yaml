@@ -2,6 +2,60 @@ nameOverride: bank-flow-ledger
 
 replicaCount: 3
 
+keda:
+  enabled: true
+  minReplicaCount: 1
+  maxReplicaCount: 12
+  pollingInterval: 30
+  cooldownPeriod: 300
+  triggers:
+    - type: kafka
+      metadata:
+        bootstrapServers: "host.docker.internal:9094"
+        consumerGroup: "bank-flow-ledger"
+        topic: "account-created"
+        lagThreshold: "5"
+        activationLagThreshold: "3"
+        offsetResetPolicy: latest
+        allowIdleConsumers: "false"
+        scaleToZeroOnInvalidOffset: "false"
+        excludePersistentLag: "false"
+        limitToPartitionsWithLag: "false"
+        ensureEvenDistributionOfPartitions: "false"
+        version: 1.0.0
+    - type: kafka
+      metadata:
+        bootstrapServers: "host.docker.internal:9094"
+        consumerGroup: "bank-flow-ledger"
+        topic: "ledger-movements"
+        lagThreshold: "5"
+        activationLagThreshold: "3"
+        offsetResetPolicy: latest
+        allowIdleConsumers: "false"
+        scaleToZeroOnInvalidOffset: "false"
+        excludePersistentLag: "false"
+        limitToPartitionsWithLag: "false"
+        ensureEvenDistributionOfPartitions: "false"
+        version: 1.0.0
+    - type: kafka
+      metadata:
+        bootstrapServers: "host.docker.internal:9094"
+        consumerGroup: "bank-flow-ledger"
+        topic: "ledger-reversals"
+        lagThreshold: "5"
+        activationLagThreshold: "3"
+        offsetResetPolicy: latest
+        allowIdleConsumers: "false"
+        scaleToZeroOnInvalidOffset: "false"
+        excludePersistentLag: "false"
+        limitToPartitionsWithLag: "false"
+        ensureEvenDistributionOfPartitions: "false"
+        version: 1.0.0
+
+pdb:
+  enabled: true
+  maxUnavailable: 1
+
 image:
   repository: gbcamargo/bank-flow-ledger
   tag: 1.0.0

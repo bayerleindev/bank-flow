@@ -1,11 +1,11 @@
-nameOverride: bank-flow-accounts
+nameOverride: bank-flow-outboxer
 
 replicaCount: 1
 
 autoscaling:
   enabled: true
   minReplicas: 1
-  maxReplicas: 5
+  maxReplicas: 6
   targetCPUUtilizationPercentage: 70
 
 pdb:
@@ -13,13 +13,13 @@ pdb:
   minAvailable: 1
 
 image:
-  repository: gbcamargo/bank-flow-accounts
+  repository: gbcamargo/bank-flow-outboxer
   tag: 1.0.0
   pullPolicy: IfNotPresent
 
 service:
   type: ClusterIP
-  port: 8084
+  port: 8088
 
 metrics:
   job: bank-flow-services
@@ -46,10 +46,15 @@ probe:
     release: monitoring
 
 env:
-  SERVER_PORT: "8084"
-  POSTGRES_URL: "jdbc:postgresql://host.docker.internal:5432/bank_flow?currentSchema=accounts,public"
-  BAAS_MODE: "mock"
-  BAAS_BASE_URL: "http://baas:9098"
+  SERVER_PORT: "8088"
+  POSTGRES_URL: "jdbc:postgresql://host.docker.internal:5432/bank_flow?currentSchema=outboxer,public"
+  KAFKA_BOOTSTRAP_SERVERS: "host.docker.internal:9094"
+  OUTBOX_PUBLISHER_FIXED_DELAY_MS: "1000"
+  OUTBOX_PUBLISHER_BATCH_SIZE: "50"
+  OUTBOX_PUBLISHER_LOCK_LEASE_MS: "60000"
+  OUTBOX_PUBLISHER_SEND_TIMEOUT_MS: "30000"
+  OUTBOX_PUBLISHER_MAX_ATTEMPTS: "10"
+  KAFKA_PRODUCER_MAX_BLOCK_MS: "30000"
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo.monitoring.svc.cluster.local:4318/v1/traces"
   MANAGEMENT_HEALTH_SHOW_DETAILS: "never"
   BPL_JVM_THREAD_COUNT: "50"

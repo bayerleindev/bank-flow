@@ -192,12 +192,13 @@ kong-configs/          Gateway examples
 
 ## Kubernetes
 
-Most services have Helm charts under their service directory. The current exception is `bank-flow-outboxer`, which still needs a chart before full Kubernetes deployment parity.
+Each deployable service has a Helm chart under its service directory.
 
 Example:
 
 ```bash
 helm upgrade --install bank-flow-accounts bank-flow-accounts/k8s
+helm upgrade --install bank-flow-outboxer bank-flow-outboxer/k8s
 helm upgrade --install bank-flow-balance bank-flow-balance/k8s
 helm upgrade --install bank-flow-ledger bank-flow-ledger/k8s
 helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s
@@ -206,6 +207,7 @@ helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s
 Kubernetes and observability notes live in:
 
 - [docs/deploy-kubernetes-minikube.md](docs/deploy-kubernetes-minikube.md)
+- [docs/kubernetes-autoscaling-disruption.md](docs/kubernetes-autoscaling-disruption.md)
 - [docs/aprendizados-deploy-kubernetes-minikube.md](docs/aprendizados-deploy-kubernetes-minikube.md)
 - [docs/aprendizados-kubernetes-observabilidade.md](docs/aprendizados-kubernetes-observabilidade.md)
 
