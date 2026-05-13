@@ -3,11 +3,16 @@ package br.com.bankflow.ledger.services;
 import br.com.bankflow.ledger.domain.LedgerEntry;
 import br.com.bankflow.ledger.domain.LedgerEntryLine;
 import br.com.bankflow.ledger.domain.LedgerPosting;
+import br.com.bankflow.ledger.observability.KafkaTraceContext;
 import br.com.bankflow.ledger.observability.LedgerBusinessMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.tracing.Span;
+import io.micrometer.tracing.TraceContext;
+import io.micrometer.tracing.Tracer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.internals.RecordHeader;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
@@ -25,12 +30,14 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 	private final LedgerBusinessMetrics ledgerBusinessMetrics;
 	private final Clock clock;
 	private final String topic;
+	private final Tracer tracer;
 
 	public KafkaLedgerPostingPublisher(
 			KafkaTemplate<String, String> kafkaTemplate,
 			ObjectMapper objectMapper,
 			LedgerBusinessMetrics ledgerBusinessMetrics,
 			Clock clock,
+			ObjectProvider<Tracer> tracerProvider,
 			@Value("${bank-flow.kafka.topics.ledger-posting-created}") String topic
 	) {
 		this.kafkaTemplate = kafkaTemplate;
@@ -38,6 +45,7 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 		this.ledgerBusinessMetrics = ledgerBusinessMetrics;
 		this.clock = clock;
 		this.topic = topic;
+		this.tracer = tracerProvider.getIfAvailable();
 	}
 
 	@Override
@@ -47,6 +55,7 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 		ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, value);
 		record.headers().add(new RecordHeader("event_name", "ledger.posting_created".getBytes(StandardCharsets.UTF_8)));
 		record.headers().add(new RecordHeader("content_type", "application/json".getBytes(StandardCharsets.UTF_8)));
+		addCurrentTraceHeaders(record);
 
 		try {
 			kafkaTemplate.send(record).get();
@@ -71,6 +80,38 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 			current = current.getCause();
 		}
 		return current.getClass().getSimpleName();
+	}
+
+	private void addCurrentTraceHeaders(ProducerRecord<String, String> record) {
+		Span currentSpan = tracer == null ? null : tracer.currentSpan();
+		if (currentSpan != null) {
+			TraceContext context = currentSpan.context();
+			addHeader(record, "traceparent", traceparent(context));
+			return;
+		}
+		addPropagatedTraceHeaders(record);
+	}
+
+	private void addPropagatedTraceHeaders(ProducerRecord<String, String> record) {
+		String traceparent = KafkaTraceContext.traceparent();
+		if (traceparent == null || traceparent.isBlank()) {
+			return;
+		}
+		addHeader(record, "traceparent", traceparent);
+		String tracestate = KafkaTraceContext.tracestate();
+		if (tracestate != null && !tracestate.isBlank()) {
+			addHeader(record, "tracestate", tracestate);
+		}
+	}
+
+	private String traceparent(TraceContext context) {
+		String flags = Boolean.TRUE.equals(context.sampled()) ? "01" : "00";
+		return "00-%s-%s-%s".formatted(context.traceId(), context.spanId(), flags);
+	}
+
+	private void addHeader(ProducerRecord<String, String> record, String name, String value) {
+		record.headers().remove(name);
+		record.headers().add(new RecordHeader(name, value.getBytes(StandardCharsets.UTF_8)));
 	}
 
 	private Map<String, Object> toEvent(LedgerPosting posting) {

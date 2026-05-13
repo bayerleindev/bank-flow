@@ -11,6 +11,8 @@ import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
+import java.nio.charset.StandardCharsets;
+
 @Component
 public class LedgerPostingCreatedConsumer {
 	private static final Logger log = LoggerFactory.getLogger(LedgerPostingCreatedConsumer.class);
@@ -37,6 +39,7 @@ public class LedgerPostingCreatedConsumer {
 	)
 	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) throws Exception {
 		balanceMetrics.recordKafkaMessageReceived(record.topic());
+		balanceMetrics.recordKafkaTraceContext(record.topic(), traceContextLabel(record));
 		try {
 			LedgerPostingCreatedEvent event = objectMapper.readValue(record.value(), LedgerPostingCreatedEvent.class);
 			validatePartitionKey(record.key(), event);
@@ -56,6 +59,15 @@ public class LedgerPostingCreatedConsumer {
 			balanceMetrics.recordKafkaMessageFailed(record.topic(), exception);
 			throw exception;
 		}
+	}
+
+	private String traceContextLabel(ConsumerRecord<String, String> record) {
+		var header = record.headers().lastHeader("traceparent");
+		if (header == null || header.value() == null || header.value().length == 0) {
+			return "missing_trace";
+		}
+		String traceparent = new String(header.value(), StandardCharsets.UTF_8);
+		return traceparent.isBlank() ? "missing_trace" : "with_trace";
 	}
 
 	private void validatePartitionKey(String key, LedgerPostingCreatedEvent event) {

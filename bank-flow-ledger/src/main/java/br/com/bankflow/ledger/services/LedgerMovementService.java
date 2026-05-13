@@ -81,11 +81,12 @@ public class LedgerMovementService {
 			throw exception;
 		}
 		long now = clock.millis();
+		long occurredAt = event.transferCreatedAt() > 0 ? event.transferCreatedAt() : now;
 		long sourceAccountId = findAccountId(event, true);
 		long destinationAccountId = findAccountId(event, false);
 		LedgerEntry entry = LedgerEntry.from(
 				numericIdGenerator.nextEntryId(),
-				now,
+				occurredAt,
 				now,
 				REVERSAL_OF_ENTRY_ID,
 				buildMetadata(event),
@@ -163,6 +164,7 @@ public class LedgerMovementService {
 				"destination_account", event.destinationAccount(),
 				"amount_cents", event.amountCents(),
 				"currency", event.currency(),
+				"transfer_created_at", event.transferCreatedAt(),
 				"debit_account_code", accountCodeFor(event.sourceDigitalAccountId()),
 				"credit_account_code", accountCodeFor(event.destinationDigitalAccountId())
 		));

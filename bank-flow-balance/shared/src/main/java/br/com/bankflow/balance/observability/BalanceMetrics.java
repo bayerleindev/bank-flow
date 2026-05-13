@@ -2,6 +2,7 @@ package br.com.bankflow.balance.observability;
 
 import br.com.bankflow.balance.services.LedgerPostingProjectionResult;
 import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -48,6 +49,15 @@ public class BalanceMetrics {
 				.increment();
 	}
 
+	public void recordKafkaTraceContext(String topic, String traceContext) {
+		Counter.builder("bank_flow_balance_kafka_trace_context")
+				.description("Trace context coverage on Kafka records consumed by balance")
+				.tag("topic", topic == null ? "unknown" : topic)
+				.tag("trace_context", traceContext == null ? "unknown" : traceContext)
+				.register(meterRegistry)
+				.increment();
+	}
+
 	public void recordKafkaMessageFailed(String topic, Exception exception) {
 		Counter.builder("bank_flow_balance_kafka_messages_total")
 				.description("Kafka messages received by bank-flow-balance")
@@ -63,18 +73,49 @@ public class BalanceMetrics {
 	}
 
 	public void recordProjection(Timer.Sample sample, LedgerPostingProjectionResult result, int lineCount) {
+		recordProjection(sample, result, lineCount, "unknown", 0);
+	}
+
+	public void recordProjection(
+			Timer.Sample sample,
+			LedgerPostingProjectionResult result,
+			int lineCount,
+			String entryType,
+			long endToEndLatencyMillis
+	) {
 		sample.stop(Timer.builder("bank_flow_balance_projection_duration")
 				.description("Ledger posting projection duration")
 				.tag("result", result.name().toLowerCase())
+				.tag("entry_type", sanitize(entryType))
 				.tag("exception", "none")
 				.register(meterRegistry));
 		Counter.builder("bank_flow_balance_projection_total")
 				.description("Ledger posting projections by result")
 				.tag("result", result.name().toLowerCase())
+				.tag("entry_type", sanitize(entryType))
 				.tag("exception", "none")
 				.register(meterRegistry)
 				.increment();
-		meterRegistry.summary("bank_flow_balance_projection_lines")
+		if ("TRANSFER".equals(entryType)) {
+			Counter.builder("bank_flow_balance_projection_correlations")
+					.description("Transfer ledger postings correlated into balance projections")
+					.tag("result", result.name().toLowerCase())
+					.register(meterRegistry)
+					.increment();
+		}
+		if (endToEndLatencyMillis > 0) {
+			Timer.builder("bank_flow_balance_projection_end_to_end_latency")
+					.description("Latency from business event creation to balance projection")
+					.tag("entry_type", sanitize(entryType))
+					.publishPercentileHistogram()
+					.publishPercentiles(0.5, 0.95, 0.99)
+					.register(meterRegistry)
+					.record(java.time.Duration.ofMillis(endToEndLatencyMillis));
+		}
+		DistributionSummary.builder("bank_flow_balance_projection_lines")
+				.description("Ledger posting lines projected into balance")
+				.tag("entry_type", sanitize(entryType))
+				.register(meterRegistry)
 				.record(lineCount);
 	}
 
@@ -87,6 +128,7 @@ public class BalanceMetrics {
 		Counter.builder("bank_flow_balance_projection_total")
 				.description("Ledger posting projections by result")
 				.tag("result", "failed")
+				.tag("entry_type", "unknown")
 				.tag("exception", exception.getClass().getSimpleName())
 				.register(meterRegistry)
 				.increment();
@@ -151,5 +193,12 @@ public class BalanceMetrics {
 		} catch (DataAccessException exception) {
 			return 0;
 		}
+	}
+
+	private String sanitize(String value) {
+		if (value == null || value.isBlank()) {
+			return "unknown";
+		}
+		return value.replaceAll("[^a-zA-Z0-9_]+", "_").toUpperCase();
 	}
 }

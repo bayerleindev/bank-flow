@@ -44,6 +44,18 @@ class LedgerPostingProjectionServiceTests {
 				.map(LedgerPostingCreatedLine::accountId)
 				.toList());
 		assertEquals(1.0, counter("bank_flow_balance_projection_total", "result", "projected"));
+		assertEquals(1.0, meterRegistry.find("bank_flow_balance_projection_total")
+				.tag("entry_type", "TRANSFER")
+				.counter()
+				.count());
+		assertEquals(1.0, meterRegistry.find("bank_flow_balance_projection_correlations")
+				.tag("result", "projected")
+				.counter()
+				.count());
+		assertEquals(1, meterRegistry.find("bank_flow_balance_projection_end_to_end_latency")
+				.tag("entry_type", "TRANSFER")
+				.timer()
+				.count());
 	}
 
 	@Test

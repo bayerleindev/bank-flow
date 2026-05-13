@@ -26,10 +26,30 @@ scrape_configs:
           stack: bank-flow
           service: bank-flow-transfer
       - targets:
+          - host.docker.internal:8086
+        labels:
+          stack: bank-flow
+          service: bank-flow-transfer-worker
+      - targets:
           - host.docker.internal:8084
         labels:
           stack: bank-flow
           service: bank-flow-accounts
+      - targets:
+          - host.docker.internal:8088
+        labels:
+          stack: bank-flow
+          service: bank-flow-outboxer
+      - targets:
+          - host.docker.internal:8087
+        labels:
+          stack: bank-flow
+          service: bank-flow-balance-worker
+      - targets:
+          - host.docker.internal:8090
+        labels:
+          stack: bank-flow
+          service: bank-flow-yield
 
   - job_name: bank-flow-health
     metrics_path: /probe

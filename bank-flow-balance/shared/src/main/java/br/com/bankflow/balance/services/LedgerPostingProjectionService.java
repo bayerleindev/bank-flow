@@ -57,7 +57,13 @@ public class LedgerPostingProjectionService {
 					event.lines().size()
 			);
 			balanceMetrics.recordProjectionLag(now - event.createdAt());
-			balanceMetrics.recordProjection(sample, LedgerPostingProjectionResult.PROJECTED, event.lines().size());
+			balanceMetrics.recordProjection(
+					sample,
+					LedgerPostingProjectionResult.PROJECTED,
+					event.lines().size(),
+					event.entryType(),
+					now - event.occurredAt()
+			);
 			return LedgerPostingProjectionResult.PROJECTED;
 		} catch (RuntimeException exception) {
 			balanceMetrics.recordProjectionFailure(sample, exception);
