@@ -225,23 +225,5 @@ class AccountCreationServiceTests {
 			}
 		}
 
-		@Override
-		public List<OutboxEvent> claimPending(
-				int limit,
-				String lockedBy,
-				long nowMillis,
-				long lockedUntilMillis,
-				int maxAttempts
-		) {
-			return events.stream().limit(limit).toList();
-		}
-
-		@Override
-		public void markPublished(UUID eventId, long publishedAt, String lockedBy) {
-		}
-
-		@Override
-		public void markFailed(UUID eventId, String errorMessage, String lockedBy, int maxAttempts) {
-		}
 	}
 }
