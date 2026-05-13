@@ -104,6 +104,15 @@ From the repository root:
 docker compose up -d db kafka kafka-init kafka-ui immudb
 ```
 
+The Makefile also exposes shortcuts for local and Kubernetes workflows:
+
+```bash
+make compose-up          # build images and start infra + apps with Docker Compose
+make compose-up-infra    # start only Postgres, Kafka, Kafka UI and immudb
+make k8s-deploy          # build images, load them into Minikube and apply manifests with kubectl
+make k8s-status          # show pods, services, HPA, PDB and KEDA ScaledObjects
+```
+
 Local endpoints:
 
 | Component | URL or address |
