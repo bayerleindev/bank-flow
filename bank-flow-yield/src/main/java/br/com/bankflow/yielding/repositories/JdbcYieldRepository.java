@@ -121,6 +121,43 @@ public class JdbcYieldRepository implements YieldRepository {
 		return count != null && count > 0;
 	}
 
+	@Override
+	public long countAccrualsByStatus(String status) {
+		Long count = jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)
+				FROM account_yield_accruals
+				WHERE status = ?
+				""", Long.class, status);
+		return count == null ? 0 : count;
+	}
+
+	@Override
+	public double oldestAccrualAgeSecondsByStatus(String status, long now) {
+		Long createdAt = jdbcTemplate.query("""
+				SELECT created_at
+				FROM account_yield_accruals
+				WHERE status = ?
+				ORDER BY created_at ASC
+				LIMIT 1
+				""",
+				(rs, rowNum) -> rs.getLong("created_at"),
+				status
+		).stream().findFirst().orElse(null);
+		if (createdAt == null) {
+			return 0;
+		}
+		return Math.max(0, now - createdAt) / 1000.0;
+	}
+
+	@Override
+	public long countCdiRates() {
+		Long count = jdbcTemplate.queryForObject("""
+				SELECT COUNT(*)
+				FROM daily_cdi_yield_rates
+				""", Long.class);
+		return count == null ? 0 : count;
+	}
+
 	private Optional<CdiRate> findRate(LocalDate referenceDate) {
 		List<CdiRate> rates = jdbcTemplate.query("""
 				SELECT reference_date, source, source_url, raw_value, cdi_daily_rate_percent, cdi_daily_factor,

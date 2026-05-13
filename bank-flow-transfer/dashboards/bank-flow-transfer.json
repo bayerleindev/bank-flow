@@ -1,0 +1,774 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "expr": "sum(transfers_created_total) or sum(transfers_total) or vector(0)",
+          "legendFormat": "created"
+        }
+      ],
+      "title": "Transfers Created",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "blue",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 3,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "expr": "sum(balance_holds_created_total) or vector(0)",
+          "legendFormat": "holds"
+        }
+      ],
+      "title": "Holds Created",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 6,
+        "y": 0
+      },
+      "id": 3,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "expr": "sum(transfer_psp_confirmed_total) or vector(0)",
+          "legendFormat": "psp"
+        }
+      ],
+      "title": "PSP Confirmed",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 9,
+        "y": 0
+      },
+      "id": 4,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "expr": "sum(ledger_posting_created_total) or sum(ledger_posting_total) or vector(0)",
+          "legendFormat": "ledger"
+        }
+      ],
+      "title": "Ledger Postings",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 12,
+        "y": 0
+      },
+      "id": 5,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "expr": "sum(balance_holds_captured_total) or vector(0)",
+          "legendFormat": "captured"
+        }
+      ],
+      "title": "Holds Captured",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 15,
+        "y": 0
+      },
+      "id": 6,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "expr": "sum(transfers_completed_total) or sum(transfers_in_status{status=\"COMPLETED\"}) or vector(0)",
+          "legendFormat": "completed"
+        }
+      ],
+      "title": "Transfers Completed",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "red",
+                "value": 1
+              }
+            ]
+          },
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 4,
+        "w": 3,
+        "x": 18,
+        "y": 0
+      },
+      "id": 7,
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "auto",
+        "percentChangeColorMode": "standard",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "expr": "sum(transfers_failed_total) or sum(transfers_in_status{status=\"FAILED\"}) or vector(0)",
+          "legendFormat": "failed"
+        }
+      ],
+      "title": "Transfers Failed",
+      "type": "stat"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 4
+      },
+      "id": 8,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": false
+        },
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "pluginVersion": "11.4.0",
+      "targets": [
+        {
+          "expr": "sum(transfers_created_total) or sum(transfers_total) or vector(0)",
+          "legendFormat": "01 created"
+        },
+        {
+          "expr": "sum(balance_holds_created_total) or vector(0)",
+          "legendFormat": "02 hold created"
+        },
+        {
+          "expr": "sum(transfer_psp_confirmed_total) or vector(0)",
+          "legendFormat": "03 psp confirmed"
+        },
+        {
+          "expr": "sum(ledger_posting_created_total) or sum(ledger_posting_total) or vector(0)",
+          "legendFormat": "04 ledger posted"
+        },
+        {
+          "expr": "sum(balance_holds_captured_total) or vector(0)",
+          "legendFormat": "05 hold captured"
+        },
+        {
+          "expr": "sum(transfers_completed_total) or sum(transfers_in_status{status=\"COMPLETED\"}) or vector(0)",
+          "legendFormat": "06 completed"
+        }
+      ],
+      "title": "Transfer Funnel Totals",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "id": 9,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "sum(rate(transfers_created_total[$__rate_interval])) or sum(rate(transfers_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "created"
+        },
+        {
+          "expr": "sum(rate(balance_holds_created_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "hold_created"
+        },
+        {
+          "expr": "sum(rate(transfer_psp_confirmed_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "psp_confirmed"
+        },
+        {
+          "expr": "sum(rate(ledger_posting_created_total[$__rate_interval])) or sum(rate(ledger_posting_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "ledger_posted"
+        },
+        {
+          "expr": "sum(rate(balance_holds_captured_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "hold_captured"
+        },
+        {
+          "expr": "sum(rate(transfers_completed_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "completed"
+        },
+        {
+          "expr": "sum(rate(transfers_failed_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "failed"
+        }
+      ],
+      "title": "Funnel Event Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "id": 10,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "none"
+        }
+      },
+      "targets": [
+        {
+          "expr": "(sum(balance_holds_created_total) or vector(0)) / clamp_min((sum(transfers_created_total) or sum(transfers_total) or vector(0)), 1)",
+          "legendFormat": "created_to_hold"
+        },
+        {
+          "expr": "(sum(transfer_psp_confirmed_total) or vector(0)) / clamp_min((sum(balance_holds_created_total) or vector(0)), 1)",
+          "legendFormat": "hold_to_psp"
+        },
+        {
+          "expr": "(sum(ledger_posting_created_total) or sum(ledger_posting_total) or vector(0)) / clamp_min((sum(transfer_psp_confirmed_total) or vector(0)), 1)",
+          "legendFormat": "psp_to_ledger"
+        },
+        {
+          "expr": "(sum(balance_holds_captured_total) or vector(0)) / clamp_min((sum(ledger_posting_created_total) or sum(ledger_posting_total) or vector(0)), 1)",
+          "legendFormat": "ledger_to_capture"
+        },
+        {
+          "expr": "(sum(transfers_completed_total) or sum(transfers_in_status{status=\"COMPLETED\"}) or vector(0)) / clamp_min((sum(transfers_created_total) or sum(transfers_total) or vector(0)), 1)",
+          "legendFormat": "created_to_completed"
+        },
+        {
+          "expr": "(sum(transfers_failed_total) or sum(transfers_in_status{status=\"FAILED\"}) or vector(0)) / clamp_min((sum(transfers_created_total) or sum(transfers_total) or vector(0)), 1)",
+          "legendFormat": "created_to_failed"
+        }
+      ],
+      "title": "Funnel Conversion Ratios",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 24,
+        "x": 0,
+        "y": 21
+      },
+      "id": 11,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "((sum(increase(transfer_end_to_end_latency_seconds_sum[$__range])) or vector(0)) / clamp_min((sum(increase(transfer_end_to_end_latency_seconds_count[$__range])) or vector(0)), 1))",
+          "legendFormat": "avg"
+        },
+        {
+          "expr": "(histogram_quantile(0.95, sum(rate(transfer_end_to_end_latency_seconds_bucket[$__rate_interval])) by (le)) and (sum(increase(transfer_end_to_end_latency_seconds_count[$__range])) > 0)) or vector(0)",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "max(transfer_end_to_end_latency_seconds_max) or vector(0)",
+          "legendFormat": "max"
+        }
+      ],
+      "title": "Transfer End-to-End Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "id": 12,
+      "options": {
+        "displayMode": "gradient",
+        "legend": {
+          "calcs": [],
+          "displayMode": "list",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "minVizHeight": 10,
+        "minVizWidth": 0,
+        "namePlacement": "auto",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "showUnfilled": true,
+        "sizing": "auto",
+        "valueMode": "color"
+      },
+      "targets": [
+        {
+          "expr": "sum by (status) (transfers_in_status) or vector(0)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "title": "Transfers In Status",
+      "type": "bargauge"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "Prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "id": 13,
+      "options": {
+        "legend": {
+          "calcs": [
+            "lastNotNull",
+            "max"
+          ],
+          "displayMode": "table",
+          "placement": "bottom",
+          "showLegend": true
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "expr": "max by (status) (transfer_oldest_in_status_age_seconds) or vector(0)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "title": "Oldest Transfer Age By Status",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": [
+    "bank-flow",
+    "transfer",
+    "funnel"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "title": "Bank Flow Transfer Funnel",
+  "uid": "bank-flow-transfer-funnel",
+  "version": 1
+}

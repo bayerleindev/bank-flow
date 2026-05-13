@@ -20,7 +20,7 @@ Nao crie HPA manual para um workload ja controlado por KEDA. O `ScaledObject` cr
 | `bank-flow-transfer-worker` | `Deployment` | KEDA Kafka lag | 1 | 12 | `maxUnavailable: 1` | Consome `ledger-posting-created`. |
 | `bank-flow-balance-api` | `Deployment` | HPA CPU 70% | 1 | 6 | `minAvailable: 1` | API HTTP de saldos, extratos e holds. |
 | `bank-flow-balance-worker` | `Deployment` | KEDA Kafka lag | 0 | 12 | desabilitado | Consome `ledger-posting-created`; pode ir a zero quando nao ha lag. |
-| `bank-flow-ledger` | `StatefulSet` | KEDA Kafka lag | 1 | 12 | `maxUnavailable: 1` | Consome `account-created`, `ledger-movements`, `ledger-reversals` e `yield-accruals`. |
+| `bank-flow-ledger` | `StatefulSet` | KEDA Kafka lag | 1 | 4 | `maxUnavailable: 1` | Consome `account-created`, `ledger-movements`, `ledger-reversals` e `yield-accruals`. |
 
 ## Quando usar HPA
 
@@ -114,7 +114,7 @@ topic: yield-accruals
 consumerGroup: bank-flow-ledger
 
 minReplicaCount: 1
-maxReplicaCount: 12
+maxReplicaCount: 4
 ```
 
 O ledger usa `StatefulSet` porque o identificador numerico depende do ordinal do pod. Mantenha `maxReplicaCount` dentro do limite aceito pelo gerador de ids. Hoje o limite operacional documentado do projeto e ate 100 replicas.

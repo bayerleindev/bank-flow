@@ -1,0 +1,26 @@
+name: Yield Tests
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: bank-flow-yield
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: bank-flow-yield
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Run tests
+        run: ./gradlew test

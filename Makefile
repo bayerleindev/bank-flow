@@ -39,6 +39,9 @@ help:
 	@printf "\nQuality:\n"
 	@printf "  make test                  Run all Gradle tests\n"
 	@printf "  make helm-lint             Lint all Helm charts\n"
+	@printf "\nLoad tests:\n"
+	@printf "  make k6-smoke              Run a short low-rate k6 E2E smoke test\n"
+	@printf "  make k6-heavy              Run the heavy k6 E2E load test\n"
 
 .PHONY: docker-build
 docker-build: docker-build-accounts docker-build-outboxer docker-build-yield docker-build-balance-api docker-build-balance-worker docker-build-ledger docker-build-transfer-api docker-build-transfer-worker
@@ -149,6 +152,14 @@ helm-lint:
 	$(HELM) lint bank-flow-balance/k8s
 	$(HELM) lint bank-flow-ledger/k8s
 	$(HELM) lint bank-flow-transfer/k8s
+
+.PHONY: k6-smoke
+k6-smoke:
+	DURATION=1m SEED_ACCOUNTS=5 ACCOUNT_RATE=1 EXTERNAL_RATE=2 INTERNAL_RATE=1 BALANCE_READ_RATE=5 k6 run scripts/k6/heavy-e2e.js
+
+.PHONY: k6-heavy
+k6-heavy:
+	k6 run scripts/k6/heavy-e2e.js
 
 .PHONY: k8s-namespace
 k8s-namespace:

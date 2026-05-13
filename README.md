@@ -99,6 +99,7 @@ Kafka topics are created by the `kafka-init` service in `docker-compose.yaml`. E
 - Docker and Docker Compose
 - Bash-compatible shell
 - Optional: Python 3 for load scripts
+- Optional: k6 for HTTP load tests
 - Optional: Helm and Minikube for Kubernetes work
 
 Each Spring project ships its own Gradle wrapper, so a system Gradle installation is not required.
@@ -118,6 +119,8 @@ make compose-up          # build images and start infra + apps with Docker Compo
 make compose-up-infra    # start only Postgres, Kafka, Kafka UI and immudb
 make k8s-deploy          # build images, load them into Minikube and apply manifests with kubectl
 make k8s-status          # show pods, services, HPA, PDB and KEDA ScaledObjects
+make k6-smoke            # short low-rate E2E k6 smoke test
+make k6-heavy            # heavy E2E k6 load test
 ```
 
 Local endpoints:
@@ -204,7 +207,7 @@ bank-flow-transfer/    Transfer API, worker and shared module
 bank-flow-ledger/      Accounting ledger service
 bank-flow-balance/     Balance API, worker and shared module
 docs/                  Architecture notes and deployment learnings
-scripts/               Local orchestration and immudb setup helpers
+scripts/               Local orchestration, load tests and immudb setup helpers
 observability/         Prometheus, Grafana, Loki and Tempo configs
 kong-configs/          Gateway examples
 ```
@@ -218,6 +221,7 @@ Example:
 ```bash
 helm upgrade --install bank-flow-accounts bank-flow-accounts/k8s
 helm upgrade --install bank-flow-outboxer bank-flow-outboxer/k8s
+helm upgrade --install bank-flow-yield bank-flow-yield/k8s
 helm upgrade --install bank-flow-balance bank-flow-balance/k8s
 helm upgrade --install bank-flow-ledger bank-flow-ledger/k8s
 helm upgrade --install bank-flow-transfer bank-flow-transfer/k8s
@@ -244,6 +248,24 @@ docker compose -f docker-compose.observability.yml up -d
 | Prometheus | `http://localhost:9090` |
 | Loki | `http://localhost:3100` |
 | Tempo | `http://localhost:3200` |
+
+Deploy dashboards from each service-owned `dashboards/` directory:
+
+```bash
+scripts/grafana/deploy_dashboards.sh
+```
+
+Defaults:
+
+```text
+GRAFANA_URL=http://localhost:3000
+GRAFANA_USER=admin
+GRAFANA_PASSWORD=AuroraRomeu12@
+```
+
+You can use `GRAFANA_TOKEN` instead of user/password. Dashboards provisioned by
+Grafana files are left in place; the script deploys service-owned dashboards via
+the Grafana API.
 
 All Spring services expose:
 

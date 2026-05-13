@@ -21,4 +21,10 @@ public interface YieldRepository {
 	boolean markPosted(UUID accrualId);
 
 	boolean hasAccrualsFor(LocalDate referenceDate);
+
+	long countAccrualsByStatus(String status);
+
+	double oldestAccrualAgeSecondsByStatus(String status, long now);
+
+	long countCdiRates();
 }
