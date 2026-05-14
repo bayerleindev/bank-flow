@@ -33,6 +33,9 @@ metrics_generator:
     service_graphs:
       wait: 10s
       max_items: 10000
+      dimensions:
+        - messaging.system
+        - messaging.destination.name
     span_metrics:
       dimensions:
         - http.method

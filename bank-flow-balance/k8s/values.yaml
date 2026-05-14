@@ -56,7 +56,7 @@ components:
       minAvailable: 1
     image:
       repository: gbcamargo/bank-flow-balance-api
-      tag: 1.1.1
+      tag: 1.1.2
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
@@ -116,7 +116,7 @@ components:
       enabled: false
     image:
       repository: gbcamargo/bank-flow-balance-worker
-      tag: 1.1.1
+      tag: 1.1.2
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP

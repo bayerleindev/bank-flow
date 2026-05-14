@@ -13,6 +13,10 @@ metadata:
     {{ $key }}: {{ $value | quote }}
 {{- end }}
 spec:
+  jobLabel: prometheus-job
+  targetLabels:
+    - service
+    - stack
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Values.nameOverride }}

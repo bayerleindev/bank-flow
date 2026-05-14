@@ -5,6 +5,9 @@ metadata:
   labels:
     app.kubernetes.io/name: {{ .Values.nameOverride }}
     app.kubernetes.io/part-of: bank-flow
+    prometheus-job: {{ .Values.metrics.job | quote }}
+    service: {{ .Values.nameOverride }}
+    stack: bank-flow
 spec:
   type: {{ .Values.service.type }}
   selector:

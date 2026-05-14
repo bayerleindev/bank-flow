@@ -10,7 +10,26 @@ tempo:
           endpoint: 0.0.0.0:4318
   metricsGenerator:
     enabled: true
+    serviceGraphs:
+      prefix: "traces"
+    processor:
+      service_graphs: 
+        dimensions:
+          - messaging.system
+          - messaging.destination.name
+      span_metrics:
+        dimensions:
+          - http.method
+          - http.status_code
+          - messaging.system
+          - messaging.destination.name
     remoteWriteUrl: http://monitoring-kube-prometheus-prometheus.monitoring:9090/api/v1/write
+  overrides:
+    defaults:
+      metrics_generator:
+        processors:
+          - service-graphs
+          - span-metrics
 
 service:
   type: ClusterIP

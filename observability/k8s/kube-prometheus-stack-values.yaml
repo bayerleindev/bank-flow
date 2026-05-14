@@ -4,6 +4,8 @@ prometheus:
 
 grafana:
   sidecar:
+    datasources:
+      uid: Prometheus
     dashboards:
       enabled: true
       label: grafana_dashboard
@@ -36,4 +38,4 @@ grafana:
           spanEndTimeShift: "5m"
           filterByTraceID: true
         serviceMap:
-          datasourceUid: prometheus
+          datasourceUid: Prometheus

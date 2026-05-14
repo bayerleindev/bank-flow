@@ -15,7 +15,7 @@ pdb:
 
 image:
   repository: gbcamargo/bank-flow-accounts
-  tag: 1.1.1
+  tag: 1.1.2
   pullPolicy: IfNotPresent
 
 service:

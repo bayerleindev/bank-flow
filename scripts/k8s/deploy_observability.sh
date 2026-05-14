@@ -4,6 +4,35 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 NAMESPACE="${OBSERVABILITY_NAMESPACE:-monitoring}"
 
+apply_dashboard_configmap() {
+  local dashboard_file="$1"
+  local dashboard_name
+  dashboard_name="$(basename "${dashboard_file}" .json)"
+
+  kubectl create configmap "grafana-dashboard-${dashboard_name}" \
+    --namespace "${NAMESPACE}" \
+    --from-file="$(basename "${dashboard_file}")=${dashboard_file}" \
+    --dry-run=client \
+    -o yaml \
+    | kubectl label --local -f - \
+      grafana_dashboard=1 \
+      app.kubernetes.io/part-of=bank-flow \
+      -o yaml \
+    | kubectl apply -f -
+}
+
+apply_dashboard_configmaps() {
+  echo "Applying Grafana dashboard ConfigMaps..."
+
+  while IFS= read -r dashboard_file; do
+    apply_dashboard_configmap "${dashboard_file}"
+  done < <(find "${ROOT_DIR}/observability/grafana/dashboards" -maxdepth 1 -type f -name "*.json" | sort)
+
+  while IFS= read -r dashboard_file; do
+    apply_dashboard_configmap "${dashboard_file}"
+  done < <(find "${ROOT_DIR}" -path "*/dashboards/*.json" -not -path "*/observability/*" | sort)
+}
+
 echo "Creating namespace ${NAMESPACE} if needed..."
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | kubectl apply -f -
 
@@ -36,6 +65,8 @@ echo "Installing Tempo..."
 helm upgrade --install tempo grafana/tempo \
   --namespace "${NAMESPACE}" \
   -f "${ROOT_DIR}/observability/k8s/tempo-values.yaml"
+
+apply_dashboard_configmaps
 
 echo "Waiting for observability workloads..."
 kubectl rollout status -n "${NAMESPACE}" deployment/monitoring-grafana --timeout=180s

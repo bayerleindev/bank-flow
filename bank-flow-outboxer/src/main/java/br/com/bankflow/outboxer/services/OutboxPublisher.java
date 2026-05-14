@@ -73,35 +73,28 @@ public class OutboxPublisher {
 	}
 
 	private void publish(OutboxEvent event) {
-		try (BusinessCorrelation.Scope correlation = BusinessCorrelation.outboxEvent(
-				tracer,
-				event.aggregateType(),
-				event.aggregateId(),
-				event.eventType(),
-				event.eventKey()
-		)) {
-			Span span = publisherSpan(event);
-			if (span == null) {
-				publishRecord(event, null);
-				return;
-			}
-			try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
-				try (BusinessCorrelation.Scope publishCorrelation = BusinessCorrelation.outboxEvent(
-						tracer,
-						event.aggregateType(),
-						event.aggregateId(),
-						event.eventType(),
-						event.eventKey()
-				)) {
-					publishRecord(event, traceparent(span.context()));
-				}
-			} catch (RuntimeException exception) {
-				span.error(exception);
-				throw exception;
-			} finally {
-				span.end();
-			}
-		}
+        Span span = publisherSpan(event);
+        if (span == null) {
+            publishRecord(event, null);
+            return;
+        }
+
+        try (Tracer.SpanInScope ignored2 = tracer.withSpan(span)) {
+            try (BusinessCorrelation.Scope ignored3 = BusinessCorrelation.outboxEvent(
+                    tracer,
+                    event.aggregateType(),
+                    event.aggregateId(),
+                    event.eventType(),
+                    event.eventKey()
+            )) {
+                publishRecord(event, traceparent(span.context()));
+            }
+        } catch (RuntimeException exception) {
+            span.error(exception);
+            throw exception;
+        } finally {
+            span.end();
+        }
 	}
 
 	private void publishRecord(OutboxEvent event, String traceparent) {

@@ -69,7 +69,7 @@ components:
       minAvailable: 1
     image:
       repository: gbcamargo/bank-flow-transfer-api
-      tag: 1.1.1
+      tag: 1.1.2
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
@@ -130,7 +130,7 @@ components:
       maxUnavailable: 1
     image:
       repository: gbcamargo/bank-flow-transfer-worker
-      tag: 1.1.1
+      tag: 1.1.2
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
