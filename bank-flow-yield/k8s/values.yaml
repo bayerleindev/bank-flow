@@ -15,7 +15,7 @@ pdb:
 
 image:
   repository: gbcamargo/bank-flow-yield
-  tag: 1.1.0
+  tag: 1.1.1
   pullPolicy: IfNotPresent
 
 service:

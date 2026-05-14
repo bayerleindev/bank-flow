@@ -11,6 +11,13 @@ HELM ?= helm
 MINIKUBE ?= minikube
 REGISTRY ?= gbcamargo
 IMAGE_TAG ?= $(shell git rev-parse --short HEAD)
+MINIKUBE_MEMORY ?= 11000
+MINIKUBE_CPUS ?= 4
+MINIKUBE_DISK_SIZE ?= 30g
+MONITORING_NAMESPACE ?= monitoring
+KONG_NAMESPACE ?= kong
+KEDA_NAMESPACE ?= keda
+GATEWAY_API_VERSION ?= v1.4.1
 
 ACCOUNTS_IMAGE ?= bank-flow-accounts:local
 OUTBOXER_IMAGE ?= bank-flow-outboxer:local
@@ -51,6 +58,7 @@ help:
 	@printf "  make compose-logs          Follow all compose logs\n"
 	@printf "  make compose-ps            Show compose service status\n"
 	@printf "\nKubernetes using kubectl:\n"
+	@printf "  make k8s-cluster-setup     Start Minikube and install KEDA, observability and Kong\n"
 	@printf "  make k8s-render            Render Helm charts to $(K8S_RENDER_DIR)\n"
 	@printf "  make k8s-apply             Apply rendered manifests with kubectl\n"
 	@printf "  make k8s-deploy            Build images, load to minikube, render and apply\n"
@@ -58,6 +66,7 @@ help:
 	@printf "  make k8s-status            Show pods, services, hpa, pdb and scaledobjects\n"
 	@printf "  make k8s-delete            Delete rendered manifests\n"
 	@printf "  make k8s-release IMAGE_TAG=1.0.2 REGISTRY=gbcamargo\n"
+	@printf "  make k8s-cluster-setup MINIKUBE_MEMORY=11000 MINIKUBE_CPUS=4 MINIKUBE_DISK_SIZE=30g\n"
 	@printf "\nQuality:\n"
 	@printf "  make test                  Run all Gradle tests\n"
 	@printf "  make helm-lint             Lint all Helm charts\n"
@@ -219,6 +228,44 @@ k6-heavy:
 .PHONY: k8s-namespace
 k8s-namespace:
 	$(KUBECTL) create namespace $(K8S_NAMESPACE) --dry-run=client -o yaml | $(KUBECTL) apply -f -
+
+.PHONY: minikube-start
+minikube-start:
+	$(MINIKUBE) start --memory=$(MINIKUBE_MEMORY) --cpus=$(MINIKUBE_CPUS) --disk-size=$(MINIKUBE_DISK_SIZE)
+
+.PHONY: helm-repos
+helm-repos:
+	$(HELM) repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	$(HELM) repo add grafana https://grafana.github.io/helm-charts
+	$(HELM) repo add kong https://charts.konghq.com
+	$(HELM) repo add kedacore https://kedacore.github.io/charts
+	$(HELM) repo update
+
+.PHONY: k8s-keda-install
+k8s-keda-install: helm-repos
+	$(HELM) upgrade --install keda kedacore/keda --namespace $(KEDA_NAMESPACE) --create-namespace
+	$(KUBECTL) rollout status deployment/keda-operator -n $(KEDA_NAMESPACE) --timeout=180s
+	$(KUBECTL) rollout status deployment/keda-operator-metrics-apiserver -n $(KEDA_NAMESPACE) --timeout=180s
+	$(KUBECTL) rollout status deployment/keda-admission-webhooks -n $(KEDA_NAMESPACE) --timeout=180s
+
+.PHONY: k8s-observability-install
+k8s-observability-install: helm-repos
+	OBSERVABILITY_NAMESPACE=$(MONITORING_NAMESPACE) scripts/k8s/deploy_observability.sh
+
+.PHONY: k8s-kong-install
+k8s-kong-install: helm-repos k8s-namespace
+	$(KUBECTL) apply -f https://github.com/kubernetes-sigs/gateway-api/releases/download/$(GATEWAY_API_VERSION)/standard-install.yaml
+	$(KUBECTL) create namespace $(KONG_NAMESPACE) --dry-run=client -o yaml | $(KUBECTL) apply -f -
+	$(HELM) upgrade --install kong kong/ingress --namespace $(KONG_NAMESPACE) --create-namespace
+	$(KUBECTL) rollout status deployment/kong-controller -n $(KONG_NAMESPACE) --timeout=180s
+	$(KUBECTL) rollout status deployment/kong-gateway -n $(KONG_NAMESPACE) --timeout=180s
+	$(KUBECTL) apply -f kong-configs/gateway-class.yaml
+	$(KUBECTL) apply -f kong-configs/rate-limiting.yaml
+	$(KUBECTL) apply -f kong-configs/security-plugins.yaml
+	$(KUBECTL) apply -f kong-configs/http-routes.yaml
+
+.PHONY: k8s-cluster-setup
+k8s-cluster-setup: minikube-start k8s-namespace k8s-keda-install k8s-observability-install k8s-kong-install
 
 .PHONY: k8s-render
 k8s-render:
