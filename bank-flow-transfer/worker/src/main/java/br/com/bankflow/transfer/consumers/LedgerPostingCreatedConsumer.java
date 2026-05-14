@@ -1,6 +1,7 @@
 package br.com.bankflow.transfer.consumers;
 
 import br.com.bankflow.transfer.domain.LedgerPostingCreatedEvent;
+import br.com.bankflow.transfer.observability.KafkaConsumerTracing;
 import br.com.bankflow.transfer.observability.TransferBusinessMetrics;
 import br.com.bankflow.transfer.services.TransferOrchestrationService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -16,15 +17,18 @@ public class LedgerPostingCreatedConsumer {
 	private final ObjectMapper objectMapper;
 	private final TransferOrchestrationService transferOrchestrationService;
 	private final TransferBusinessMetrics transferBusinessMetrics;
+	private final KafkaConsumerTracing kafkaConsumerTracing;
 
 	public LedgerPostingCreatedConsumer(
 			ObjectMapper objectMapper,
 			TransferOrchestrationService transferOrchestrationService,
-			TransferBusinessMetrics transferBusinessMetrics
+			TransferBusinessMetrics transferBusinessMetrics,
+			KafkaConsumerTracing kafkaConsumerTracing
 	) {
 		this.objectMapper = objectMapper;
 		this.transferOrchestrationService = transferOrchestrationService;
 		this.transferBusinessMetrics = transferBusinessMetrics;
+		this.kafkaConsumerTracing = kafkaConsumerTracing;
 	}
 
 	@KafkaListener(
@@ -34,16 +38,18 @@ public class LedgerPostingCreatedConsumer {
 			autoStartup = "${spring.kafka.listener.auto-startup:true}"
 	)
 	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) throws Exception {
-		transferBusinessMetrics.recordTraceContext("ledger_posting_consume", traceContextLabel(record));
-		LedgerPostingCreatedEvent event = objectMapper.readValue(record.value(), LedgerPostingCreatedEvent.class);
-		event.validate();
-		if (!event.isTransferPosting()) {
+		kafkaConsumerTracing.consume(record, "ledger.posting_created", () -> {
+			transferBusinessMetrics.recordTraceContext("ledger_posting_consume", traceContextLabel(record));
+			LedgerPostingCreatedEvent event = objectMapper.readValue(record.value(), LedgerPostingCreatedEvent.class);
+			event.validate();
+			if (!event.isTransferPosting()) {
+				acknowledgment.acknowledge();
+				return;
+			}
+			validatePartitionKey(record.key(), event);
+			transferOrchestrationService.completeAfterLedgerPosting(event);
 			acknowledgment.acknowledge();
-			return;
-		}
-		validatePartitionKey(record.key(), event);
-		transferOrchestrationService.completeAfterLedgerPosting(event);
-		acknowledgment.acknowledge();
+		});
 	}
 
 	private String traceContextLabel(ConsumerRecord<String, String> record) {

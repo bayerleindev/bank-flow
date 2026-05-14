@@ -1,0 +1,312 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "reqps"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 0},
+      "id": 1,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "sum by (service) (rate(http_server_requests_seconds_count{job=\"bank-flow-services\",service=~\"$service\",uri!~\"/actuator.*\"}[$__rate_interval]))",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "title": "HTTP - Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 0},
+      "id": 2,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "sum by (service) (rate(http_server_requests_seconds_count{job=\"bank-flow-services\",service=~\"$service\",status=~\"4..|5..\",uri!~\"/actuator.*\"}[$__rate_interval])) / clamp_min(sum by (service) (rate(http_server_requests_seconds_count{job=\"bank-flow-services\",service=~\"$service\",uri!~\"/actuator.*\"}[$__rate_interval])), 0.001)",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "title": "HTTP - Error Ratio",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 0},
+      "id": 3,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, service) (rate(http_server_requests_seconds_bucket{job=\"bank-flow-services\",service=~\"$service\",uri!~\"/actuator.*\"}[$__rate_interval])))",
+          "legendFormat": "p95 {{service}}"
+        }
+      ],
+      "title": "HTTP - Latency p95",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+      "id": 4,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "sum by (service, messaging_destination_name) (rate(spring_kafka_template_seconds_count{service=~\"$service\",messaging_system=\"kafka\"}[$__rate_interval])) or sum by (service, topic) (rate(kafka_producer_topic_record_send_total{service=~\"$service\"}[$__rate_interval]))",
+          "legendFormat": "{{service}} {{messaging_destination_name}}{{topic}}"
+        }
+      ],
+      "title": "Kafka - Producer Send Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 8},
+      "id": 5,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "sum by (service, messaging_kafka_consumer_group, messaging_source_name) (rate(spring_kafka_listener_seconds_count{service=~\"$service\",messaging_system=\"kafka\"}[$__rate_interval])) or sum by (service, result, name) (rate(spring_kafka_listener_seconds_count{service=~\"$service\",messaging_system!=\"kafka\"}[$__rate_interval]))",
+          "legendFormat": "{{service}} {{messaging_kafka_consumer_group}} {{messaging_source_name}}{{name}} {{result}}"
+        }
+      ],
+      "title": "Kafka - Consumer Processing Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 8},
+      "id": 6,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag_sum{consumergroup=~\"$service\"}) or sum by (service, group_id, topic) (kafka_consumer_lag{service=~\"$service\"})",
+          "legendFormat": "{{service}}{{consumergroup}}{{group_id}} {{topic}}"
+        }
+      ],
+      "title": "Kafka - Consumer Lag",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 16},
+      "id": 7,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "sum by (service, source_topic, dlq_topic) (kafka_dlq_records_total{service=~\"$service\"}) or vector(0)",
+          "legendFormat": "{{service}} {{source_topic}} -> {{dlq_topic}}"
+        }
+      ],
+      "title": "Kafka - DLQ Records",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 16},
+      "id": 8,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "sum by (service) (outbox_pending_events{service=~\"$service\"})",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "title": "Outbox - Pending Events",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 16},
+      "id": 9,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "max by (service) (outbox_oldest_pending_event_age_seconds{service=~\"$service\"})",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "title": "Outbox - Oldest Pending Age",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 24},
+      "id": 10,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "sum by (service, topic, event_type) (rate(outbox_publish_failures_total{service=~\"$service\"}[$__rate_interval])) or vector(0)",
+          "legendFormat": "{{service}} {{topic}} {{event_type}}"
+        }
+      ],
+      "title": "Outbox - Publish Failures",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 24},
+      "id": 11,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "max by (service) (hikaricp_connections_active{service=~\"$service\"} / clamp_min(hikaricp_connections_max{service=~\"$service\"}, 1))",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "title": "Database - Hikari Pool Saturation",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 24},
+      "id": 12,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "sum by (service) (rate(hikaricp_connections_acquire_seconds_sum{service=~\"$service\"}[$__rate_interval])) / clamp_min(sum by (service) (rate(hikaricp_connections_acquire_seconds_count{service=~\"$service\"}[$__rate_interval])), 0.001)",
+          "legendFormat": "hikari acquire {{service}}"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, op) (rate(immudb_query_latency_seconds_bucket[$__rate_interval])))",
+          "legendFormat": "immudb p95 {{op}}"
+        }
+      ],
+      "title": "Database - Acquire / Query Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "ops"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+      "id": 13,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {"expr": "sum(rate(transfers_created_total[$__rate_interval])) or sum(rate(transfers_total[$__rate_interval])) or vector(0)", "legendFormat": "transfer created"},
+        {"expr": "sum(rate(transfer_psp_confirmed_total[$__rate_interval])) or vector(0)", "legendFormat": "psp confirmed"},
+        {"expr": "sum(rate(ledger_posting_created_total{entry_type=\"TRANSFER\"}[$__rate_interval])) or vector(0)", "legendFormat": "ledger transfer posted"},
+        {"expr": "sum(rate(bank_flow_balance_projection_correlations_total{result=\"projected\"}[$__rate_interval])) or vector(0)", "legendFormat": "balance projected"},
+        {"expr": "sum(rate(transfers_completed_total[$__rate_interval])) or vector(0)", "legendFormat": "transfer completed"}
+      ],
+      "title": "Business - Transfer -> Ledger -> Balance Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+      "id": 14,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(transfer_end_to_end_latency_seconds_bucket[$__rate_interval])) by (le))",
+          "legendFormat": "transfer e2e p95"
+        },
+        {
+          "expr": "sum by (entry_type) (rate(bank_flow_balance_projection_end_to_end_latency_seconds_sum[$__rate_interval])) / clamp_min(sum by (entry_type) (rate(bank_flow_balance_projection_end_to_end_latency_seconds_count[$__rate_interval])), 0.001)",
+          "legendFormat": "balance projection {{entry_type}} avg"
+        }
+      ],
+      "title": "Business - End-to-End Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "percentunit"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 40},
+      "id": 15,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "max by (service) (process_cpu_usage{service=~\"$service\"}) or max by (service) (system_cpu_usage{service=~\"$service\"})",
+          "legendFormat": "{{service}}"
+        }
+      ],
+      "title": "JVM - CPU Usage",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 40},
+      "id": 16,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "sum by (service, area) (jvm_memory_used_bytes{service=~\"$service\"})",
+          "legendFormat": "{{service}} {{area}}"
+        }
+      ],
+      "title": "JVM - Memory Used",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "Prometheus"},
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []},
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 40},
+      "id": 17,
+      "options": {"legend": {"calcs": ["lastNotNull"], "displayMode": "table", "placement": "bottom", "showLegend": true}, "tooltip": {"mode": "multi", "sort": "desc"}},
+      "targets": [
+        {
+          "expr": "sum by (service) (rate(jvm_gc_pause_seconds_sum{service=~\"$service\"}[$__rate_interval])) / clamp_min(sum by (service) (rate(jvm_gc_pause_seconds_count{service=~\"$service\"}[$__rate_interval])), 0.001)",
+          "legendFormat": "gc avg {{service}}"
+        },
+        {
+          "expr": "max by (service) (jvm_threads_live_threads{service=~\"$service\"})",
+          "legendFormat": "threads {{service}}"
+        }
+      ],
+      "title": "JVM - GC Pause / Threads",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 40,
+  "tags": ["bank-flow", "layers", "operations"],
+  "templating": {
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {"selected": true, "text": "All", "value": ".*"},
+        "datasource": {"type": "prometheus", "uid": "Prometheus"},
+        "definition": "label_values(up{job=\"bank-flow-services\", service!=\"\"}, service)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Service",
+        "multi": true,
+        "name": "service",
+        "options": [],
+        "query": {"query": "label_values(up{job=\"bank-flow-services\", service!=\"\"}, service)", "refId": "PrometheusVariableQueryEditor-ServiceVariableQuery"},
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
+  "time": {"from": "now-1h", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Bank Flow Layered Operations",
+  "uid": "bank-flow-layered-operations",
+  "version": 1,
+  "weekStart": ""
+}

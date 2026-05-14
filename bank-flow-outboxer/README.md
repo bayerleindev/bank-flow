@@ -41,6 +41,8 @@ Important columns:
 | `topic` | Kafka topic. |
 | `event_key` | Kafka message key. |
 | `payload` | JSON payload. |
+| `traceparent` | W3C trace context propagated from the producer service. |
+| `tracestate` | Optional W3C trace state propagated from the producer service. |
 | `status` | `PENDING`, `PROCESSING`, `PUBLISHED` or `FAILED`. |
 | `attempts` | Publish attempt count. |
 | `last_error` | Last publish error, truncated. |
@@ -65,8 +67,27 @@ For each claimed event, the outboxer publishes:
 - Header `event_name`: `event_type`
 - Header `content_type`: `application/json`
 - Header `producer_service`: `producer_service`
+- Header `traceparent`: stored trace context, when present
+- Header `tracestate`: stored trace state, when present
 
 Failed sends are retried until `OUTBOX_PUBLISHER_MAX_ATTEMPTS` is reached.
+
+## Observability
+
+The publisher creates explicit Kafka publish spans named by topic and event type, for example:
+
+```text
+ledger-movements publish ledger.transfer_posted
+```
+
+Important span attributes include:
+
+- `messaging.destination.name`
+- `messaging.operation`
+- `messaging.kafka.message.key`
+- `event.name`
+
+Outbox metrics used by dashboards include pending events, oldest pending event age, published events and publish failures.
 
 ## Configuration
 
@@ -120,3 +141,4 @@ docker compose exec -T db psql -U myuser -d bank_flow \
 - Avoid producer-specific branching in this service unless the event contract truly requires it.
 - Add tests for claim, retry and failure behavior when changing repository or publisher logic.
 - Keep producer services responsible for writing durable outbox rows in the same transaction as business state.
+- Preserve trace context propagation from outbox rows into Kafka headers.

@@ -603,7 +603,7 @@
       },
       "targets": [
         {
-          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag)",
+          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag_sum)",
           "legendFormat": "{{consumergroup}} {{topic}}"
         },
         {

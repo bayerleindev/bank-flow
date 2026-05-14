@@ -2,6 +2,7 @@ package br.com.bankflow.ledger.consumers;
 
 import br.com.bankflow.ledger.domain.AccountCreatedEvent;
 import br.com.bankflow.ledger.domain.AccountCreatedEventHandler;
+import br.com.bankflow.ledger.observability.KafkaConsumerTracing;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
@@ -18,10 +19,16 @@ public class AccountCreatedConsumer {
 
 	private final ObjectMapper objectMapper;
 	private final AccountCreatedEventHandler handler;
+	private final KafkaConsumerTracing kafkaConsumerTracing;
 
-	public AccountCreatedConsumer(ObjectMapper objectMapper, AccountCreatedEventHandler handler) {
+	public AccountCreatedConsumer(
+			ObjectMapper objectMapper,
+			AccountCreatedEventHandler handler,
+			KafkaConsumerTracing kafkaConsumerTracing
+	) {
 		this.objectMapper = objectMapper;
 		this.handler = handler;
+		this.kafkaConsumerTracing = kafkaConsumerTracing;
 	}
 
 	@KafkaListener(
@@ -31,19 +38,21 @@ public class AccountCreatedConsumer {
 			autoStartup = "${spring.kafka.listener.auto-startup:true}"
 	)
 	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) throws Exception {
-		AccountCreatedEvent event = objectMapper.readValue(record.value(), AccountCreatedEvent.class);
-		validatePartitionKey(record.key(), event);
+		kafkaConsumerTracing.consume(record, "account.created", () -> {
+			AccountCreatedEvent event = objectMapper.readValue(record.value(), AccountCreatedEvent.class);
+			validatePartitionKey(record.key(), event);
 
-		handler.handle(event);
-		acknowledgment.acknowledge();
+			handler.handle(event);
+			acknowledgment.acknowledge();
 
-		log.debug(
-				"account-created consumed topic={} partition={} offset={} digitalAccountId={}",
-				record.topic(),
-				record.partition(),
-				record.offset(),
-				event.digitalAccountId()
-		);
+			log.debug(
+					"account-created consumed topic={} partition={} offset={} digitalAccountId={}",
+					record.topic(),
+					record.partition(),
+					record.offset(),
+					event.digitalAccountId()
+			);
+		});
 	}
 
 	private void validatePartitionKey(String key, AccountCreatedEvent event) {

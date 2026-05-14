@@ -1,6 +1,7 @@
 package br.com.bankflow.ledger.consumers;
 
 import br.com.bankflow.ledger.domain.TransferPostedEvent;
+import br.com.bankflow.ledger.observability.KafkaConsumerTracing;
 import br.com.bankflow.ledger.observability.KafkaTraceContext;
 import br.com.bankflow.ledger.observability.LedgerBusinessMetrics;
 import br.com.bankflow.ledger.services.LedgerMovementService;
@@ -21,15 +22,18 @@ public class LedgerMovementConsumer {
 	private final ObjectMapper objectMapper;
 	private final LedgerMovementService ledgerMovementService;
 	private final LedgerBusinessMetrics ledgerBusinessMetrics;
+	private final KafkaConsumerTracing kafkaConsumerTracing;
 
 	public LedgerMovementConsumer(
 			ObjectMapper objectMapper,
 			LedgerMovementService ledgerMovementService,
-			LedgerBusinessMetrics ledgerBusinessMetrics
+			LedgerBusinessMetrics ledgerBusinessMetrics,
+			KafkaConsumerTracing kafkaConsumerTracing
 	) {
 		this.objectMapper = objectMapper;
 		this.ledgerMovementService = ledgerMovementService;
 		this.ledgerBusinessMetrics = ledgerBusinessMetrics;
+		this.kafkaConsumerTracing = kafkaConsumerTracing;
 	}
 
 	@KafkaListener(
@@ -40,21 +44,23 @@ public class LedgerMovementConsumer {
 	)
 	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) throws Exception {
 		KafkaTraceContext.setFrom(record.headers());
-		ledgerBusinessMetrics.recordKafkaTraceContext(record.topic(), traceContextLabel(KafkaTraceContext.traceparent()));
 		try {
-			TransferPostedEvent event = objectMapper.readValue(record.value(), TransferPostedEvent.class);
-			validatePartitionKey(record.key(), event);
+			kafkaConsumerTracing.consume(record, "ledger.transfer_posted", () -> {
+				ledgerBusinessMetrics.recordKafkaTraceContext(record.topic(), traceContextLabel(KafkaTraceContext.traceparent()));
+				TransferPostedEvent event = objectMapper.readValue(record.value(), TransferPostedEvent.class);
+				validatePartitionKey(record.key(), event);
 
-			ledgerMovementService.postTransfer(event);
-			acknowledgment.acknowledge();
+				ledgerMovementService.postTransfer(event);
+				acknowledgment.acknowledge();
 
-			log.debug(
-					"ledger-movements consumed topic={} partition={} offset={} transferId={}",
-					record.topic(),
-					record.partition(),
-					record.offset(),
-					event.transferId()
-			);
+				log.debug(
+						"ledger-movements consumed topic={} partition={} offset={} transferId={}",
+						record.topic(),
+						record.partition(),
+						record.offset(),
+						event.transferId()
+				);
+			});
 		} finally {
 			KafkaTraceContext.clear();
 		}

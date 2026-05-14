@@ -148,7 +148,8 @@ Payload:
 }
 ```
 
-The worker consumes `ledger-posting-created` with key `external_id`.
+The worker consumes `ledger-posting-created` with key `external_id` in the
+`bank-flow-transfer-worker` consumer group.
 
 ## Configuration
 
@@ -167,6 +168,12 @@ The worker consumes `ledger-posting-created` with key `external_id`.
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | API and worker |
 
 The API and worker set `bank-flow.outbox.producer-service=bank-flow-transfer`.
+
+## Observability
+
+Transfer trace context is persisted on transfer rows and outbox rows so the flow can remain connected across PSP webhooks, outbox publishing and Kafka consumers. The worker creates explicit Kafka consume spans named by topic and event type, with consumer group and message metadata as span attributes.
+
+Business metrics used by dashboards include transfer status counts, transfer end-to-end latency, PSP confirmations and completed or failed transfer totals.
 
 ## Run Locally
 
@@ -217,3 +224,4 @@ cd bank-flow-transfer
 - Keep Kafka publishing out of this service; write outbox rows only.
 - Add tests for status transitions and idempotency.
 - Update event payload examples when ledger command contracts change.
+- Preserve stored trace context across transfer creation, PSP webhook handling and outbox writes.

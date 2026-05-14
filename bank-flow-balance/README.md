@@ -91,6 +91,10 @@ Topic: `ledger-posting-created`
 
 Key: `external_id`
 
+The worker consumes this topic in the `bank-flow-balance-worker` consumer group.
+Consumer spans include topic, event name, consumer group, key, partition and
+offset when available.
+
 The worker expects posted entries with balanced ledger lines. Example line:
 
 ```json
@@ -135,6 +139,10 @@ Main tables:
 | `KAFKA_HEALTH_TIMEOUT_MS` | `2000` | Worker |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | API and worker |
 
+## Observability
+
+The API and worker expose actuator health and Prometheus endpoints. The worker emits projection metrics used by the dashboards, including projection processing rate, projection failures, projection lag and end-to-end projection latency.
+
 ## Run Locally
 
 ```bash
@@ -168,3 +176,4 @@ cd bank-flow-balance
 - Keep this service as a projection and hold service, not an accounting engine.
 - Add tests for projection idempotency and hold state transitions.
 - Keep public API examples aligned with controller DTOs.
+- Preserve idempotent Kafka processing and trace context when changing the worker.

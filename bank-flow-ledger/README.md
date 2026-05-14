@@ -41,6 +41,9 @@ There is no public business HTTP API. The service exposes operational endpoints:
 | --- | --- | --- |
 | `ledger-posting-created` | `external_id` | Notify projections and workflows that a posting exists. |
 
+Published records include Kafka headers for `event_name`, `entry_type`,
+`content_type`, `producer_service`, and W3C trace context when available.
+
 ## Ledger Movement Contract
 
 ```json
@@ -149,6 +152,17 @@ scripts/immudb/003_seed_interest_expense_account.sql
 | `INTEREST_EXPENSE_DIGITAL_ACCOUNT_ID` | `00000000-0000-0000-0000-000000000200` | Internal account debited by CDI yield. |
 | `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Trace export endpoint. |
 
+## Observability
+
+Kafka consumers create explicit spans named by topic and event type, for example:
+
+```text
+ledger-movements consume ledger.transfer_posted
+yield-accruals consume yield.accrual_created
+```
+
+Consumer spans include the topic, event name, consumer group, key, partition and offset when the Kafka record exposes them. The producer span for `ledger-posting-created` includes the topic, event type and message key.
+
 ## Run Locally
 
 ```bash
@@ -170,3 +184,4 @@ cd bank-flow-ledger
 - Do not leak internal `account_id` ownership into other services.
 - Add tests for idempotency when changing consumer behavior.
 - Update event examples when Kafka contracts change.
+- Preserve Kafka trace context and consumer span labels when changing listener code.

@@ -18,6 +18,20 @@ Current implemented scope:
 | `yield-accruals` | `digital_account_id` | CDI yield accrual consumed by ledger. |
 | `ledger-posting-created` | `external_id` | Ledger confirmation consumed to mark yield accruals as `POSTED`. |
 
+`yield-accruals` is written through the centralized outbox and published by
+`bank-flow-outboxer`. The service consumes `ledger-posting-created` to close the
+local accrual state after ledger confirmation.
+
+## Runtime API
+
+Default port: `8089`.
+
+| Method | Path | Description |
+| --- | --- | --- |
+| `POST` | `/yield/accruals/previous-day` | Trigger the D-1 accrual flow manually. |
+| `GET` | `/actuator/health` | Health endpoint. |
+| `GET` | `/actuator/prometheus` | Prometheus metrics. |
+
 ## Table
 
 Table: `yield.daily_cdi_yield_rates`
@@ -92,6 +106,8 @@ Response:
 | `YIELD_ACCRUAL_CRON` | `0 0 3 * * *` | Schedule for the D-1 close. |
 | `YIELD_ZONE_ID` | `America/Sao_Paulo` | Time zone used to calculate D-1. |
 | `KAFKA_BOOTSTRAP_SERVERS` | `localhost:9092` | Kafka bootstrap servers. |
+| `KAFKA_CONSUMER_GROUP_ID` | `bank-flow-yield` | Consumer group for ledger confirmations. |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` | `http://localhost:4318/v1/traces` | Trace export endpoint. |
 
 ## Run
 
@@ -107,3 +123,10 @@ cd bank-flow-yield
 cd bank-flow-yield
 ./gradlew test
 ```
+
+## Contributing Notes
+
+- Keep CDI source handling deterministic and tested.
+- Keep Kafka publication centralized through the outbox.
+- Update table and event examples when accrual contracts change.
+- Preserve idempotency by `accrual_id` when changing ledger confirmation handling.

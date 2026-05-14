@@ -29,8 +29,7 @@ scrape_configs:
           level:
           logger:
           trace_id:
-      - output:
-          source: message
+          span_id:
 
   - job_name: docker
     docker_sd_configs:
@@ -57,5 +56,4 @@ scrape_configs:
           level:
           logger:
           trace_id:
-      - output:
-          source: message
+          span_id:

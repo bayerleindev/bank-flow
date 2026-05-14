@@ -19,6 +19,8 @@ datasources:
           matcherRegex: '"traceId":"([a-f0-9]+)"'
           datasourceUid: tempo
           url: "$${__value.raw}"
+        - name: span_id
+          matcherRegex: '"spanId":"([a-f0-9]+)"'
 
   - name: Tempo
     uid: tempo

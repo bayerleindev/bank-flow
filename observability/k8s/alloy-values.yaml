@@ -69,11 +69,8 @@ alloy:
             level       = "",
             logger      = "",
             trace_id    = "",
+            span_id     = "",
           }
-        }
-
-        stage.output {
-          source = "message"
         }
 
         forward_to = [loki.write.default.receiver]

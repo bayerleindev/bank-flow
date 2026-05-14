@@ -5,7 +5,32 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "links": [],
+  "links": [
+    {
+      "asDropdown": false,
+      "icon": "bolt",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Tempo traces by service/endpoint",
+      "tooltip": "Open Tempo Explore filtered by the selected service and endpoint.",
+      "type": "link",
+      "url": "/explore?orgId=1&left={\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"queryType\":\"traceql\",\"query\":\"{ resource.service.name =~ \\\"$service\\\" && (span.http.route =~ \\\"$endpoint\\\" || span.url.path =~ \\\"$endpoint\\\" || name =~ \\\".*$endpoint.*\\\") }\"}],\"range\":{\"from\":\"$__from\",\"to\":\"$__to\"}}"
+    },
+    {
+      "asDropdown": false,
+      "icon": "search",
+      "includeVars": true,
+      "keepTime": true,
+      "tags": [],
+      "targetBlank": true,
+      "title": "Tempo service traces",
+      "tooltip": "Open Tempo Explore filtered only by the selected service.",
+      "type": "link",
+      "url": "/explore?orgId=1&left={\"datasource\":\"tempo\",\"queries\":[{\"refId\":\"A\",\"queryType\":\"traceql\",\"query\":\"{ resource.service.name =~ \\\"$service\\\" }\"}],\"range\":{\"from\":\"$__from\",\"to\":\"$__to\"}}"
+    }
+  ],
   "liveNow": false,
   "panels": [
     {
@@ -473,8 +498,8 @@
           "legendFormat": "DLQ {{source_topic}} -> {{dlq_topic}}"
         },
         {
-          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag) or sum by (group, topic) (kafka_consumer_lag) or vector(0)",
-          "legendFormat": "lag {{consumergroup}}{{group}} {{topic}}"
+          "expr": "sum by (consumergroup, topic) (kafka_consumergroup_lag_sum) or sum by (service, group_id) (kafka_consumer_lag) or on() vector(0)",
+          "legendFormat": "lag {{consumergroup}}{{service}} {{topic}}{{group_id}}"
         },
         {
           "expr": "sum by (service) (outbox_pending_events) or vector(0)",
@@ -604,7 +629,66 @@
   "refresh": "10s",
   "schemaVersion": 40,
   "tags": ["bank-flow", "tracing", "e2e"],
-  "templating": {"list": []},
+  "templating": {
+    "list": [
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": ".*"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "definition": "label_values(up{job=\"bank-flow-services\", service!=\"\"}, service)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Service",
+        "multi": false,
+        "name": "service",
+        "options": [],
+        "query": {
+          "query": "label_values(up{job=\"bank-flow-services\", service!=\"\"}, service)",
+          "refId": "PrometheusVariableQueryEditor-VariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      },
+      {
+        "allValue": ".*",
+        "current": {
+          "selected": true,
+          "text": "All",
+          "value": ".*"
+        },
+        "datasource": {
+          "type": "prometheus",
+          "uid": "Prometheus"
+        },
+        "definition": "label_values(http_server_requests_seconds_count{job=\"bank-flow-services\", service=~\"$service\", uri!~\"/actuator.*\"}, uri)",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Endpoint",
+        "multi": false,
+        "name": "endpoint",
+        "options": [],
+        "query": {
+          "query": "label_values(http_server_requests_seconds_count{job=\"bank-flow-services\", service=~\"$service\", uri!~\"/actuator.*\"}, uri)",
+          "refId": "PrometheusVariableQueryEditor-EndpointVariableQuery"
+        },
+        "refresh": 1,
+        "regex": "",
+        "skipUrlSync": false,
+        "sort": 1,
+        "type": "query"
+      }
+    ]
+  },
   "time": {"from": "now-1h", "to": "now"},
   "timepicker": {},
   "timezone": "browser",

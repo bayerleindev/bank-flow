@@ -8,7 +8,9 @@ The project is intended to be open source. New contributors should be able to ru
 
 This is not production banking software. It is a learning and architecture project. Treat APIs, schemas and event contracts as evolving unless they are explicitly documented as stable.
 
-Before publishing this repository publicly, add a license file and any project governance files you want to enforce, such as `CONTRIBUTING.md` and `CODE_OF_CONDUCT.md`.
+The repository is structured to accept external contributions. Start with [CONTRIBUTING.md](CONTRIBUTING.md), keep pull requests focused, and update service READMEs whenever API, event, setup or operations behavior changes.
+
+License note: choose and add a project license before a public release if this repository will be distributed as open source.
 
 ## Services
 
@@ -267,6 +269,19 @@ You can use `GRAFANA_TOKEN` instead of user/password. Dashboards provisioned by
 Grafana files are left in place; the script deploys service-owned dashboards via
 the Grafana API.
 
+The global dashboards are intentionally split by operating question:
+
+| Dashboard | Purpose |
+| --- | --- |
+| `Bank Flow Service Health` | Target availability, health probes, uptime and restarts. |
+| `Bank Flow Golden Signals` | HTTP request rate, error ratio, latency, JVM and database pool signals by service. |
+| `Bank Flow Layered Operations` | Layer view for HTTP, Kafka, outbox, database, business flow and JVM infrastructure. |
+| `Bank Flow E2E Flow` | Business flow from transfer to ledger to balance. |
+| `Bank Flow E2E Tracing` | Trace context coverage across HTTP, outbox and Kafka consumers. |
+| `Bank Flow Service Dependencies` | Service graph metrics from Tempo, including service to service calls, latency, errors and throughput. |
+
+Service-owned dashboards live under each `bank-flow-*/dashboards/` directory and are meant for drill-down after a global dashboard identifies the affected service.
+
 All Spring services expose:
 
 ```text
@@ -374,32 +389,34 @@ Notes:
 - `tracestate` is accepted, stored and republished when present. The current
   Micrometer API used by the services does not expose a generated `tracestate`,
   so the critical propagation field is `traceparent`.
+- Logs include `trace_id` and `span_id` when a span is active. Grafana Loki is
+  configured with derived fields so contributors can jump from a log line to the
+  matching Tempo trace.
+- Kafka publish and consume spans are named by topic and event type where the
+  code has explicit instrumentation. Consumer spans also include the consumer
+  group and message metadata such as key, partition and offset when available.
 
 ## Contributing
 
-Contributions are welcome. Keep pull requests small, explain the behavior change, and include tests for non-trivial logic.
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
 
-Recommended workflow:
+Fast path for most changes:
 
-1. Create or pick an issue.
-2. Run the affected service locally.
+1. Run `make compose-up-infra`.
+2. Start only the services involved in your change.
 3. Add or update tests close to the changed code.
-4. Run the relevant Gradle test task.
+4. Run the affected Gradle tests, or `make test` for cross-service changes.
 5. Update README or docs when contracts, setup or operations change.
-
-Engineering conventions:
-
-- Preserve service ownership boundaries.
-- Keep public contracts based on `digital_account_id`.
-- Keep outbox publishing centralized in `bank-flow-outboxer`.
-- Prefer idempotent consumers and deterministic keys.
-- Do not mix unrelated refactors into behavior changes.
 
 ## More Documentation
 
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- [SECURITY.md](SECURITY.md)
 - [docs/fluxos-regras-validacoes.md](docs/fluxos-regras-validacoes.md)
 - [bank-flow-accounts/README.md](bank-flow-accounts/README.md)
 - [bank-flow-outboxer/README.md](bank-flow-outboxer/README.md)
 - [bank-flow-transfer/README.md](bank-flow-transfer/README.md)
 - [bank-flow-ledger/README.md](bank-flow-ledger/README.md)
 - [bank-flow-balance/README.md](bank-flow-balance/README.md)
+- [bank-flow-yield/README.md](bank-flow-yield/README.md)

@@ -1,6 +1,7 @@
 package br.com.bankflow.ledger.consumers;
 
 import br.com.bankflow.ledger.domain.LedgerReversalRequestedEvent;
+import br.com.bankflow.ledger.observability.KafkaConsumerTracing;
 import br.com.bankflow.ledger.services.LedgerReversalService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -16,10 +17,16 @@ public class LedgerReversalConsumer {
 
 	private final ObjectMapper objectMapper;
 	private final LedgerReversalService ledgerReversalService;
+	private final KafkaConsumerTracing kafkaConsumerTracing;
 
-	public LedgerReversalConsumer(ObjectMapper objectMapper, LedgerReversalService ledgerReversalService) {
+	public LedgerReversalConsumer(
+			ObjectMapper objectMapper,
+			LedgerReversalService ledgerReversalService,
+			KafkaConsumerTracing kafkaConsumerTracing
+	) {
 		this.objectMapper = objectMapper;
 		this.ledgerReversalService = ledgerReversalService;
+		this.kafkaConsumerTracing = kafkaConsumerTracing;
 	}
 
 	@KafkaListener(
@@ -29,20 +36,22 @@ public class LedgerReversalConsumer {
 			autoStartup = "${spring.kafka.listener.auto-startup:true}"
 	)
 	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) throws Exception {
-		LedgerReversalRequestedEvent event = objectMapper.readValue(record.value(), LedgerReversalRequestedEvent.class);
-		validatePartitionKey(record.key(), event);
+		kafkaConsumerTracing.consume(record, "ledger.reversal_requested", () -> {
+			LedgerReversalRequestedEvent event = objectMapper.readValue(record.value(), LedgerReversalRequestedEvent.class);
+			validatePartitionKey(record.key(), event);
 
-		ledgerReversalService.reverse(event);
-		acknowledgment.acknowledge();
+			ledgerReversalService.reverse(event);
+			acknowledgment.acknowledge();
 
-		log.debug(
-				"ledger-reversals consumed topic={} partition={} offset={} reversalId={} originalExternalId={}",
-				record.topic(),
-				record.partition(),
-				record.offset(),
-				event.reversalId(),
-				event.originalExternalId()
-		);
+			log.debug(
+					"ledger-reversals consumed topic={} partition={} offset={} reversalId={} originalExternalId={}",
+					record.topic(),
+					record.partition(),
+					record.offset(),
+					event.reversalId(),
+					event.originalExternalId()
+			);
+		});
 	}
 
 	private void validatePartitionKey(String key, LedgerReversalRequestedEvent event) {

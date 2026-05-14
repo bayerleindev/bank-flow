@@ -117,11 +117,13 @@ public class OutboxPublisher {
 		}
 		return tracer.spanBuilder()
 				.setParent(parent)
-				.name("outbox publish")
+				.name("%s publish %s".formatted(event.topic(), event.eventType()))
 				.kind(Span.Kind.PRODUCER)
 				.tag("messaging.system", "kafka")
+				.tag("messaging.operation", "publish")
 				.tag("messaging.destination.name", event.topic())
-				.tag("outbox.event_type", event.eventType())
+				.tag("messaging.kafka.message.key", firstNonBlank(event.eventKey(), "none"))
+				.tag("event.name", event.eventType())
 				.tag("outbox.producer_service", event.producerService())
 				.start();
 	}

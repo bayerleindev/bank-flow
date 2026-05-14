@@ -1,6 +1,7 @@
 package br.com.bankflow.ledger.consumers;
 
 import br.com.bankflow.ledger.domain.YieldAccrualEvent;
+import br.com.bankflow.ledger.observability.KafkaConsumerTracing;
 import br.com.bankflow.ledger.services.YieldAccrualService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -18,10 +19,16 @@ public class YieldAccrualConsumer {
 
 	private final ObjectMapper objectMapper;
 	private final YieldAccrualService yieldAccrualService;
+	private final KafkaConsumerTracing kafkaConsumerTracing;
 
-	public YieldAccrualConsumer(ObjectMapper objectMapper, YieldAccrualService yieldAccrualService) {
+	public YieldAccrualConsumer(
+			ObjectMapper objectMapper,
+			YieldAccrualService yieldAccrualService,
+			KafkaConsumerTracing kafkaConsumerTracing
+	) {
 		this.objectMapper = objectMapper;
 		this.yieldAccrualService = yieldAccrualService;
+		this.kafkaConsumerTracing = kafkaConsumerTracing;
 	}
 
 	@KafkaListener(
@@ -31,17 +38,19 @@ public class YieldAccrualConsumer {
 			autoStartup = "${spring.kafka.listener.auto-startup:true}"
 	)
 	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) throws Exception {
-		YieldAccrualEvent event = objectMapper.readValue(record.value(), YieldAccrualEvent.class);
-		validatePartitionKey(record.key(), event);
-		yieldAccrualService.postYieldAccrual(event);
-		acknowledgment.acknowledge();
-		log.debug(
-				"yield-accruals consumed topic={} partition={} offset={} accrualId={}",
-				record.topic(),
-				record.partition(),
-				record.offset(),
-				event.accrualId()
-		);
+		kafkaConsumerTracing.consume(record, "yield.cdi_accrued", () -> {
+			YieldAccrualEvent event = objectMapper.readValue(record.value(), YieldAccrualEvent.class);
+			validatePartitionKey(record.key(), event);
+			yieldAccrualService.postYieldAccrual(event);
+			acknowledgment.acknowledge();
+			log.debug(
+					"yield-accruals consumed topic={} partition={} offset={} accrualId={}",
+					record.topic(),
+					record.partition(),
+					record.offset(),
+					event.accrualId()
+			);
+		});
 	}
 
 	private void validatePartitionKey(String key, YieldAccrualEvent event) {

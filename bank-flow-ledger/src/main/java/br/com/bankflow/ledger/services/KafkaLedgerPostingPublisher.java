@@ -50,11 +50,31 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 
 	@Override
 	public void publish(LedgerPosting posting) throws JsonProcessingException {
+		Span span = publisherSpan(posting);
+		if (span == null) {
+			publishRecord(posting);
+			return;
+		}
+		try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
+			publishRecord(posting);
+		} catch (JsonProcessingException exception) {
+			span.error(exception);
+			throw exception;
+		} catch (RuntimeException exception) {
+			span.error(exception);
+			throw exception;
+		} finally {
+			span.end();
+		}
+	}
+
+	private void publishRecord(LedgerPosting posting) throws JsonProcessingException {
 		String key = posting.entry().externalId();
 		String value = objectMapper.writeValueAsString(toEvent(posting));
 		ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, value);
 		record.headers().add(new RecordHeader("event_name", "ledger.posting_created".getBytes(StandardCharsets.UTF_8)));
 		record.headers().add(new RecordHeader("content_type", "application/json".getBytes(StandardCharsets.UTF_8)));
+		record.headers().add(new RecordHeader("entry_type", posting.entry().entryType().getBytes(StandardCharsets.UTF_8)));
 		addCurrentTraceHeaders(record);
 
 		try {
@@ -72,6 +92,27 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 			ledgerBusinessMetrics.recordLedgerPublishFailure(topic, posting.entry().entryType(), rootCauseName(exception));
 			throw new IllegalStateException("failed to publish ledger posting event", exception);
 		}
+	}
+
+	private Span publisherSpan(LedgerPosting posting) {
+		if (tracer == null) {
+			return null;
+		}
+		Span.Builder builder = tracer.spanBuilder();
+		TraceContext parent = traceContext(KafkaTraceContext.traceparent());
+		if (parent != null && tracer.currentSpan() == null) {
+			builder.setParent(parent);
+		}
+		return builder
+				.name("%s publish ledger.posting_created".formatted(topic))
+				.kind(Span.Kind.PRODUCER)
+				.tag("messaging.system", "kafka")
+				.tag("messaging.operation", "publish")
+				.tag("messaging.destination.name", topic)
+				.tag("messaging.kafka.message.key", posting.entry().externalId())
+				.tag("event.name", "ledger.posting_created")
+				.tag("ledger.entry_type", posting.entry().entryType())
+				.start();
 	}
 
 	private String rootCauseName(Throwable exception) {
@@ -107,6 +148,21 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 	private String traceparent(TraceContext context) {
 		String flags = Boolean.TRUE.equals(context.sampled()) ? "01" : "00";
 		return "00-%s-%s-%s".formatted(context.traceId(), context.spanId(), flags);
+	}
+
+	private TraceContext traceContext(String traceparent) {
+		if (traceparent == null || traceparent.isBlank()) {
+			return null;
+		}
+		String[] parts = traceparent.split("-");
+		if (parts.length != 4 || parts[1].length() != 32 || parts[2].length() != 16) {
+			return null;
+		}
+		return tracer.traceContextBuilder()
+				.traceId(parts[1])
+				.spanId(parts[2])
+				.sampled("01".equals(parts[3]))
+				.build();
 	}
 
 	private void addHeader(ProducerRecord<String, String> record, String name, String value) {

@@ -2,6 +2,7 @@ package br.com.bankflow.balance.consumers;
 
 import br.com.bankflow.balance.domain.LedgerPostingCreatedEvent;
 import br.com.bankflow.balance.observability.BalanceMetrics;
+import br.com.bankflow.balance.observability.KafkaConsumerTracing;
 import br.com.bankflow.balance.services.LedgerPostingProjectionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -20,15 +21,18 @@ public class LedgerPostingCreatedConsumer {
 	private final ObjectMapper objectMapper;
 	private final LedgerPostingProjectionService ledgerPostingProjectionService;
 	private final BalanceMetrics balanceMetrics;
+	private final KafkaConsumerTracing kafkaConsumerTracing;
 
 	public LedgerPostingCreatedConsumer(
 			ObjectMapper objectMapper,
 			LedgerPostingProjectionService ledgerPostingProjectionService,
-			BalanceMetrics balanceMetrics
+			BalanceMetrics balanceMetrics,
+			KafkaConsumerTracing kafkaConsumerTracing
 	) {
 		this.objectMapper = objectMapper;
 		this.ledgerPostingProjectionService = ledgerPostingProjectionService;
 		this.balanceMetrics = balanceMetrics;
+		this.kafkaConsumerTracing = kafkaConsumerTracing;
 	}
 
 	@KafkaListener(
@@ -38,27 +42,29 @@ public class LedgerPostingCreatedConsumer {
 			autoStartup = "${spring.kafka.listener.auto-startup:true}"
 	)
 	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) throws Exception {
-		balanceMetrics.recordKafkaMessageReceived(record.topic());
-		balanceMetrics.recordKafkaTraceContext(record.topic(), traceContextLabel(record));
-		try {
-			LedgerPostingCreatedEvent event = objectMapper.readValue(record.value(), LedgerPostingCreatedEvent.class);
-			validatePartitionKey(record.key(), event);
+		kafkaConsumerTracing.consume(record, "ledger.posting_created", () -> {
+			balanceMetrics.recordKafkaMessageReceived(record.topic());
+			balanceMetrics.recordKafkaTraceContext(record.topic(), traceContextLabel(record));
+			try {
+				LedgerPostingCreatedEvent event = objectMapper.readValue(record.value(), LedgerPostingCreatedEvent.class);
+				validatePartitionKey(record.key(), event);
 
-			ledgerPostingProjectionService.project(event);
-			acknowledgment.acknowledge();
+				ledgerPostingProjectionService.project(event);
+				acknowledgment.acknowledge();
 
-			log.debug(
-					"ledger-posting-created consumed topic={} partition={} offset={} entryId={} externalId={}",
-					record.topic(),
-					record.partition(),
-					record.offset(),
-					event.entryId(),
-					event.externalId()
-			);
-		} catch (Exception exception) {
-			balanceMetrics.recordKafkaMessageFailed(record.topic(), exception);
-			throw exception;
-		}
+				log.debug(
+						"ledger-posting-created consumed topic={} partition={} offset={} entryId={} externalId={}",
+						record.topic(),
+						record.partition(),
+						record.offset(),
+						event.entryId(),
+						event.externalId()
+				);
+			} catch (Exception exception) {
+				balanceMetrics.recordKafkaMessageFailed(record.topic(), exception);
+				throw exception;
+			}
+		});
 	}
 
 	private String traceContextLabel(ConsumerRecord<String, String> record) {
