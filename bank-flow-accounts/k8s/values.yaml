@@ -4,9 +4,10 @@ replicaCount: 1
 
 autoscaling:
   enabled: true
-  minReplicas: 1
-  maxReplicas: 5
-  targetCPUUtilizationPercentage: 70
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 65
+  targetMemoryUtilizationPercentage: 75
 
 pdb:
   enabled: true
@@ -14,7 +15,7 @@ pdb:
 
 image:
   repository: gbcamargo/bank-flow-accounts
-  tag: 1.0.0
+  tag: 1.1.0
   pullPolicy: IfNotPresent
 
 service:
@@ -53,6 +54,20 @@ env:
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo.monitoring.svc.cluster.local:4318/v1/traces"
   MANAGEMENT_HEALTH_SHOW_DETAILS: "never"
   BPL_JVM_THREAD_COUNT: "50"
+  HIKARI_MAXIMUM_POOL_SIZE: "6"
+  HIKARI_MINIMUM_IDLE: "2"
+  HIKARI_CONNECTION_TIMEOUT_MS: "2000"
+  HIKARI_IDLE_TIMEOUT_MS: "600000"
+  HIKARI_MAX_LIFETIME_MS: "1500000"
+  HTTP_CLIENT_CONNECT_TIMEOUT_MS: "500"
+  HTTP_CLIENT_READ_TIMEOUT_MS: "1500"
+  HTTP_RETRY_MAX_ATTEMPTS: "2"
+  HTTP_RETRY_BACKOFF_MS: "100"
+  HTTP_RETRY_MULTIPLIER: "2.0"
+  HTTP_CIRCUIT_BREAKER_FAILURE_RATE_THRESHOLD: "50"
+  HTTP_CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE: "20"
+  HTTP_CIRCUIT_BREAKER_MINIMUM_CALLS: "10"
+  HTTP_CIRCUIT_BREAKER_OPEN_DURATION_MS: "10000"
   LOG_FILE: ""
 
 secretEnv:
@@ -75,8 +90,8 @@ livenessProbe:
 
 resources:
   requests:
-    cpu: 100m
-    memory: 256Mi
+    cpu: 150m
+    memory: 384Mi
   limits:
-    cpu: 500m
+    cpu: 750m
     memory: 768Mi

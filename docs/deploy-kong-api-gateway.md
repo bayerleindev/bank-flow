@@ -35,7 +35,7 @@ Pods da aplicação
 No cenário atual, as rotas ficam parecidas com:
 
 ```text
-/transfer  → bank-flow-transfer
+/transfer  → bank-flow-transfer-api
 /accounts  → bank-flow-accounts
 /balance   → bank-flow-balance-api
 ```
@@ -272,8 +272,8 @@ Exemplo de service para transferências:
 apiVersion: v1
 kind: Service
 metadata:
-  name: bank-flow-transfer
-  namespace: default
+  name: bank-flow-transfer-api
+  namespace: bank-flow
 spec:
   type: ClusterIP
   selector:
@@ -291,7 +291,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: bank-flow-accounts
-  namespace: default
+  namespace: bank-flow
 spec:
   type: ClusterIP
   selector:
@@ -309,7 +309,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: bank-flow-balance-api
-  namespace: default
+  namespace: bank-flow
 spec:
   type: ClusterIP
   selector:
@@ -323,13 +323,13 @@ spec:
 Valide se os services existem:
 
 ```bash
-kubectl get svc -n default
+kubectl get svc -n bank-flow
 ```
 
 Valide se eles possuem endpoints:
 
 ```bash
-kubectl get endpoints -n default
+kubectl get endpoints -n bank-flow
 ```
 
 Se um service aparecer sem endpoints, o problema geralmente está no `selector` do service ou nos labels dos pods.
@@ -338,22 +338,23 @@ Se um service aparecer sem endpoints, o problema geralmente está no `selector` 
 
 ## 10. Criar HTTPRoute apontando para os services
 
-Crie o arquivo:
+Use o arquivo versionado:
 
 ```bash
-bank-flow-http-routes.yaml
+kong-configs/http-routes.yaml
 ```
 
-Conteúdo:
+Ele cria uma rota por serviço para permitir plugins e limites independentes:
 
 ```yaml
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: bank-flow-http-routes
-  namespace: default
+  name: bank-flow-transfer-route
+  namespace: bank-flow
   annotations:
     konghq.com/strip-path: "true"
+    konghq.com/plugins: bank-flow-transfer-rate-limiting,bank-flow-correlation-id,bank-flow-request-size-limiting,bank-flow-security-headers,bank-flow-cors
 spec:
   parentRefs:
     - name: kong
@@ -364,40 +365,22 @@ spec:
             type: PathPrefix
             value: /transfer
       backendRefs:
-        - name: bank-flow-transfer
+        - name: bank-flow-transfer-api
           kind: Service
           port: 8083
-
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /accounts
-      backendRefs:
-        - name: bank-flow-accounts
-          kind: Service
-          port: 8084
-
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /balance
-      backendRefs:
-        - name: bank-flow-balance-api
-          kind: Service
-          port: 8082
 ```
 
 Aplique:
 
 ```bash
-kubectl apply -f bank-flow-http-routes.yaml
+kubectl apply -f kong-configs/http-routes.yaml
 ```
 
 Valide:
 
 ```bash
-kubectl get httproute -n default
-kubectl describe httproute bank-flow-http-routes -n default
+kubectl get httproute -n bank-flow
+kubectl describe httproute bank-flow-transfer-route -n bank-flow
 ```
 
 ---
@@ -507,120 +490,42 @@ Com `strip-path: "true"`, essas chamadas chegam nos serviços como:
 
 ---
 
-## 13. Adicionar rate limit com KongPlugin
+## 13. Plugins de borda
 
-Crie o arquivo:
-
-```bash
-bank-flow-rate-limiting.yaml
-```
-
-Conteúdo:
-
-```yaml
-apiVersion: configuration.konghq.com/v1
-kind: KongPlugin
-metadata:
-  name: bank-flow-rate-limiting
-  namespace: default
-plugin: rate-limiting
-config:
-  minute: 100
-  policy: local
-```
-
-Aplique:
+Os manifests versionados em `kong-configs/` criam plugins por serviço e os associam aos `HTTPRoute`:
 
 ```bash
-kubectl apply -f bank-flow-rate-limiting.yaml
+kubectl apply -f kong-configs/rate-limiting.yaml
+kubectl apply -f kong-configs/security-plugins.yaml
+kubectl apply -f kong-configs/http-routes.yaml
 ```
 
-Agora associe o plugin ao `HTTPRoute`:
+Plugins aplicados por padrão:
 
-```yaml
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: bank-flow-http-routes
-  namespace: default
-  annotations:
-    konghq.com/strip-path: "true"
-    konghq.com/plugins: bank-flow-rate-limiting
-spec:
-  parentRefs:
-    - name: kong
-      namespace: kong
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /transfer
-      backendRefs:
-        - name: bank-flow-transfer
-          kind: Service
-          port: 8083
+- `rate-limiting`: limites por IP e por serviço.
+- `correlation-id`: cria/propaga `X-Correlation-Id`.
+- `request-size-limiting`: bloqueia payloads acima de 1 MiB.
+- `response-transformer`: adiciona headers básicos de segurança.
+- `cors`: habilita chamadas browser para `GET`, `POST` e `OPTIONS`.
+- `prometheus`: expõe métricas do gateway via `KongClusterPlugin`.
 
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /accounts
-      backendRefs:
-        - name: bank-flow-accounts
-          kind: Service
-          port: 8084
-
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /balance
-      backendRefs:
-        - name: bank-flow-balance-api
-          kind: Service
-          port: 8082
-```
-
-Reaplique:
-
-```bash
-kubectl apply -f bank-flow-http-routes.yaml
-```
-
-Com essa configuração, o Kong permite até:
+Limites atuais:
 
 ```text
-100 requests por minuto
+/transfer  1200 req/min, 30000 req/hora por IP
+/balance   1200 req/min, 30000 req/hora por IP
+/accounts   600 req/min, 12000 req/hora por IP
 ```
 
-Depois disso, começa a responder:
+Esses limites são bem acima da média de 200k operações/dia, mas ainda protegem contra bursts acidentais, loops de cliente e testes de carga sem controle. Se o objetivo for 200k operações por segundo, essa camada precisa ser redesenhada com rate limit centralizado, múltiplas réplicas do Kong e capacidade de rede/serviços dimensionada para esse patamar.
 
-```text
-HTTP 429 Too Many Requests
-```
+O `key-auth` também está versionado em `kong-configs/key-auth.yaml`, mas não é aplicado por padrão. Para ativar autenticação por API key, crie `KongConsumer`/credenciais e adicione `bank-flow-key-auth` na annotation `konghq.com/plugins` da rota desejada.
 
 ---
 
 ## 14. Testar o rate limit
 
-Execute mais de 100 chamadas dentro do mesmo minuto:
-
-```bash
-for i in {1..120}; do
-  curl -s -o /dev/null -w "%{http_code}\n" $KONG_PROXY_URL/transfer
- done | sort | uniq -c
-```
-
-Resultado esperado:
-
-```text
-100 200
- 20 429
-```
-
-O status de sucesso pode ser diferente de `200`, dependendo da chamada.
-
-O importante é aparecer `429` depois que o limite for excedido.
-
-Para testar mais rápido, da para reduzir temporariamente o plugin para:
+Execute mais chamadas que o limite da rota dentro do mesmo minuto. Para testar sem disparar centenas de requests, reduza temporariamente o `minute` do plugin da rota para `5`:
 
 ```yaml
 config:
@@ -643,6 +548,10 @@ Resultado esperado:
 5 429
 ```
 
+O status de sucesso pode ser diferente de `200`, dependendo da chamada.
+
+O importante é aparecer `429` depois que o limite for excedido.
+
 ---
 
 ## 15. Observação sobre policy local
@@ -658,26 +567,26 @@ o contador de rate limit fica na memória local do pod do Kong.
 Se houver uma única réplica do Kong:
 
 ```text
-limite real ≈ 100 requests/minuto
+limite real ≈ limite configurado por minuto
 ```
 
 Se houver três réplicas do Kong:
 
 ```text
-pod 1: 100 requests/minuto
-pod 2: 100 requests/minuto
-pod 3: 100 requests/minuto
+pod 1: limite configurado por minuto
+pod 2: limite configurado por minuto
+pod 3: limite configurado por minuto
 ```
 
 Na prática, o limite total pode ficar próximo de:
 
 ```text
-300 requests/minuto
+replicas * limite configurado por minuto
 ```
 
 Para ambiente local e desenvolvimento, `policy: local` é simples e suficiente.
 
-Para produção, precisa de uma política centralizada, dependendo da versão e estratégia de deployment do Kong.
+Para produção, prefira uma política centralizada, dependendo da versão e estratégia de deployment do Kong. Com `policy: local`, cada pod do Kong mantém seu próprio contador.
 
 ---
 
@@ -716,13 +625,13 @@ kubectl get httproute -A
 ### Descrever uma HTTPRoute
 
 ```bash
-kubectl describe httproute bank-flow-http-routes -n default
+kubectl describe httproute bank-flow-transfer-route -n bank-flow
 ```
 
 ### Ver se os services têm endpoints
 
 ```bash
-kubectl get endpoints -n default
+kubectl get endpoints -n bank-flow
 ```
 
 Se um service não tiver endpoints, o Kong até pode rotear para ele, mas não haverá pod saudável para receber a requisição.
@@ -738,8 +647,8 @@ Significa que o Kong recebeu a request, mas nenhuma `HTTPRoute` combinou com o p
 Verificar:
 
 ```bash
-kubectl get httproute -n default
-kubectl describe httproute bank-flow-http-routes -n default
+kubectl get httproute -n bank-flow
+kubectl describe httproute bank-flow-transfer-route -n bank-flow
 ```
 
  Conferir se o path chamado bate com algum `PathPrefix`.
@@ -784,10 +693,10 @@ a mesma chamada chega como:
 
 ### 17.3. Service sem endpoints
 
-Verificarr:
+Verificar:
 
 ```bash
-kubectl get endpoints -n default
+kubectl get endpoints -n bank-flow
 ```
 
 Se aparecer vazio, comparar o selector do service:
@@ -800,7 +709,7 @@ selector:
 com os labels do pod:
 
 ```bash
-kubectl get pods -n default --show-labels
+kubectl get pods -n bank-flow --show-labels
 ```
 
 Os labels precisam bater.
@@ -814,8 +723,8 @@ Significa que o rate limit foi excedido.
 Verificar o plugin:
 
 ```bash
-kubectl get kongplugin -n default
-kubectl describe kongplugin bank-flow-rate-limiting -n default
+kubectl get kongplugin -n bank-flow
+kubectl describe kongplugin bank-flow-transfer-rate-limiting -n bank-flow
 ```
 
 Se for ambiente de teste, aumentar o limite ou reduzir a velocidade das chamadas.

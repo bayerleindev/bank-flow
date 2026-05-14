@@ -25,39 +25,49 @@ jobs:
   accounts:
     if: ${{ inputs.service == 'all' || inputs.service == 'accounts' }}
     uses: ./.github/workflows/accounts-pipeline.yaml
+    secrets: inherit
 
   outboxer:
     if: ${{ inputs.service == 'all' || inputs.service == 'outboxer' }}
     uses: ./.github/workflows/outboxer-pipeline.yaml
+    secrets: inherit
 
   yield:
     if: ${{ inputs.service == 'all' || inputs.service == 'yield' }}
     uses: ./.github/workflows/yield-pipeline.yaml
+    secrets: inherit
 
   balance:
     if: ${{ inputs.service == 'all' || inputs.service == 'balance' }}
     uses: ./.github/workflows/balance-pipeline.yaml
+    secrets: inherit
 
   balance-api:
     if: ${{ inputs.service == 'balance-api' }}
     uses: ./.github/workflows/balance-api-pipeline.yaml
+    secrets: inherit
 
   balance-worker:
     if: ${{ inputs.service == 'balance-worker' }}
     uses: ./.github/workflows/balance-worker-pipeline.yaml
+    secrets: inherit
 
   transfer:
     if: ${{ inputs.service == 'all' || inputs.service == 'transfer' }}
     uses: ./.github/workflows/transfer-pipeline.yaml
+    secrets: inherit
 
   transfer-api:
     if: ${{ inputs.service == 'transfer-api' }}
     uses: ./.github/workflows/transfer-api-pipeline.yaml
+    secrets: inherit
 
   transfer-worker:
     if: ${{ inputs.service == 'transfer-worker' }}
     uses: ./.github/workflows/transfer-worker-pipeline.yaml
+    secrets: inherit
 
   ledger:
     if: ${{ inputs.service == 'all' || inputs.service == 'ledger' }}
     uses: ./.github/workflows/ledger-pipeline.yaml
+    secrets: inherit

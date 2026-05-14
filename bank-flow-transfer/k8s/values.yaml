@@ -33,6 +33,18 @@ commonEnv:
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo.monitoring.svc.cluster.local:4318/v1/traces"
   MANAGEMENT_HEALTH_SHOW_DETAILS: "never"
   BPL_JVM_THREAD_COUNT: "50"
+  HIKARI_CONNECTION_TIMEOUT_MS: "2000"
+  HIKARI_IDLE_TIMEOUT_MS: "600000"
+  HIKARI_MAX_LIFETIME_MS: "1500000"
+  HTTP_CLIENT_CONNECT_TIMEOUT_MS: "500"
+  HTTP_CLIENT_READ_TIMEOUT_MS: "1500"
+  HTTP_RETRY_MAX_ATTEMPTS: "2"
+  HTTP_RETRY_BACKOFF_MS: "100"
+  HTTP_RETRY_MULTIPLIER: "2.0"
+  HTTP_CIRCUIT_BREAKER_FAILURE_RATE_THRESHOLD: "50"
+  HTTP_CIRCUIT_BREAKER_SLIDING_WINDOW_SIZE: "20"
+  HTTP_CIRCUIT_BREAKER_MINIMUM_CALLS: "10"
+  HTTP_CIRCUIT_BREAKER_OPEN_DURATION_MS: "10000"
   LOG_FILE: ""
 
 secretEnv:
@@ -46,9 +58,10 @@ components:
     replicaCount: 1
     autoscaling:
       enabled: true
-      minReplicas: 1
+      minReplicas: 2
       maxReplicas: 6
-      targetCPUUtilizationPercentage: 70
+      targetCPUUtilizationPercentage: 65
+      targetMemoryUtilizationPercentage: 75
     keda:
       enabled: false
     pdb:
@@ -56,13 +69,15 @@ components:
       minAvailable: 1
     image:
       repository: gbcamargo/bank-flow-transfer-api
-      tag: 1.0.0
+      tag: 1.1.0
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
       port: 8083
     env:
       SERVER_PORT: "8083"
+      HIKARI_MAXIMUM_POOL_SIZE: "8"
+      HIKARI_MINIMUM_IDLE: "2"
     readinessProbe:
       path: /actuator/health/readiness
       initialDelaySeconds: 20
@@ -77,10 +92,10 @@ components:
       failureThreshold: 3
     resources:
       requests:
-        cpu: 100m
-        memory: 256Mi
+        cpu: 150m
+        memory: 384Mi
       limits:
-        cpu: 500m
+        cpu: 750m
         memory: 768Mi
 
   worker:
@@ -92,17 +107,17 @@ components:
     keda:
       enabled: true
       minReplicaCount: 1
-      maxReplicaCount: 12
+      maxReplicaCount: 6
       pollingInterval: 30
-      cooldownPeriod: 300
+      cooldownPeriod: 180
       triggers:
         - type: kafka
           metadata:
             bootstrapServers: "host.docker.internal:9094"
             consumerGroup: "bank-flow-transfer-worker"
             topic: "ledger-posting-created"
-            lagThreshold: "5"
-            activationLagThreshold: "3"
+            lagThreshold: "50"
+            activationLagThreshold: "10"
             offsetResetPolicy: latest
             allowIdleConsumers: "false"
             scaleToZeroOnInvalidOffset: "false"
@@ -115,7 +130,7 @@ components:
       maxUnavailable: 1
     image:
       repository: gbcamargo/bank-flow-transfer-worker
-      tag: 1.0.0
+      tag: 1.1.0
       pullPolicy: IfNotPresent
     service:
       type: ClusterIP
@@ -127,6 +142,9 @@ components:
       KAFKA_AUTO_OFFSET_RESET: "earliest"
       KAFKA_RETRY_INTERVAL_MS: "1000"
       KAFKA_RETRY_MAX_ATTEMPTS: "3"
+      KAFKA_LISTENER_CONCURRENCY: "2"
+      HIKARI_MAXIMUM_POOL_SIZE: "4"
+      HIKARI_MINIMUM_IDLE: "1"
       BANK_FLOW_KAFKA_LAG_ENABLED: "false"
     readinessProbe:
       path: /actuator/health/readiness
@@ -142,8 +160,8 @@ components:
       failureThreshold: 3
     resources:
       requests:
-        cpu: 100m
-        memory: 256Mi
+        cpu: 150m
+        memory: 384Mi
       limits:
-        cpu: 500m
+        cpu: 750m
         memory: 768Mi

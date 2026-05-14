@@ -1,6 +1,7 @@
 package br.com.bankflow.outboxer.services;
 
 import br.com.bankflow.outboxer.domain.OutboxEvent;
+import br.com.bankflow.outboxer.observability.BusinessCorrelation;
 import br.com.bankflow.outboxer.observability.OutboxerMetrics;
 import br.com.bankflow.outboxer.repositories.OutboxEventRepository;
 import io.micrometer.tracing.Span;
@@ -72,18 +73,34 @@ public class OutboxPublisher {
 	}
 
 	private void publish(OutboxEvent event) {
-		Span span = publisherSpan(event);
-		if (span == null) {
-			publishRecord(event, null);
-			return;
-		}
-		try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
-			publishRecord(event, traceparent(span.context()));
-		} catch (RuntimeException exception) {
-			span.error(exception);
-			throw exception;
-		} finally {
-			span.end();
+		try (BusinessCorrelation.Scope correlation = BusinessCorrelation.outboxEvent(
+				tracer,
+				event.aggregateType(),
+				event.aggregateId(),
+				event.eventType(),
+				event.eventKey()
+		)) {
+			Span span = publisherSpan(event);
+			if (span == null) {
+				publishRecord(event, null);
+				return;
+			}
+			try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
+				try (BusinessCorrelation.Scope publishCorrelation = BusinessCorrelation.outboxEvent(
+						tracer,
+						event.aggregateType(),
+						event.aggregateId(),
+						event.eventType(),
+						event.eventKey()
+				)) {
+					publishRecord(event, traceparent(span.context()));
+				}
+			} catch (RuntimeException exception) {
+				span.error(exception);
+				throw exception;
+			} finally {
+				span.end();
+			}
 		}
 	}
 
@@ -92,6 +109,7 @@ public class OutboxPublisher {
 		record.headers().add(new RecordHeader("event_name", event.eventType().getBytes(StandardCharsets.UTF_8)));
 		record.headers().add(new RecordHeader("content_type", "application/json".getBytes(StandardCharsets.UTF_8)));
 		record.headers().add(new RecordHeader("producer_service", event.producerService().getBytes(StandardCharsets.UTF_8)));
+		addBusinessHeaders(record, event);
 		addHeaderIfPresent(record, "traceparent", firstNonBlank(traceparent, event.traceparent()));
 		addHeaderIfPresent(record, "tracestate", event.tracestate());
 		try {
@@ -125,6 +143,10 @@ public class OutboxPublisher {
 				.tag("messaging.kafka.message.key", firstNonBlank(event.eventKey(), "none"))
 				.tag("event.name", event.eventType())
 				.tag("outbox.producer_service", event.producerService())
+				.tag("business.transaction_id", firstNonBlank(transactionId(event), "none"))
+				.tag("transaction.id", firstNonBlank(transactionId(event), "none"))
+				.tag("transfer.id", firstNonBlank(transactionId(event), "none"))
+				.tag("account.id", firstNonBlank(event.eventKey(), "none"))
 				.start();
 	}
 
@@ -168,5 +190,19 @@ public class OutboxPublisher {
 		if (value != null && !value.isBlank()) {
 			record.headers().add(new RecordHeader(name, value.getBytes(StandardCharsets.UTF_8)));
 		}
+	}
+
+	private void addBusinessHeaders(ProducerRecord<String, String> record, OutboxEvent event) {
+		String transactionId = transactionId(event);
+		addHeaderIfPresent(record, "transaction_id", transactionId);
+		addHeaderIfPresent(record, "transfer_id", transactionId);
+		addHeaderIfPresent(record, "account_id", event.eventKey());
+	}
+
+	private String transactionId(OutboxEvent event) {
+		if ("Transfer".equals(event.aggregateType())) {
+			return event.aggregateId();
+		}
+		return null;
 	}
 }

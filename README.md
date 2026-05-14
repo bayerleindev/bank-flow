@@ -282,6 +282,33 @@ The global dashboards are intentionally split by operating question:
 
 Service-owned dashboards live under each `bank-flow-*/dashboards/` directory and are meant for drill-down after a global dashboard identifies the affected service.
 
+Grafana alert rules are provisioned from:
+
+```text
+observability/grafana/provisioning/alerting/bank-flow-alerts.yml
+```
+
+Provisioned alerts:
+
+| Alert | Initial threshold |
+| --- | --- |
+| Service down | `up == 0` for 2 minutes. |
+| HTTP 5xx high | 5xx ratio above 5% for 5 minutes. |
+| HTTP p95 latency high | p95 above 1 second for 5 minutes. |
+| Kafka consumer lag high | lag above 100 messages for 5 minutes. |
+| DLQ records detected | any new DLQ record in 5 minutes. |
+| Outbox oldest pending high | oldest pending event above 120 seconds for 3 minutes. |
+| Balance projection lag high | projection lag above 300 seconds for 5 minutes. |
+| Transfers stuck in intermediate status | oldest intermediate transfer above 300 seconds for 5 minutes. |
+
+After changing alert provisioning files, restart Grafana so it reloads the rules:
+
+```bash
+docker compose -f docker-compose.observability.yml restart grafana
+```
+
+Notification delivery is configured in Grafana through Contact points and Notification policies. The repository provisions the rules; each environment should choose its own Slack, email, webhook or incident-management destination.
+
 All Spring services expose:
 
 ```text
@@ -414,6 +441,8 @@ Fast path for most changes:
 - [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
 - [SECURITY.md](SECURITY.md)
 - [docs/fluxos-regras-validacoes.md](docs/fluxos-regras-validacoes.md)
+- [docs/scaling-apis-workers.md](docs/scaling-apis-workers.md)
+- [docs/resilience-retries-circuit-breakers.md](docs/resilience-retries-circuit-breakers.md)
 - [bank-flow-accounts/README.md](bank-flow-accounts/README.md)
 - [bank-flow-outboxer/README.md](bank-flow-outboxer/README.md)
 - [bank-flow-transfer/README.md](bank-flow-transfer/README.md)

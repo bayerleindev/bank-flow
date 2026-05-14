@@ -14,6 +14,7 @@ datasources:
     access: proxy
     url: http://loki:3100
     jsonData:
+      manageAlerts: false
       derivedFields:
         - name: trace_id
           matcherRegex: '"traceId":"([a-f0-9]+)"'

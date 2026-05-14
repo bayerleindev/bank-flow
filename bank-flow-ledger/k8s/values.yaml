@@ -4,18 +4,18 @@ replicaCount: 3
 
 keda:
   enabled: true
-  minReplicaCount: 1
+  minReplicaCount: 2
   maxReplicaCount: 4
   pollingInterval: 30
-  cooldownPeriod: 300
+  cooldownPeriod: 180
   triggers:
     - type: kafka
       metadata:
         bootstrapServers: "host.docker.internal:9094"
         consumerGroup: "bank-flow-ledger"
         topic: "account-created"
-        lagThreshold: "5"
-        activationLagThreshold: "3"
+        lagThreshold: "50"
+        activationLagThreshold: "10"
         offsetResetPolicy: latest
         allowIdleConsumers: "false"
         scaleToZeroOnInvalidOffset: "false"
@@ -28,8 +28,8 @@ keda:
         bootstrapServers: "host.docker.internal:9094"
         consumerGroup: "bank-flow-ledger"
         topic: "ledger-movements"
-        lagThreshold: "5"
-        activationLagThreshold: "3"
+        lagThreshold: "50"
+        activationLagThreshold: "10"
         offsetResetPolicy: latest
         allowIdleConsumers: "false"
         scaleToZeroOnInvalidOffset: "false"
@@ -42,8 +42,8 @@ keda:
         bootstrapServers: "host.docker.internal:9094"
         consumerGroup: "bank-flow-ledger"
         topic: "ledger-reversals"
-        lagThreshold: "5"
-        activationLagThreshold: "3"
+        lagThreshold: "25"
+        activationLagThreshold: "5"
         offsetResetPolicy: latest
         allowIdleConsumers: "false"
         scaleToZeroOnInvalidOffset: "false"
@@ -56,8 +56,8 @@ keda:
         bootstrapServers: "host.docker.internal:9094"
         consumerGroup: "bank-flow-ledger"
         topic: "yield-accruals"
-        lagThreshold: "5"
-        activationLagThreshold: "3"
+        lagThreshold: "25"
+        activationLagThreshold: "5"
         offsetResetPolicy: latest
         allowIdleConsumers: "false"
         scaleToZeroOnInvalidOffset: "false"
@@ -72,7 +72,7 @@ pdb:
 
 image:
   repository: gbcamargo/bank-flow-ledger
-  tag: 1.0.0
+  tag: 1.1.0
   pullPolicy: IfNotPresent
 
 service:
@@ -117,6 +117,7 @@ env:
   OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo.monitoring.svc.cluster.local:4318/v1/traces"
   MANAGEMENT_HEALTH_SHOW_DETAILS: "never"
   BPL_JVM_THREAD_COUNT: "50"
+  KAFKA_LISTENER_CONCURRENCY: "3"
   LOG_FILE: ""
   BANK_FLOW_KAFKA_LAG_ENABLED: "false"
   INTEREST_EXPENSE_DIGITAL_ACCOUNT_ID: "00000000-0000-0000-0000-000000000200"
@@ -141,11 +142,11 @@ livenessProbe:
 
 resources:
   requests:
-    cpu: 100m
-    memory: 256Mi
+    cpu: 250m
+    memory: 512Mi
   limits:
-    cpu: 500m
-    memory: 768Mi
+    cpu: "1"
+    memory: 1Gi
 
 development:
   useMinikubeHost: true

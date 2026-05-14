@@ -22,6 +22,14 @@ spec:
         target:
           type: Utilization
           averageUtilization: {{ $component.autoscaling.targetCPUUtilizationPercentage }}
+    {{- if $component.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: {{ $component.autoscaling.targetMemoryUtilizationPercentage }}
+    {{- end }}
 ---
 {{- end }}
 {{- end }}

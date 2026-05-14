@@ -26,38 +26,43 @@ public class KafkaConsumerConfig {
 	@Bean
 	ConcurrentKafkaListenerContainerFactory<String, String> accountCreatedKafkaListenerContainerFactory(
 			ConsumerFactory<String, String> consumerFactory,
-			CommonErrorHandler kafkaErrorHandler
+			CommonErrorHandler kafkaErrorHandler,
+			@Value("${spring.kafka.listener.concurrency:3}") int concurrency
 	) {
-		return kafkaListenerContainerFactory(consumerFactory, kafkaErrorHandler);
+		return kafkaListenerContainerFactory(consumerFactory, kafkaErrorHandler, concurrency);
 	}
 
 	@Bean
 	ConcurrentKafkaListenerContainerFactory<String, String> ledgerMovementKafkaListenerContainerFactory(
 			ConsumerFactory<String, String> consumerFactory,
-			CommonErrorHandler kafkaErrorHandler
+			CommonErrorHandler kafkaErrorHandler,
+			@Value("${spring.kafka.listener.concurrency:3}") int concurrency
 	) {
-		return kafkaListenerContainerFactory(consumerFactory, kafkaErrorHandler);
+		return kafkaListenerContainerFactory(consumerFactory, kafkaErrorHandler, concurrency);
 	}
 
 	@Bean
 	ConcurrentKafkaListenerContainerFactory<String, String> ledgerReversalKafkaListenerContainerFactory(
 			ConsumerFactory<String, String> consumerFactory,
-			CommonErrorHandler kafkaErrorHandler
+			CommonErrorHandler kafkaErrorHandler,
+			@Value("${spring.kafka.listener.concurrency:3}") int concurrency
 	) {
-		return kafkaListenerContainerFactory(consumerFactory, kafkaErrorHandler);
+		return kafkaListenerContainerFactory(consumerFactory, kafkaErrorHandler, concurrency);
 	}
 
 	@Bean
 	ConcurrentKafkaListenerContainerFactory<String, String> yieldAccrualKafkaListenerContainerFactory(
 			ConsumerFactory<String, String> consumerFactory,
-			CommonErrorHandler kafkaErrorHandler
+			CommonErrorHandler kafkaErrorHandler,
+			@Value("${spring.kafka.listener.concurrency:3}") int concurrency
 	) {
-		return kafkaListenerContainerFactory(consumerFactory, kafkaErrorHandler);
+		return kafkaListenerContainerFactory(consumerFactory, kafkaErrorHandler, concurrency);
 	}
 
 	private ConcurrentKafkaListenerContainerFactory<String, String> kafkaListenerContainerFactory(
 			ConsumerFactory<String, String> consumerFactory,
-			CommonErrorHandler kafkaErrorHandler
+			CommonErrorHandler kafkaErrorHandler,
+			@Value("${spring.kafka.listener.concurrency:3}") int concurrency
 	) {
 		ConcurrentKafkaListenerContainerFactory<String, String> factory =
 				new ConcurrentKafkaListenerContainerFactory<>();
@@ -65,7 +70,7 @@ public class KafkaConsumerConfig {
 		factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.MANUAL_IMMEDIATE);
 		factory.getContainerProperties().setObservationEnabled(true);
 		factory.setCommonErrorHandler(kafkaErrorHandler);
-        factory.setConcurrency(3);
+		factory.setConcurrency(Math.max(1, concurrency));
 		return factory;
 	}
 

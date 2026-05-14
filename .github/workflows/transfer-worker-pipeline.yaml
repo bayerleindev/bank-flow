@@ -2,7 +2,15 @@ name: Transfer Worker Tests
 
 on:
   workflow_call:
+    secrets:
+      DOCKERHUB_USERNAME:
+        required: true
+      DOCKERHUB_TOKEN:
+        required: true
   workflow_dispatch:
+
+env:
+  DOCKER_REGISTRY_NAMESPACE: ${{ vars.DOCKER_REGISTRY_NAMESPACE || 'gbcamargo' }}
 
 jobs:
   test:
@@ -27,3 +35,27 @@ jobs:
 
       - name: Build worker jar
         run: ./gradlew :worker:bootJar
+
+      - name: Compute image tag
+        id: image
+        shell: bash
+        run: echo "tag=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+      - name: Build worker image
+        run: ./gradlew :worker:bootBuildImage --imageName=bank-flow-transfer-worker:${{ steps.image.outputs.tag }}
+
+      - name: Docker login
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Tag worker image
+        run: |
+          docker tag bank-flow-transfer-worker:${{ steps.image.outputs.tag }} $DOCKER_REGISTRY_NAMESPACE/bank-flow-transfer-worker:${{ steps.image.outputs.tag }}
+          docker tag bank-flow-transfer-worker:${{ steps.image.outputs.tag }} $DOCKER_REGISTRY_NAMESPACE/bank-flow-transfer-worker:latest
+
+      - name: Push worker image
+        run: |
+          docker push $DOCKER_REGISTRY_NAMESPACE/bank-flow-transfer-worker:${{ steps.image.outputs.tag }}
+          docker push $DOCKER_REGISTRY_NAMESPACE/bank-flow-transfer-worker:latest

@@ -180,6 +180,15 @@ Assim da para consultar no Loki:
 {application="bank-flow-ledger"}
 {stack="bank-flow"}
 {level="ERROR"}
+{trace_id!="", stack="bank-flow"}
+{transaction_id="<transfer_id>"}
+{account_id="<digital_account_id>"}
+```
+
+No Kubernetes, a coleta fica em `observability/k8s/alloy-values.yaml` e pode ser validada com:
+
+```bash
+scripts/k8s/validate_observability.sh
 ```
 
 ## 10. Tempo recebe traces via OTLP
@@ -214,7 +223,7 @@ Problemas encontrados:
 - recriar Prometheus com o mesmo nome pode gerar conflito;
 - referencias cruzadas como `Loki -> Tempo` ou `Tempo -> Loki` podem falhar se o datasource referenciado ainda nao existir durante o provisioning.
 
-Decisao adotada: provisionar primeiro datasources simples:
+Decisao adotada: manter Prometheus criado pelo stack e adicionar Loki/Tempo em `additionalDataSources`:
 
 ```text
 Prometheus: criado pelo kube-prometheus-stack
@@ -222,9 +231,43 @@ Loki: adicionado em additionalDataSources
 Tempo: adicionado em additionalDataSources
 ```
 
-Depois que tudo estiver estavel, correlacoes trace/log podem ser reintroduzidas com cuidado.
+No estado atual, o datasource Loki aponta para:
 
-## 12. Logs locais do Kafka podem poluir a saida
+```text
+http://loki-gateway.monitoring.svc.cluster.local
+```
+
+O datasource Tempo aponta para:
+
+```text
+http://tempo.monitoring.svc.cluster.local:3200
+```
+
+As correlacoes foram reintroduzidas no provisioning:
+
+- Loki usa `derivedFields` para transformar `traceId` em link para Tempo;
+- Tempo usa `tracesToLogsV2` para voltar aos logs no Loki;
+- Tempo usa Prometheus como datasource do service graph.
+
+## 12. Correlacao tecnica e correlacao de negocio
+
+`trace_id` e `span_id` resolvem a navegacao tecnica entre logs e traces, mas nao sao bons pontos de partida para suporte. No fluxo de transferencia, o identificador de negocio principal e o `transfer_id`; por isso ele tambem e publicado como `transaction_id`.
+
+Campos padronizados:
+
+```text
+transaction_id
+transfer_id
+account_id
+source_digital_account_id
+destination_digital_account_id
+external_id
+entry_id
+```
+
+Esses campos entram no MDC dos logs estruturados e como tags dos spans quando ha span ativo. No Kafka, os eventos carregam headers como `transaction_id`, `transfer_id` e `account_id`, permitindo que consumidores e traces derivados preservem a correlacao de negocio.
+
+## 13. Logs locais do Kafka podem poluir a saida
 
 O log:
 
@@ -246,7 +289,7 @@ Para reduzir ruido, os servicos configuram:
 logging.level.org.apache.kafka.clients.admin.internals.AdminMetadataManager=WARN
 ```
 
-## 13. Memoria de imagem Paketo precisa de margem
+## 14. Memoria de imagem Paketo precisa de margem
 
 Ao rodar imagens criadas com buildpacks Paketo, o memory calculator pode falhar se o limite do container for muito baixo.
 
@@ -269,7 +312,7 @@ env:
 
 Isso reduz a estimativa de memoria de threads e da margem para a JVM iniciar.
 
-## 14. Containers nao devem escrever em ../logs por padrao
+## 15. Containers nao devem escrever em ../logs por padrao
 
 Localmente, os servicos escrevem arquivos em:
 
@@ -285,7 +328,7 @@ LOG_FILE: ""
 
 Assim os logs seguem para stdout/stderr, que e o caminho correto para coleta por Alloy.
 
-## 15. Ordem recomendada para subir observabilidade no Minikube
+## 16. Ordem recomendada para subir observabilidade no Minikube
 
 ```bash
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
@@ -315,7 +358,7 @@ helm upgrade --install prometheus-blackbox-exporter prometheus-community/prometh
 helm upgrade --install bank-flow-ledger bank-flow-ledger/k8s
 ```
 
-## 16. Checklist de troubleshooting
+## 17. Checklist de troubleshooting
 
 Prometheus:
 

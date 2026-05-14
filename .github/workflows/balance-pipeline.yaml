@@ -7,6 +7,8 @@ on:
 jobs:
   api:
     uses: ./.github/workflows/balance-api-pipeline.yaml
+    secrets: inherit
 
   worker:
     uses: ./.github/workflows/balance-worker-pipeline.yaml
+    secrets: inherit

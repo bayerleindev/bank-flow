@@ -9,6 +9,8 @@ K8S_RENDER_DIR ?= /tmp/bank-flow-k8s
 KUBECTL ?= kubectl
 HELM ?= helm
 MINIKUBE ?= minikube
+REGISTRY ?= gbcamargo
+IMAGE_TAG ?= $(shell git rev-parse --short HEAD)
 
 ACCOUNTS_IMAGE ?= bank-flow-accounts:local
 OUTBOXER_IMAGE ?= bank-flow-outboxer:local
@@ -18,6 +20,24 @@ BALANCE_WORKER_IMAGE ?= bank-flow-balance-worker:local
 TRANSFER_API_IMAGE ?= bank-flow-transfer-api:local
 TRANSFER_WORKER_IMAGE ?= bank-flow-transfer-worker:local
 YIELD_IMAGE ?= bank-flow-yield:local
+
+RELEASE_ACCOUNTS_LOCAL_IMAGE := bank-flow-accounts:$(IMAGE_TAG)
+RELEASE_OUTBOXER_LOCAL_IMAGE := bank-flow-outboxer:$(IMAGE_TAG)
+RELEASE_YIELD_LOCAL_IMAGE := bank-flow-yield:$(IMAGE_TAG)
+RELEASE_LEDGER_LOCAL_IMAGE := bank-flow-ledger:$(IMAGE_TAG)
+RELEASE_BALANCE_API_LOCAL_IMAGE := bank-flow-balance-api:$(IMAGE_TAG)
+RELEASE_BALANCE_WORKER_LOCAL_IMAGE := bank-flow-balance-worker:$(IMAGE_TAG)
+RELEASE_TRANSFER_API_LOCAL_IMAGE := bank-flow-transfer-api:$(IMAGE_TAG)
+RELEASE_TRANSFER_WORKER_LOCAL_IMAGE := bank-flow-transfer-worker:$(IMAGE_TAG)
+
+RELEASE_ACCOUNTS_IMAGE := $(REGISTRY)/bank-flow-accounts:$(IMAGE_TAG)
+RELEASE_OUTBOXER_IMAGE := $(REGISTRY)/bank-flow-outboxer:$(IMAGE_TAG)
+RELEASE_YIELD_IMAGE := $(REGISTRY)/bank-flow-yield:$(IMAGE_TAG)
+RELEASE_LEDGER_IMAGE := $(REGISTRY)/bank-flow-ledger:$(IMAGE_TAG)
+RELEASE_BALANCE_API_IMAGE := $(REGISTRY)/bank-flow-balance-api:$(IMAGE_TAG)
+RELEASE_BALANCE_WORKER_IMAGE := $(REGISTRY)/bank-flow-balance-worker:$(IMAGE_TAG)
+RELEASE_TRANSFER_API_IMAGE := $(REGISTRY)/bank-flow-transfer-api:$(IMAGE_TAG)
+RELEASE_TRANSFER_WORKER_IMAGE := $(REGISTRY)/bank-flow-transfer-worker:$(IMAGE_TAG)
 
 .PHONY: help
 help:
@@ -34,8 +54,10 @@ help:
 	@printf "  make k8s-render            Render Helm charts to $(K8S_RENDER_DIR)\n"
 	@printf "  make k8s-apply             Apply rendered manifests with kubectl\n"
 	@printf "  make k8s-deploy            Build images, load to minikube, render and apply\n"
+	@printf "  make k8s-release           Build, tag, push, update values.yaml and helm upgrade\n"
 	@printf "  make k8s-status            Show pods, services, hpa, pdb and scaledobjects\n"
 	@printf "  make k8s-delete            Delete rendered manifests\n"
+	@printf "  make k8s-release IMAGE_TAG=1.0.2 REGISTRY=gbcamargo\n"
 	@printf "\nQuality:\n"
 	@printf "  make test                  Run all Gradle tests\n"
 	@printf "  make helm-lint             Lint all Helm charts\n"
@@ -77,6 +99,39 @@ docker-build-transfer-api:
 .PHONY: docker-build-transfer-worker
 docker-build-transfer-worker:
 	cd bank-flow-transfer && ./gradlew :worker:bootBuildImage --imageName=$(TRANSFER_WORKER_IMAGE)
+
+.PHONY: docker-build-release
+docker-build-release:
+	cd bank-flow-accounts && ./gradlew bootBuildImage --imageName=$(RELEASE_ACCOUNTS_LOCAL_IMAGE)
+	cd bank-flow-outboxer && ./gradlew bootBuildImage --imageName=$(RELEASE_OUTBOXER_LOCAL_IMAGE)
+	cd bank-flow-yield && ./gradlew bootBuildImage --imageName=$(RELEASE_YIELD_LOCAL_IMAGE)
+	cd bank-flow-ledger && ./gradlew bootBuildImage --imageName=$(RELEASE_LEDGER_LOCAL_IMAGE)
+	cd bank-flow-balance && ./gradlew :api:bootBuildImage --imageName=$(RELEASE_BALANCE_API_LOCAL_IMAGE)
+	cd bank-flow-balance && ./gradlew :worker:bootBuildImage --imageName=$(RELEASE_BALANCE_WORKER_LOCAL_IMAGE)
+	cd bank-flow-transfer && ./gradlew :api:bootBuildImage --imageName=$(RELEASE_TRANSFER_API_LOCAL_IMAGE)
+	cd bank-flow-transfer && ./gradlew :worker:bootBuildImage --imageName=$(RELEASE_TRANSFER_WORKER_LOCAL_IMAGE)
+
+.PHONY: docker-tag-release
+docker-tag-release:
+	docker tag $(RELEASE_ACCOUNTS_LOCAL_IMAGE) $(RELEASE_ACCOUNTS_IMAGE)
+	docker tag $(RELEASE_OUTBOXER_LOCAL_IMAGE) $(RELEASE_OUTBOXER_IMAGE)
+	docker tag $(RELEASE_YIELD_LOCAL_IMAGE) $(RELEASE_YIELD_IMAGE)
+	docker tag $(RELEASE_LEDGER_LOCAL_IMAGE) $(RELEASE_LEDGER_IMAGE)
+	docker tag $(RELEASE_BALANCE_API_LOCAL_IMAGE) $(RELEASE_BALANCE_API_IMAGE)
+	docker tag $(RELEASE_BALANCE_WORKER_LOCAL_IMAGE) $(RELEASE_BALANCE_WORKER_IMAGE)
+	docker tag $(RELEASE_TRANSFER_API_LOCAL_IMAGE) $(RELEASE_TRANSFER_API_IMAGE)
+	docker tag $(RELEASE_TRANSFER_WORKER_LOCAL_IMAGE) $(RELEASE_TRANSFER_WORKER_IMAGE)
+
+.PHONY: docker-push-release
+docker-push-release:
+	docker push $(RELEASE_ACCOUNTS_IMAGE)
+	docker push $(RELEASE_OUTBOXER_IMAGE)
+	docker push $(RELEASE_YIELD_IMAGE)
+	docker push $(RELEASE_LEDGER_IMAGE)
+	docker push $(RELEASE_BALANCE_API_IMAGE)
+	docker push $(RELEASE_BALANCE_WORKER_IMAGE)
+	docker push $(RELEASE_TRANSFER_API_IMAGE)
+	docker push $(RELEASE_TRANSFER_WORKER_IMAGE)
 
 .PHONY: compose-up
 compose-up: docker-build
@@ -186,6 +241,27 @@ k8s-apply: k8s-namespace k8s-render
 
 .PHONY: k8s-deploy
 k8s-deploy: minikube-load-images k8s-apply
+
+.PHONY: k8s-update-image-tags
+k8s-update-image-tags:
+	perl -0pi -e 's|(image:\n\s+repository:\s*)\S+(\n\s+tag:\s*)\S+|$${1}$(REGISTRY)/bank-flow-accounts$${2}$(IMAGE_TAG)|' bank-flow-accounts/k8s/values.yaml
+	perl -0pi -e 's|(image:\n\s+repository:\s*)\S+(\n\s+tag:\s*)\S+|$${1}$(REGISTRY)/bank-flow-outboxer$${2}$(IMAGE_TAG)|' bank-flow-outboxer/k8s/values.yaml
+	perl -0pi -e 's|(image:\n\s+repository:\s*)\S+(\n\s+tag:\s*)\S+|$${1}$(REGISTRY)/bank-flow-yield$${2}$(IMAGE_TAG)|' bank-flow-yield/k8s/values.yaml
+	perl -0pi -e 's|(image:\n\s+repository:\s*)\S+(\n\s+tag:\s*)\S+|$${1}$(REGISTRY)/bank-flow-ledger$${2}$(IMAGE_TAG)|' bank-flow-ledger/k8s/values.yaml
+	perl -0pi -e '$$i=0; s|(repository:\s*)\S+(\n\s+tag:\s*)\S+|++$$i == 1 ? "$${1}$(REGISTRY)/bank-flow-balance-api$${2}$(IMAGE_TAG)" : "$${1}$(REGISTRY)/bank-flow-balance-worker$${2}$(IMAGE_TAG)"|ge' bank-flow-balance/k8s/values.yaml
+	perl -0pi -e '$$i=0; s|(repository:\s*)\S+(\n\s+tag:\s*)\S+|++$$i == 1 ? "$${1}$(REGISTRY)/bank-flow-transfer-api$${2}$(IMAGE_TAG)" : "$${1}$(REGISTRY)/bank-flow-transfer-worker$${2}$(IMAGE_TAG)"|ge' bank-flow-transfer/k8s/values.yaml
+
+.PHONY: k8s-helm-upgrade
+k8s-helm-upgrade: k8s-namespace
+	$(HELM) upgrade --install bank-flow-accounts bank-flow-accounts/k8s --namespace $(K8S_NAMESPACE)
+	$(HELM) upgrade --install bank-flow-outboxer bank-flow-outboxer/k8s --namespace $(K8S_NAMESPACE)
+	$(HELM) upgrade --install bank-flow-yield bank-flow-yield/k8s --namespace $(K8S_NAMESPACE)
+	$(HELM) upgrade --install bank-flow-balance bank-flow-balance/k8s --namespace $(K8S_NAMESPACE)
+	$(HELM) upgrade --install bank-flow-ledger bank-flow-ledger/k8s --namespace $(K8S_NAMESPACE)
+	$(HELM) upgrade --install bank-flow-transfer bank-flow-transfer/k8s --namespace $(K8S_NAMESPACE)
+
+.PHONY: k8s-release
+k8s-release: docker-build-release docker-tag-release docker-push-release k8s-update-image-tags helm-lint k8s-helm-upgrade k8s-rollout-status
 
 .PHONY: k8s-status
 k8s-status:

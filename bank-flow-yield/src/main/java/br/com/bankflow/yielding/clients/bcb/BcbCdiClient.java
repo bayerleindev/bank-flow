@@ -1,6 +1,7 @@
 package br.com.bankflow.yielding.clients.bcb;
 
 import br.com.bankflow.yielding.domain.CdiRate;
+import br.com.bankflow.yielding.resilience.HttpResilience;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -23,6 +24,7 @@ public class BcbCdiClient {
 	private static final MathContext MATH_CONTEXT = new MathContext(18, RoundingMode.HALF_UP);
 
 	private final RestClient restClient;
+	private final HttpResilience httpResilience;
 	private final Clock clock;
 	private final String baseUrl;
 	private final String source;
@@ -31,6 +33,7 @@ public class BcbCdiClient {
 
 	public BcbCdiClient(
 			RestClient.Builder restClientBuilder,
+			HttpResilience httpResilience,
 			Clock clock,
 			@Value("${bank-flow.yield.cdi.base-url}") String baseUrl,
 			@Value("${bank-flow.yield.cdi.source}") String source,
@@ -38,6 +41,7 @@ public class BcbCdiClient {
 			@Value("${bank-flow.yield.cdi.lookback-days:7}") long lookbackDays
 	) {
 		this.restClient = restClientBuilder.build();
+		this.httpResilience = httpResilience;
 		this.clock = clock;
 		this.baseUrl = baseUrl;
 		this.source = source;
@@ -53,11 +57,11 @@ public class BcbCdiClient {
 				.queryParam("dataFinal", referenceDate.format(REQUEST_DATE_FORMATTER))
 				.build()
 				.toUri();
-		List<BcbCdiResponse> response = restClient.get()
+		List<BcbCdiResponse> response = httpResilience.execute("bcb.fetchCdi", () -> restClient.get()
 				.uri(uri)
 				.retrieve()
 				.body(new org.springframework.core.ParameterizedTypeReference<>() {
-				});
+				}));
 		if (response == null || response.isEmpty()) {
 			throw new IllegalStateException("CDI rate not found for reference_date=%s".formatted(referenceDate));
 		}

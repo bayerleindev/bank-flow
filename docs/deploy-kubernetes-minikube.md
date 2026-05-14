@@ -159,7 +159,19 @@ Se o namespace ja existir, ignore o erro.
 
 ## 6. Subir observabilidade
 
-Prometheus e Grafana:
+A forma recomendada e usar o script versionado. Ele instala ou atualiza Prometheus, Grafana, Blackbox Exporter, Loki, Grafana Alloy e Tempo no namespace `monitoring`:
+
+```bash
+scripts/k8s/deploy_observability.sh
+```
+
+Para usar outro namespace:
+
+```bash
+OBSERVABILITY_NAMESPACE=observability scripts/k8s/deploy_observability.sh
+```
+
+O script aplica estes releases Helm:
 
 ```bash
 helm upgrade --install monitoring prometheus-community/kube-prometheus-stack \
@@ -199,12 +211,31 @@ helm upgrade --install tempo grafana/tempo \
   -f observability/k8s/tempo-values.yaml
 ```
 
-Valide:
+A validacao recomendada tambem esta versionada:
 
 ```bash
-kubectl get pods -n monitoring
-kubectl get svc -n monitoring
+scripts/k8s/validate_observability.sh
 ```
+
+Ela verifica pods e services, confere os datasources Loki/Tempo provisionados no Grafana e consulta os endpoints internos:
+
+- `http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/labels`
+- `http://tempo.monitoring.svc.cluster.local:3200/api/v2/search/tags`
+- `Grafana -> datasource proxy -> Loki`
+
+No Grafana Explore, selecione o datasource `Loki` e use uma destas queries:
+
+```logql
+{namespace="bank-flow"}
+{stack="bank-flow"}
+{application="bank-flow-transfer-api"}
+{trace_id!="", namespace="bank-flow"}
+{transaction_id="<transfer_id>"}
+{transfer_id="<transfer_id>"}
+{account_id="<digital_account_id>"}
+```
+
+Se a tela vier vazia, confira a janela de tempo. Em Minikube, depois de reinstalar pods ou rodar testes, use primeiro `Last 1 hour` ou `Last 6 hours`.
 
 ## 7. Subir os servicos
 
@@ -237,6 +268,21 @@ Todos os servicos escrevem logs em stdout no Kubernetes:
 ```yaml
 LOG_FILE: ""
 ```
+
+O Alloy coleta esses logs dos pods, extrai `traceId`/`spanId` dos logs JSON e envia para Loki. O Grafana fica com dois datasources adicionais:
+
+- `Loki`, apontando para `http://loki-gateway.monitoring.svc.cluster.local`;
+- `Tempo`, apontando para `http://tempo.monitoring.svc.cluster.local:3200`.
+
+Esses datasources permitem navegar de um log no Loki para o trace no Tempo quando o log possui `traceId`.
+
+Para suporte e investigacao de negocio, os servicos tambem colocam identificadores funcionais nos logs e spans:
+
+- `transaction_id`: no fluxo de transferencia, equivale ao `transfer_id`;
+- `transfer_id`: id da transferencia;
+- `account_id`: chave de conta usada no evento Kafka, normalmente o `digital_account_id`;
+- `source_digital_account_id` e `destination_digital_account_id`;
+- `external_id` e `entry_id` para eventos de ledger.
 
 Todos usam labels compatíveis com os dashboards:
 

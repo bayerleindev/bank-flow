@@ -222,7 +222,7 @@ minikube start --memory=7000 --cpus=4 --disk-size=30g
 Melhor ainda:
 
 ```bash
-minikube start --memory=12288 --cpus=4 --disk-size=40g
+minikube start --memory=11000 --cpus=4 --disk-size=30g
 ```
 
 Tambem ficou claro que subir por etapas ajuda:

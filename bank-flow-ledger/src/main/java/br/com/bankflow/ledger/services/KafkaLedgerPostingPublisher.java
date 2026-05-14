@@ -3,6 +3,7 @@ package br.com.bankflow.ledger.services;
 import br.com.bankflow.ledger.domain.LedgerEntry;
 import br.com.bankflow.ledger.domain.LedgerEntryLine;
 import br.com.bankflow.ledger.domain.LedgerPosting;
+import br.com.bankflow.ledger.observability.BusinessCorrelation;
 import br.com.bankflow.ledger.observability.KafkaTraceContext;
 import br.com.bankflow.ledger.observability.LedgerBusinessMetrics;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -50,21 +51,33 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 
 	@Override
 	public void publish(LedgerPosting posting) throws JsonProcessingException {
-		Span span = publisherSpan(posting);
-		if (span == null) {
-			publishRecord(posting);
-			return;
-		}
-		try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
-			publishRecord(posting);
-		} catch (JsonProcessingException exception) {
-			span.error(exception);
-			throw exception;
-		} catch (RuntimeException exception) {
-			span.error(exception);
-			throw exception;
-		} finally {
-			span.end();
+		try (BusinessCorrelation.Scope correlation = BusinessCorrelation.posting(
+				tracer,
+				posting.entry().externalId(),
+				posting.entry().entryId()
+		)) {
+			Span span = publisherSpan(posting);
+			if (span == null) {
+				publishRecord(posting);
+				return;
+			}
+			try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
+				try (BusinessCorrelation.Scope publishCorrelation = BusinessCorrelation.posting(
+						tracer,
+						posting.entry().externalId(),
+						posting.entry().entryId()
+				)) {
+					publishRecord(posting);
+				}
+			} catch (JsonProcessingException exception) {
+				span.error(exception);
+				throw exception;
+			} catch (RuntimeException exception) {
+				span.error(exception);
+				throw exception;
+			} finally {
+				span.end();
+			}
 		}
 	}
 
@@ -75,6 +88,8 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 		record.headers().add(new RecordHeader("event_name", "ledger.posting_created".getBytes(StandardCharsets.UTF_8)));
 		record.headers().add(new RecordHeader("content_type", "application/json".getBytes(StandardCharsets.UTF_8)));
 		record.headers().add(new RecordHeader("entry_type", posting.entry().entryType().getBytes(StandardCharsets.UTF_8)));
+		record.headers().add(new RecordHeader("transaction_id", posting.entry().externalId().getBytes(StandardCharsets.UTF_8)));
+		record.headers().add(new RecordHeader("transfer_id", posting.entry().externalId().getBytes(StandardCharsets.UTF_8)));
 		addCurrentTraceHeaders(record);
 
 		try {
@@ -112,6 +127,11 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 				.tag("messaging.kafka.message.key", posting.entry().externalId())
 				.tag("event.name", "ledger.posting_created")
 				.tag("ledger.entry_type", posting.entry().entryType())
+				.tag("business.transaction_id", posting.entry().externalId())
+				.tag("transaction.id", posting.entry().externalId())
+				.tag("transfer.id", posting.entry().externalId())
+				.tag("ledger.external_id", posting.entry().externalId())
+				.tag("ledger.entry_id", String.valueOf(posting.entry().entryId()))
 				.start();
 	}
 

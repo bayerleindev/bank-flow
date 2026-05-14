@@ -17,6 +17,7 @@ import br.com.bankflow.transfer.domain.PspWebhookStatus;
 import br.com.bankflow.transfer.domain.Transfer;
 import br.com.bankflow.transfer.domain.TransferPostedCommand;
 import br.com.bankflow.transfer.domain.TransferStatus;
+import br.com.bankflow.transfer.observability.BusinessCorrelation;
 import br.com.bankflow.transfer.observability.TransferBusinessMetrics;
 import br.com.bankflow.transfer.repositories.OutboxEventRepository;
 import br.com.bankflow.transfer.repositories.TransferRepository;
@@ -184,35 +185,39 @@ public class TransferOrchestrationService {
 	}
 
 	public Transfer getTransfer(UUID transferId) {
-		return transferRepository.findByTransferId(transferId)
-				.orElseThrow(() -> new TransferNotFoundException(transferId.toString()));
+		try (BusinessCorrelation.Scope ignored = BusinessCorrelation.transfer(tracer, transferId.toString())) {
+			return transferRepository.findByTransferId(transferId)
+					.orElseThrow(() -> new TransferNotFoundException(transferId.toString()));
+		}
 	}
 
 	@Transactional
 	public Transfer completeAfterLedgerPosting(LedgerPostingCreatedEvent event) {
 		event.validate();
-		UUID transferId = UUID.fromString(event.externalId());
-		Transfer transfer = transferRepository.findByTransferId(transferId)
-				.orElseThrow(() -> new TransferNotFoundException(event.externalId()));
-		if (transfer.status() == TransferStatus.COMPLETED) {
-			return transfer;
+		try (BusinessCorrelation.Scope ignored = BusinessCorrelation.transfer(tracer, event.externalId())) {
+			UUID transferId = UUID.fromString(event.externalId());
+			Transfer transfer = transferRepository.findByTransferId(transferId)
+					.orElseThrow(() -> new TransferNotFoundException(event.externalId()));
+			if (transfer.status() == TransferStatus.COMPLETED) {
+				return transfer;
+			}
+			if (transfer.status().isTerminal()) {
+				return transfer;
+			}
+			if (transfer.status() != TransferStatus.POSTING_REQUESTED) {
+				throw new IllegalStateException("transfer must be POSTING_REQUESTED before completion");
+			}
+			captureHoldIfPresent(transfer);
+			Transfer completed = transferRepository.updateStatus(
+					transfer.transferId(),
+					TransferStatus.COMPLETED,
+					null,
+					clock.millis()
+			);
+			transferBusinessMetrics.recordTransferCompleted();
+			transferBusinessMetrics.recordTransferEndToEndLatency(completed.updatedAt() - completed.createdAt());
+			return completed;
 		}
-		if (transfer.status().isTerminal()) {
-			return transfer;
-		}
-		if (transfer.status() != TransferStatus.POSTING_REQUESTED) {
-			throw new IllegalStateException("transfer must be POSTING_REQUESTED before completion");
-		}
-		captureHoldIfPresent(transfer);
-		Transfer completed = transferRepository.updateStatus(
-				transfer.transferId(),
-				TransferStatus.COMPLETED,
-				null,
-				clock.millis()
-		);
-		transferBusinessMetrics.recordTransferCompleted();
-		transferBusinessMetrics.recordTransferEndToEndLatency(completed.updatedAt() - completed.createdAt());
-		return completed;
 	}
 
 	private Transfer orchestrateNewTransfer(CreateTransferCommand command) {
@@ -221,7 +226,12 @@ public class TransferOrchestrationService {
 		AccountResponse destinationAccount = accountClient.getAccount(command.destinationDigitalAccountId());
 		destinationAccount.validateActive("destination");
 		Transfer transfer = createReceivedTransfer(command, sourceAccount.account(), destinationAccount.account());
-		try {
+		try (BusinessCorrelation.Scope ignored = BusinessCorrelation.transfer(
+				tracer,
+				transfer.transferId(),
+				transfer.sourceDigitalAccountId(),
+				transfer.destinationDigitalAccountId()
+		)) {
 			BalanceHoldResponse hold = balanceClient.createHold(new CreateBalanceHoldRequest(
 					transfer.transferId().toString(),
 					command.sourceDigitalAccountId(),
@@ -296,7 +306,12 @@ public class TransferOrchestrationService {
 	}
 
 	private Transfer requestLedgerPosting(Transfer transfer) {
-		try {
+		try (BusinessCorrelation.Scope ignored = BusinessCorrelation.transfer(
+				tracer,
+				transfer.transferId(),
+				transfer.sourceDigitalAccountId(),
+				transfer.destinationDigitalAccountId()
+		)) {
 			long now = clock.millis();
 			TransferPostedCommand command = TransferPostedCommand.from(transfer);
 			outboxEventRepository.createIfAbsent(new OutboxEvent(
@@ -345,11 +360,25 @@ public class TransferOrchestrationService {
 		Span span = resumedSpan(transfer);
 		if (span == null) {
 			transferBusinessMetrics.recordTraceContext("psp_webhook_resume", hasTraceContext(transfer.traceparent()));
-			return operation.get();
+			try (BusinessCorrelation.Scope ignored = BusinessCorrelation.transfer(
+					tracer,
+					transfer.transferId(),
+					transfer.sourceDigitalAccountId(),
+					transfer.destinationDigitalAccountId()
+			)) {
+				return operation.get();
+			}
 		}
 		transferBusinessMetrics.recordTraceContext("psp_webhook_resume", "resumed");
 		try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
-			return operation.get();
+			try (BusinessCorrelation.Scope correlation = BusinessCorrelation.transfer(
+					tracer,
+					transfer.transferId(),
+					transfer.sourceDigitalAccountId(),
+					transfer.destinationDigitalAccountId()
+			)) {
+				return operation.get();
+			}
 		} catch (RuntimeException exception) {
 			span.error(exception);
 			throw exception;

@@ -60,6 +60,10 @@ public class KafkaConsumerTracing {
 				.tag("messaging.kafka.partition", String.valueOf(record.partition()))
 				.tag("messaging.kafka.offset", String.valueOf(record.offset()))
 				.tag("event.name", eventType)
+				.tag("business.transaction_id", firstNonBlank(headerValue(record, "transaction_id"), "none"))
+				.tag("transaction.id", firstNonBlank(headerValue(record, "transaction_id"), "none"))
+				.tag("transfer.id", firstNonBlank(headerValue(record, "transfer_id"), "none"))
+				.tag("account.id", firstNonBlank(headerValue(record, "account_id"), "none"))
 				.start();
 	}
 
