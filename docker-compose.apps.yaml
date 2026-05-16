@@ -1,24 +1,14 @@
 services:
-  db:
-    networks:
-      - bankflow-network
-
-  immudb:
-    networks:
-      - bankflow-network
 
   bank-flow-outboxer:
     image: bank-flow-outboxer:local
     container_name: bank-flow-outboxer
     restart: always
-    depends_on:
-      - db
-      - kafka-init
     ports:
       - "8088:8088"
     environment:
       SERVER_PORT: "8088"
-      POSTGRES_URL: "jdbc:postgresql://db:5432/bank_flow?currentSchema=outboxer,public"
+      POSTGRES_URL: "jdbc:postgresql://host.docker.internal:5432/bank_flow?currentSchema=outboxer,public"
       POSTGRES_USER: "myuser"
       POSTGRES_PASSWORD: "mysecretpassword"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
@@ -33,19 +23,20 @@ services:
       LOG_FILE: ""
     networks:
       - bankflow-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   bank-flow-accounts:
     image: bank-flow-accounts:local
     container_name: bank-flow-accounts
     restart: always
     depends_on:
-      - db
       - bank-flow-outboxer
     ports:
       - "8084:8084"
     environment:
       SERVER_PORT: "8084"
-      POSTGRES_URL: "jdbc:postgresql://db:5432/bank_flow?currentSchema=accounts,public"
+      POSTGRES_URL: "jdbc:postgresql://host.docker.internal:5432/bank_flow?currentSchema=accounts,public"
       POSTGRES_USER: "myuser"
       POSTGRES_PASSWORD: "mysecretpassword"
       BAAS_MODE: "mock"
@@ -55,20 +46,20 @@ services:
       LOG_FILE: ""
     networks:
       - bankflow-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   bank-flow-yield:
     image: bank-flow-yield:local
     container_name: bank-flow-yield
     restart: always
     depends_on:
-      - db
-      - kafka-init
       - bank-flow-outboxer
     ports:
-      - "8089:8089"
+      - "8090:8089"
     environment:
       SERVER_PORT: "8089"
-      POSTGRES_URL: "jdbc:postgresql://db:5432/bank_flow?currentSchema=yield,public"
+      POSTGRES_URL: "jdbc:postgresql://host.docker.internal:5432/bank_flow?currentSchema=yield,public"
       POSTGRES_USER: "myuser"
       POSTGRES_PASSWORD: "mysecretpassword"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
@@ -82,14 +73,13 @@ services:
       LOG_FILE: ""
     networks:
       - bankflow-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   bank-flow-ledger:
     image: bank-flow-ledger:local
     container_name: bank-flow-ledger
     restart: always
-    depends_on:
-      - kafka-init
-      - immudb
     ports:
       - "8085:8085"
     environment:
@@ -101,7 +91,7 @@ services:
       KAFKA_RETRY_MAX_ATTEMPTS: "3"
       ID_GENERATOR_WORKER_ID: "0"
       IMMUDB_ENABLED: "true"
-      IMMUDB_HOST: "immudb"
+      IMMUDB_HOST: "host.docker.internal"
       IMMUDB_PORT: "3322"
       IMMUDB_DATABASE: "ledger"
       IMMUDB_USERNAME: "immudb"
@@ -113,18 +103,18 @@ services:
       LOG_FILE: ""
     networks:
       - bankflow-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   bank-flow-balance-api:
     image: bank-flow-balance-api:local
     container_name: bank-flow-balance-api
     restart: always
-    depends_on:
-      - db
     ports:
       - "8082:8082"
     environment:
       SERVER_PORT: "8082"
-      POSTGRES_URL: "jdbc:postgresql://db:5432/bank_flow"
+      POSTGRES_URL: "jdbc:postgresql://host.docker.internal:5432/bank_flow"
       POSTGRES_USER: "myuser"
       POSTGRES_PASSWORD: "mysecretpassword"
       OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: "http://tempo:4318/v1/traces"
@@ -132,19 +122,18 @@ services:
       LOG_FILE: ""
     networks:
       - bankflow-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   bank-flow-balance-worker:
     image: bank-flow-balance-worker:local
     container_name: bank-flow-balance-worker
     restart: always
-    depends_on:
-      - db
-      - kafka-init
     ports:
       - "8087:8087"
     environment:
       SERVER_PORT: "8087"
-      POSTGRES_URL: "jdbc:postgresql://db:5432/bank_flow"
+      POSTGRES_URL: "jdbc:postgresql://host.docker.internal:5432/bank_flow"
       POSTGRES_USER: "myuser"
       POSTGRES_PASSWORD: "mysecretpassword"
       KAFKA_BOOTSTRAP_SERVERS: "kafka:29092"
@@ -159,13 +148,14 @@ services:
       LOG_FILE: ""
     networks:
       - bankflow-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   bank-flow-transfer-api:
     image: bank-flow-transfer-api:local
     container_name: bank-flow-transfer-api
     restart: always
     depends_on:
-      - db
       - bank-flow-accounts
       - bank-flow-balance-api
       - bank-flow-outboxer
@@ -173,7 +163,7 @@ services:
       - "8083:8083"
     environment:
       SERVER_PORT: "8083"
-      POSTGRES_URL: "jdbc:postgresql://db:5432/bank_flow?currentSchema=transfer,public"
+      POSTGRES_URL: "jdbc:postgresql://host.docker.internal:5432/bank_flow?currentSchema=transfer,public"
       POSTGRES_USER: "myuser"
       POSTGRES_PASSWORD: "mysecretpassword"
       ACCOUNTS_BASE_URL: "http://bank-flow-accounts:8084"
@@ -185,20 +175,20 @@ services:
       LOG_FILE: ""
     networks:
       - bankflow-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   bank-flow-transfer-worker:
     image: bank-flow-transfer-worker:local
     container_name: bank-flow-transfer-worker
     restart: always
     depends_on:
-      - db
-      - kafka-init
       - bank-flow-balance-api
     ports:
       - "8086:8086"
     environment:
       SERVER_PORT: "8086"
-      POSTGRES_URL: "jdbc:postgresql://db:5432/bank_flow?currentSchema=transfer,public"
+      POSTGRES_URL: "jdbc:postgresql://host.docker.internal:5432/bank_flow?currentSchema=transfer,public"
       POSTGRES_USER: "myuser"
       POSTGRES_PASSWORD: "mysecretpassword"
       ACCOUNTS_BASE_URL: "http://bank-flow-accounts:8084"
@@ -216,3 +206,10 @@ services:
       LOG_FILE: ""
     networks:
       - bankflow-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+networks:
+  bankflow-network:
+    external: true
+    name: bankflow-network

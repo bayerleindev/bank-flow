@@ -1,0 +1,78 @@
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: 'true'
+      percentiles:
+        http:
+          server:
+            requests: 0.5,0.95,0.99
+    tags:
+      application: ${spring.application.name}
+    enable:
+      hikaricp: 'true'
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState,ping
+      probes:
+        enabled: 'true'
+      show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS:when_authorized}
+  opentelemetry:
+    resource-attributes:
+      service:
+        name: ${spring.application.name}
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+      sampler: always-on
+      baggage:
+        remote-fields:
+          - transfer_id
+        correlation:
+          fields:
+            - transfer_id
+  otlp:
+    metrics:
+      export:
+        enabled: 'false'
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+spring:
+  flyway:
+    enabled: 'true'
+    baseline-on-migrate: 'true'
+    locations: classpath:db/migration
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT_MS:600000}
+      maximum-pool-size: ${HIKARI_MAXIMUM_POOL_SIZE:8}
+      connection-timeout: ${HIKARI_CONNECTION_TIMEOUT_MS:2000}
+      max-lifetime: ${HIKARI_MAX_LIFETIME_MS:1500000}
+      minimum-idle: ${HIKARI_MINIMUM_IDLE:2}
+    password: ${POSTGRES_PASSWORD:mysecretpassword}
+    username: ${POSTGRES_USER:myuser}
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/bank_flow}
+  application:
+    name: bank-flow-balance-api
+server:
+  port: ${SERVER_PORT:8082}
+logging:
+  structured:
+    format:
+      console: ${LOGGING_STRUCTURED_FORMAT:logstash}
+      file: ${LOGGING_STRUCTURED_FORMAT:logstash}
+  file:
+    name: ${LOG_FILE:../logs/${spring.application.name}.log}

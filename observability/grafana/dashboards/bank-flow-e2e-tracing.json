@@ -66,7 +66,7 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "100 * (sum(rate(transfer_trace_context_total{stage=~\"create|external_inbound_create\",result=\"with_trace\"}[$__rate_interval])) or vector(0)) / clamp_min((sum(rate(transfer_trace_context_total{stage=~\"create|external_inbound_create\"}[$__rate_interval])) or vector(0)), 1)",
+          "expr": "100 * (sum(rate(transfer_id_context_total{stage=~\"create|external_inbound_create\",result=\"with_transfer_id\"}[$__rate_interval])) or vector(0)) / clamp_min((sum(rate(transfer_id_context_total{stage=~\"create|external_inbound_create\"}[$__rate_interval])) or vector(0)), 1)",
           "legendFormat": "transfer create"
         }
       ],
@@ -106,7 +106,7 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "100 * (sum(rate(outbox_published_events_total{trace_context=\"with_trace\"}[$__rate_interval])) or vector(0)) / clamp_min((sum(rate(outbox_published_events_total[$__rate_interval])) or vector(0)), 1)",
+          "expr": "100 * (sum(rate(outbox_published_events_total{transfer_id_context=\"with_transfer_id\"}[$__rate_interval])) or vector(0)) / clamp_min((sum(rate(outbox_published_events_total[$__rate_interval])) or vector(0)), 1)",
           "legendFormat": "outbox"
         }
       ],
@@ -146,7 +146,7 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "100 * (sum(rate(ledger_kafka_trace_context_total{trace_context=\"with_trace\"}[$__rate_interval])) or vector(0)) / clamp_min((sum(rate(ledger_kafka_trace_context_total[$__rate_interval])) or vector(0)), 1)",
+          "expr": "100 * (sum(rate(ledger_kafka_transfer_id_context_total{transfer_id_context=\"with_transfer_id\"}[$__rate_interval])) or vector(0)) / clamp_min((sum(rate(ledger_kafka_transfer_id_context_total[$__rate_interval])) or vector(0)), 1)",
           "legendFormat": "ledger"
         }
       ],
@@ -186,7 +186,7 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "100 * (sum(rate(bank_flow_balance_kafka_trace_context_total{trace_context=\"with_trace\"}[$__rate_interval])) or vector(0)) / clamp_min((sum(rate(bank_flow_balance_kafka_trace_context_total[$__rate_interval])) or vector(0)), 1)",
+          "expr": "100 * (sum(rate(bank_flow_balance_kafka_transfer_id_context_total{transfer_id_context=\"with_transfer_id\"}[$__rate_interval])) or vector(0)) / clamp_min((sum(rate(bank_flow_balance_kafka_transfer_id_context_total[$__rate_interval])) or vector(0)), 1)",
           "legendFormat": "balance"
         }
       ],
@@ -234,7 +234,7 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum by (stage, result) (rate(transfer_trace_context_total[$__rate_interval])) or vector(0)",
+          "expr": "sum by (stage, result) (rate(transfer_id_context_total[$__rate_interval])) or vector(0)",
           "legendFormat": "{{stage}} {{result}}"
         }
       ],
@@ -282,8 +282,8 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum by (producer_service, topic, trace_context) (rate(outbox_published_events_total[$__rate_interval])) or vector(0)",
-          "legendFormat": "{{producer_service}} {{topic}} {{trace_context}}"
+          "expr": "sum by (producer_service, topic, transfer_id_context) (rate(outbox_published_events_total[$__rate_interval])) or vector(0)",
+          "legendFormat": "{{producer_service}} {{topic}} {{transfer_id_context}}"
         }
       ],
       "title": "Outbox Published Events Trace Context",
@@ -318,7 +318,7 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum by (stage) (increase(transfer_trace_context_total{result=\"missing_trace\"}[$__range])) or vector(0)",
+          "expr": "sum by (stage) (increase(transfer_id_context_total{result=\"missing_transfer_id\"}[$__range])) or vector(0)",
           "legendFormat": "{{stage}}"
         }
       ],
@@ -354,7 +354,7 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum by (topic, event_type) (increase(outbox_published_events_total{trace_context=\"missing_trace\"}[$__range])) or vector(0)",
+          "expr": "sum by (topic, event_type) (increase(outbox_published_events_total{transfer_id_context=\"missing_transfer_id\"}[$__range])) or vector(0)",
           "legendFormat": "{{topic}} {{event_type}}"
         }
       ],
@@ -390,7 +390,7 @@
       "pluginVersion": "11.4.0",
       "targets": [
         {
-          "expr": "sum by (topic) (increase(ledger_kafka_trace_context_total{trace_context=\"missing_trace\"}[$__range])) or sum by (topic) (increase(bank_flow_balance_kafka_trace_context_total{trace_context=\"missing_trace\"}[$__range])) or sum by (stage) (increase(transfer_trace_context_total{stage=\"ledger_posting_consume\",result=\"missing_trace\"}[$__range])) or vector(0)",
+          "expr": "sum by (topic) (increase(ledger_kafka_transfer_id_context_total{transfer_id_context=\"missing_transfer_id\"}[$__range])) or sum by (topic) (increase(bank_flow_balance_kafka_transfer_id_context_total{transfer_id_context=\"missing_transfer_id\"}[$__range])) or sum by (stage) (increase(transfer_id_context_total{stage=\"ledger_posting_consume\",result=\"missing_transfer_id\"}[$__range])) or vector(0)",
           "legendFormat": "{{topic}}{{stage}}"
         }
       ],

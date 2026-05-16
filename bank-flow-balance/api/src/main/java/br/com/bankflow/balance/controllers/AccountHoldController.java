@@ -3,6 +3,7 @@ package br.com.bankflow.balance.controllers;
 import br.com.bankflow.balance.controllers.dtos.AccountHoldResponse;
 import br.com.bankflow.balance.controllers.dtos.CreateAccountHoldRequest;
 import br.com.bankflow.balance.services.AccountHoldService;
+import io.micrometer.observation.annotation.Observed;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;

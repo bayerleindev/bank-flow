@@ -24,11 +24,11 @@ public class LedgerBusinessMetrics {
 				.increment();
 	}
 
-	public void recordKafkaTraceContext(String topic, String traceContext) {
-		Counter.builder("ledger_kafka_trace_context")
-				.description("Trace context coverage on Kafka records consumed by ledger")
+	public void recordKafkaTransferIdContext(String topic, String transferIdContext) {
+		Counter.builder("ledger_kafka_transfer_id_context")
+				.description("Transfer id coverage on Kafka records consumed by ledger")
 				.tag("topic", topic == null ? "unknown" : topic)
-				.tag("trace_context", traceContext == null ? "unknown" : traceContext)
+				.tag("transfer_id_context", transferIdContext == null ? "unknown" : transferIdContext)
 				.register(meterRegistry)
 				.increment();
 	}

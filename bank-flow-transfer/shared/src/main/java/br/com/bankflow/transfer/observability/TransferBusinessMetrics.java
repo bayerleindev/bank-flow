@@ -120,9 +120,9 @@ public class TransferBusinessMetrics {
 				.increment();
 	}
 
-	public void recordTraceContext(String stage, String result) {
-		Counter.builder("transfer_trace_context")
-				.description("Transfer trace context coverage by stage")
+	public void recordTransferIdContext(String stage, String result) {
+		Counter.builder("transfer_id_context")
+				.description("Transfer id coverage by stage")
 				.tag("stage", stage == null ? "unknown" : stage)
 				.tag("result", result == null ? "unknown" : result)
 				.register(meterRegistry)

@@ -27,7 +27,8 @@ public class KafkaConsumerConfig {
 	ConcurrentKafkaListenerContainerFactory<String, String> ledgerPostingCreatedKafkaListenerContainerFactory(
 			ConsumerFactory<String, String> consumerFactory,
 			CommonErrorHandler kafkaErrorHandler,
-			@Value("${spring.kafka.listener.concurrency:2}") int concurrency
+			@Value("${spring.kafka.listener.concurrency:2}") int concurrency,
+            RecordInterceptorConfig recordInterceptorConfig
 	) {
 		ConcurrentKafkaListenerContainerFactory<String, String> factory =
 				new ConcurrentKafkaListenerContainerFactory<>();
@@ -36,6 +37,7 @@ public class KafkaConsumerConfig {
 		factory.getContainerProperties().setObservationEnabled(true);
 		factory.setCommonErrorHandler(kafkaErrorHandler);
 		factory.setConcurrency(Math.max(1, concurrency));
+        factory.setRecordInterceptor(recordInterceptorConfig);
 		return factory;
 	}
 

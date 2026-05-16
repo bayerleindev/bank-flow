@@ -5,6 +5,7 @@ import br.com.bankflow.accounts.controllers.dtos.CreateAccountRequest;
 import br.com.bankflow.accounts.domain.Account;
 import br.com.bankflow.accounts.domain.AccountStatus;
 import br.com.bankflow.accounts.services.AccountCreationService;
+import io.micrometer.observation.annotation.Observed;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;

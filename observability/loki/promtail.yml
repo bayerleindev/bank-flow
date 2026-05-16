@@ -22,14 +22,12 @@ scrape_configs:
             level: level
             logger: logger_name
             message: message
-            trace_id: traceId
-            span_id: spanId
+            transfer_id: transfer_id
       - labels:
           application:
           level:
           logger:
-          trace_id:
-          span_id:
+          transfer_id:
 
   - job_name: docker
     docker_sd_configs:
@@ -50,10 +48,8 @@ scrape_configs:
             level: level
             logger: logger_name
             message: message
-            trace_id: traceId
-            span_id: spanId
+            transfer_id: transfer_id
       - labels:
           level:
           logger:
-          trace_id:
-          span_id:
+          transfer_id:

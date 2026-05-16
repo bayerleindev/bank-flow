@@ -20,12 +20,8 @@ grafana:
       jsonData:
         manageAlerts: false
         derivedFields:
-          - name: trace_id
-            matcherRegex: '"traceId":"([a-f0-9]+)"'
-            datasourceUid: tempo
-            url: "$${__value.raw}"
-          - name: span_id
-            matcherRegex: '"spanId":"([a-f0-9]+)"'
+          - name: transfer_id
+            matcherRegex: '"transfer_id":"([^"]+)"'
     - name: Tempo
       uid: tempo
       type: tempo

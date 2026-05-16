@@ -49,4 +49,4 @@ echo "Useful Grafana Explore queries:"
 echo '  {namespace="bank-flow"}'
 echo '  {stack="bank-flow"}'
 echo '  {application="bank-flow-transfer-api"}'
-echo '  {trace_id!="", namespace="bank-flow"}'
+echo '  {transfer_id!="", namespace="bank-flow"}'

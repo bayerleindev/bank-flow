@@ -36,9 +36,14 @@ public class KafkaConsumerConfig {
 	ConcurrentKafkaListenerContainerFactory<String, String> ledgerMovementKafkaListenerContainerFactory(
 			ConsumerFactory<String, String> consumerFactory,
 			CommonErrorHandler kafkaErrorHandler,
-			@Value("${spring.kafka.listener.concurrency:3}") int concurrency
+			@Value("${spring.kafka.listener.concurrency:3}") int concurrency,
+            RecordInterceptorConfig recordInterceptorConfig
 	) {
-		return kafkaListenerContainerFactory(consumerFactory, kafkaErrorHandler, concurrency);
+		var factory = kafkaListenerContainerFactory(consumerFactory, kafkaErrorHandler, concurrency);
+        factory.getContainerProperties().setObservationEnabled(true);
+        factory.setRecordInterceptor(recordInterceptorConfig);
+
+        return factory;
 	}
 
 	@Bean
@@ -76,7 +81,7 @@ public class KafkaConsumerConfig {
 
 	@Bean
 	CommonErrorHandler kafkaErrorHandler(
-			KafkaOperations<Object, Object> kafkaOperations,
+			KafkaOperations<String, String> kafkaOperations,
 			MeterRegistry meterRegistry,
 			@Value("${spring.application.name:bank-flow-ledger}") String serviceName,
 			@Value("${bank-flow.kafka.retry.interval-ms}") long intervalMs,

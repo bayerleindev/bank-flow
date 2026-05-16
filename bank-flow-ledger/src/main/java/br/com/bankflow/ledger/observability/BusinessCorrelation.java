@@ -14,7 +14,6 @@ public final class BusinessCorrelation {
 
 	public static Scope transfer(Tracer tracer, UUID transferId, UUID sourceDigitalAccountId, UUID destinationDigitalAccountId) {
 		Map<String, String> values = new LinkedHashMap<>();
-		put(values, "transaction_id", transferId);
 		put(values, "transfer_id", transferId);
 		put(values, "source_digital_account_id", sourceDigitalAccountId);
 		put(values, "destination_digital_account_id", destinationDigitalAccountId);
@@ -23,7 +22,6 @@ public final class BusinessCorrelation {
 
 	public static Scope posting(Tracer tracer, String externalId, long entryId) {
 		Map<String, String> values = new LinkedHashMap<>();
-		put(values, "transaction_id", externalId);
 		put(values, "transfer_id", externalId);
 		put(values, "external_id", externalId);
 		put(values, "entry_id", entryId);
@@ -33,8 +31,6 @@ public final class BusinessCorrelation {
 	private static Scope apply(Tracer tracer, Map<String, String> values) {
 		Span span = tracer == null ? null : tracer.currentSpan();
 		if (span != null) {
-			tag(span, "business.transaction_id", values.get("transaction_id"));
-			tag(span, "transaction.id", values.get("transaction_id"));
 			tag(span, "transfer.id", values.get("transfer_id"));
 			tag(span, "ledger.external_id", values.get("external_id"));
 			tag(span, "ledger.entry_id", values.get("entry_id"));

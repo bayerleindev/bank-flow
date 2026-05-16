@@ -1,7 +1,6 @@
 package br.com.bankflow.ledger.observability;
 
 import io.micrometer.tracing.Span;
-import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.header.Header;
@@ -45,18 +44,12 @@ public class KafkaConsumerTracing {
 			return null;
 		}
 		String eventType = firstNonBlank(headerValue(record, "event_name"), fallbackEventType);
-        String traceparentStr = headerValue(record, "traceparent");
-        TraceContext parentContext = parseTraceparent(traceparentStr);
 		Span.Builder builder = tracer.spanBuilder();
 
-        if (parentContext != null) {
-            builder.setParent(parentContext);
-        } else {
-            Span currentSpan = tracer.currentSpan();
-            if (currentSpan != null) {
-                builder.setParent(currentSpan.context());
-            }
-        }
+		Span currentSpan = tracer.currentSpan();
+		if (currentSpan != null) {
+			builder.setParent(currentSpan.context());
+		}
 
 		return builder
 				.name("%s consume %s".formatted(record.topic(), eventType))
@@ -69,27 +62,10 @@ public class KafkaConsumerTracing {
 				.tag("messaging.kafka.partition", String.valueOf(record.partition()))
 				.tag("messaging.kafka.offset", String.valueOf(record.offset()))
 				.tag("event.name", eventType)
-				.tag("business.transaction_id", firstNonBlank(headerValue(record, "transaction_id"), "none"))
-				.tag("transaction.id", firstNonBlank(headerValue(record, "transaction_id"), "none"))
 				.tag("transfer.id", firstNonBlank(headerValue(record, "transfer_id"), "none"))
 				.tag("account.id", firstNonBlank(headerValue(record, "account_id"), "none"))
 				.start();
 	}
-
-    private TraceContext parseTraceparent(String traceparent) {
-        if (traceparent == null || traceparent.isBlank()) {
-            return null;
-        }
-        String[] parts = traceparent.split("-");
-        if (parts.length != 4 || parts[1].length() != 32 || parts[2].length() != 16) {
-            return null;
-        }
-        return tracer.traceContextBuilder()
-                .traceId(parts[1])
-                .spanId(parts[2])
-                .sampled("01".equals(parts[3]))
-                .build();
-    }
 
 	private String headerValue(ConsumerRecord<String, String> record, String name) {
 		Header header = record.headers().lastHeader(name);

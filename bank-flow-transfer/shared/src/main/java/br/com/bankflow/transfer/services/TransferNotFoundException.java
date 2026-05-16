@@ -1,14 +1,18 @@
 package br.com.bankflow.transfer.services;
 
-public class TransferNotFoundException extends RuntimeException {
-	private final String identifier;
+import java.io.Serial;
 
-	public TransferNotFoundException(String identifier) {
-		super("transfer not found identifier=%s".formatted(identifier));
-		this.identifier = identifier;
+public class TransferNotFoundException extends RuntimeException {
+	private final String identifierString;
+    @Serial
+    private static final long serialVersionUID = -7034897190745766939L;
+
+	public TransferNotFoundException(String identifierString) {
+		super("transfer not found identifier=%s".formatted(identifierString));
+		this.identifierString = identifierString;
 	}
 
 	public String identifier() {
-		return identifier;
+		return identifierString;
 	}
 }

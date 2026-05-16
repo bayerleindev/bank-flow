@@ -49,11 +49,11 @@ public class BalanceMetrics {
 				.increment();
 	}
 
-	public void recordKafkaTraceContext(String topic, String traceContext) {
-		Counter.builder("bank_flow_balance_kafka_trace_context")
-				.description("Trace context coverage on Kafka records consumed by balance")
+	public void recordKafkaTransferIdContext(String topic, String transferIdContext) {
+		Counter.builder("bank_flow_balance_kafka_transfer_id_context")
+				.description("Transfer id coverage on Kafka records consumed by balance")
 				.tag("topic", topic == null ? "unknown" : topic)
-				.tag("trace_context", traceContext == null ? "unknown" : traceContext)
+				.tag("transfer_id_context", transferIdContext == null ? "unknown" : transferIdContext)
 				.register(meterRegistry)
 				.increment();
 	}

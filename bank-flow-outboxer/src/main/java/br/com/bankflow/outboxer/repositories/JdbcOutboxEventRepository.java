@@ -46,8 +46,7 @@ public class JdbcOutboxEventRepository implements OutboxEventRepository {
 				WHERE event.event_id = candidates.event_id
 				RETURNING event.event_id, event.producer_service, event.aggregate_type, event.aggregate_id,
 				          event.event_type, event.topic, event.event_key, event.payload, event.status,
-				          event.attempts, event.last_error, event.created_at, event.published_at,
-				          event.traceparent, event.tracestate
+				          event.attempts, event.last_error, event.created_at, event.published_at
 				""", this::mapEvent, maxAttempts, nowMillis, limit, lockedBy, lockedUntilMillis);
 	}
 
@@ -128,9 +127,7 @@ public class JdbcOutboxEventRepository implements OutboxEventRepository {
 				rs.getInt("attempts"),
 				rs.getString("last_error"),
 				rs.getLong("created_at"),
-				rs.getObject("published_at", Long.class),
-				rs.getString("traceparent"),
-				rs.getString("tracestate")
+				rs.getObject("published_at", Long.class)
 		);
 	}
 }

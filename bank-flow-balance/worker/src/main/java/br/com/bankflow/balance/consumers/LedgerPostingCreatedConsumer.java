@@ -2,7 +2,7 @@ package br.com.bankflow.balance.consumers;
 
 import br.com.bankflow.balance.domain.LedgerPostingCreatedEvent;
 import br.com.bankflow.balance.observability.BalanceMetrics;
-import br.com.bankflow.balance.observability.KafkaConsumerTracing;
+import br.com.bankflow.balance.observability.TransferTracing;
 import br.com.bankflow.balance.services.LedgerPostingProjectionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -13,6 +13,7 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 @Component
 public class LedgerPostingCreatedConsumer {
@@ -21,18 +22,18 @@ public class LedgerPostingCreatedConsumer {
 	private final ObjectMapper objectMapper;
 	private final LedgerPostingProjectionService ledgerPostingProjectionService;
 	private final BalanceMetrics balanceMetrics;
-	private final KafkaConsumerTracing kafkaConsumerTracing;
+    private final TransferTracing transferTracing;
 
 	public LedgerPostingCreatedConsumer(
-			ObjectMapper objectMapper,
-			LedgerPostingProjectionService ledgerPostingProjectionService,
-			BalanceMetrics balanceMetrics,
-			KafkaConsumerTracing kafkaConsumerTracing
-	) {
+            ObjectMapper objectMapper,
+            LedgerPostingProjectionService ledgerPostingProjectionService,
+            BalanceMetrics balanceMetrics,
+            TransferTracing transferTracing
+    ) {
 		this.objectMapper = objectMapper;
 		this.ledgerPostingProjectionService = ledgerPostingProjectionService;
 		this.balanceMetrics = balanceMetrics;
-		this.kafkaConsumerTracing = kafkaConsumerTracing;
+        this.transferTracing = transferTracing;
 	}
 
 	@KafkaListener(
@@ -42,9 +43,9 @@ public class LedgerPostingCreatedConsumer {
 			autoStartup = "${spring.kafka.listener.auto-startup:true}"
 	)
 	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) throws Exception {
-		kafkaConsumerTracing.consume(record, "ledger.posting_created", () -> {
+        transferTracing.withTransferId(UUID.fromString(transferIdLabel(record)), () -> {
 			balanceMetrics.recordKafkaMessageReceived(record.topic());
-			balanceMetrics.recordKafkaTraceContext(record.topic(), traceContextLabel(record));
+			balanceMetrics.recordKafkaTransferIdContext(record.topic(), transferIdLabel(record));
 			try {
 				LedgerPostingCreatedEvent event = objectMapper.readValue(record.value(), LedgerPostingCreatedEvent.class);
 				validatePartitionKey(record.key(), event);
@@ -62,18 +63,17 @@ public class LedgerPostingCreatedConsumer {
 				);
 			} catch (Exception exception) {
 				balanceMetrics.recordKafkaMessageFailed(record.topic(), exception);
-				throw exception;
 			}
 		});
 	}
 
-	private String traceContextLabel(ConsumerRecord<String, String> record) {
-		var header = record.headers().lastHeader("traceparent");
+	private String transferIdLabel(ConsumerRecord<String, String> record) {
+		var header = record.headers().lastHeader("transfer_id");
 		if (header == null || header.value() == null || header.value().length == 0) {
-			return "missing_trace";
+			return "missing_transfer_id";
 		}
-		String traceparent = new String(header.value(), StandardCharsets.UTF_8);
-		return traceparent.isBlank() ? "missing_trace" : "with_trace";
+		String transferId = new String(header.value(), StandardCharsets.UTF_8);
+		return transferId.isBlank() ? "missing_transfer_id" : "with_transfer_id";
 	}
 
 	private void validatePartitionKey(String key, LedgerPostingCreatedEvent event) {

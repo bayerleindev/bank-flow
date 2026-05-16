@@ -5,6 +5,7 @@ import br.com.bankflow.balance.domain.AccountHoldStatus;
 import br.com.bankflow.balance.domain.CreateAccountHoldCommand;
 import br.com.bankflow.balance.observability.BalanceMetrics;
 import br.com.bankflow.balance.repositories.AccountHoldRepository;
+import io.micrometer.observation.annotation.Observed;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -50,6 +51,7 @@ public class AccountHoldService {
 		balanceMetrics.recordHoldsExpired(expired);
 	}
 
+    @Observed(name = "new-transfer")
 	private AccountHold createNewHold(CreateAccountHoldCommand command, long now) {
 		String holdId = UUID.randomUUID().toString();
 		AccountHold hold;

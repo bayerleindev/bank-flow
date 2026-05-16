@@ -17,11 +17,13 @@ import br.com.bankflow.transfer.domain.PspWebhookStatus;
 import br.com.bankflow.transfer.domain.Transfer;
 import br.com.bankflow.transfer.domain.TransferStatus;
 import br.com.bankflow.transfer.observability.TransferBusinessMetrics;
+import br.com.bankflow.transfer.observability.TransferTracing;
 import br.com.bankflow.transfer.repositories.OutboxEventRepository;
 import br.com.bankflow.transfer.repositories.TransferRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -32,14 +34,22 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 class TransferOrchestrationServiceTests {
-	private static final UUID EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000100");
-	private final Clock clock = Clock.fixed(Instant.ofEpochMilli(1_778_100_000_000L), ZoneOffset.UTC);
+    private static final UUID EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000100");
+    public static final String IDEMPOTENCY_KEY = "idem-1";
+    public static final String CURRENCY = "BRL";
+    private final Clock clock = Clock.fixed(Instant.ofEpochMilli(1_778_100_000_000L), ZoneOffset.UTC);
 
+    private final TransferTracing transferTracing = mock();
 	private final FakeTransferRepository repository = new FakeTransferRepository();
 	private final FakeOutboxEventRepository outboxRepository = new FakeOutboxEventRepository();
 	private final FakeAccountClient accountClient = new FakeAccountClient();
@@ -63,12 +73,28 @@ class TransferOrchestrationServiceTests {
 			new ObjectMapper(),
 			transferBusinessMetrics,
 			clock,
-			"ledger-movements"
+			"ledger-movements",
+            transferTracing
 	);
+
+    @BeforeEach
+    void setUp() {
+        when(transferTracing.withTransferId(any(UUID.class), any(Supplier.class)))
+                .thenAnswer(invocation -> {
+                    Supplier<?> supplier = invocation.getArgument(1);
+                    return supplier.get();
+                });
+
+        doAnswer(invocation -> {
+            Runnable runnable = invocation.getArgument(1);
+            runnable.run();
+            return null;
+        }).when(transferTracing).withTransferId(any(UUID.class), any(Runnable.class));
+    }
 
 	@Test
 	void createsTransferWithHoldAndPendingPspPayment() {
-		Transfer transfer = service.createTransfer(command("idem-1"));
+		Transfer transfer = service.createTransfer(command(IDEMPOTENCY_KEY), UUID.randomUUID());
 
 		assertEquals(TransferStatus.PSP_PENDING, transfer.status());
 		assertEquals("hold-" + transfer.transferId(), transfer.holdId());
@@ -80,8 +106,8 @@ class TransferOrchestrationServiceTests {
 
 	@Test
 	void returnsExistingTransferForSameIdempotencyKey() {
-		Transfer first = service.createTransfer(command("idem-1"));
-		Transfer duplicate = service.createTransfer(command("idem-1"));
+		Transfer first = service.createTransfer(command(IDEMPOTENCY_KEY), UUID.randomUUID());
+		Transfer duplicate = service.createTransfer(command(IDEMPOTENCY_KEY), UUID.randomUUID());
 
 		assertEquals(first.transferId(), duplicate.transferId());
 		assertEquals(1, balanceClient.createdHolds);
@@ -89,7 +115,7 @@ class TransferOrchestrationServiceTests {
 
 	@Test
 	void enqueuesLedgerPostingWhenWebhookConfirmsPayment() {
-		Transfer transfer = service.createTransfer(command("idem-1"));
+		Transfer transfer = service.createTransfer(command(IDEMPOTENCY_KEY), UUID.randomUUID());
 
 		Transfer confirmed = service.handlePspWebhook(new PspWebhookCommand(
 				transfer.pspPaymentId(),
@@ -106,7 +132,7 @@ class TransferOrchestrationServiceTests {
 
 	@Test
 	void capturesHoldAndCompletesTransferWhenLedgerPostingIsCreated() {
-		Transfer transfer = service.createTransfer(command("idem-1"));
+		Transfer transfer = service.createTransfer(command(IDEMPOTENCY_KEY), UUID.randomUUID());
 		service.handlePspWebhook(new PspWebhookCommand(
 				transfer.pspPaymentId(),
 				PspWebhookStatus.CONFIRMED,
@@ -130,7 +156,7 @@ class TransferOrchestrationServiceTests {
 
 	@Test
 	void releasesHoldAndFailsTransferWhenWebhookFailsPayment() {
-		Transfer transfer = service.createTransfer(command("idem-1"));
+		Transfer transfer = service.createTransfer(command(IDEMPOTENCY_KEY), UUID.randomUUID());
 
 		Transfer failed = service.handlePspWebhook(new PspWebhookCommand(
 				transfer.pspPaymentId(),
@@ -145,7 +171,7 @@ class TransferOrchestrationServiceTests {
 
 	@Test
 	void ignoresPspWebhookForExpiredTransfer() {
-		Transfer transfer = service.createTransfer(command("idem-1"));
+		Transfer transfer = service.createTransfer(command(IDEMPOTENCY_KEY), UUID.randomUUID());
 		repository.updateStatus(transfer.transferId(), TransferStatus.EXPIRED, "HOLD_EXPIRED", clock.millis());
 
 		Transfer expired = service.handlePspWebhook(new PspWebhookCommand(
@@ -161,7 +187,7 @@ class TransferOrchestrationServiceTests {
 
 	@Test
 	void doesNotCompleteReversedTransferWhenLedgerEventArrivesLate() {
-		Transfer transfer = service.createTransfer(command("idem-1"));
+		Transfer transfer = service.createTransfer(command(IDEMPOTENCY_KEY), UUID.randomUUID());
 		service.handlePspWebhook(new PspWebhookCommand(
 				transfer.pspPaymentId(),
 				PspWebhookStatus.CONFIRMED,
@@ -189,7 +215,7 @@ class TransferOrchestrationServiceTests {
 				"evt-123",
 				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b2"),
 				2_500L,
-				"BRL",
+                CURRENCY,
 				"PIX recebido"
 		));
 
@@ -212,7 +238,7 @@ class TransferOrchestrationServiceTests {
 				"evt-123",
 				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b2"),
 				2_500L,
-				"BRL",
+				CURRENCY,
 				"PIX recebido"
 		);
 
@@ -229,7 +255,7 @@ class TransferOrchestrationServiceTests {
 				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b1"),
 				UUID.fromString("018f6e4f-f427-7c32-9d4b-3bc9e72872b2"),
 				1500L,
-				"BRL",
+				CURRENCY,
 				"Test transfer"
 		);
 	}
@@ -394,7 +420,7 @@ class TransferOrchestrationServiceTests {
 		@Override
 		public AccountResponse getAccount(UUID digitalAccountId) {
 			String account = digitalAccountId.toString().endsWith("2") ? "98765-4" : "12345-6";
-			return new AccountResponse(digitalAccountId, "0001", account, "BRL", "ACTIVE");
+			return new AccountResponse(digitalAccountId, "0001", account, CURRENCY, "ACTIVE");
 		}
 	}
 

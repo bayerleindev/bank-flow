@@ -3,10 +3,6 @@ package br.com.bankflow.transfer.repositories;
 import br.com.bankflow.transfer.domain.CreateTransferCommand;
 import br.com.bankflow.transfer.domain.Transfer;
 import br.com.bankflow.transfer.domain.TransferStatus;
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.TraceContext;
-import io.micrometer.tracing.Tracer;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -20,11 +16,9 @@ import java.util.UUID;
 @Repository
 public class JdbcTransferRepository implements TransferRepository {
 	private final JdbcTemplate jdbcTemplate;
-	private final Tracer tracer;
 
-	public JdbcTransferRepository(JdbcTemplate jdbcTemplate, ObjectProvider<Tracer> tracerProvider) {
+	public JdbcTransferRepository(JdbcTemplate jdbcTemplate) {
 		this.jdbcTemplate = jdbcTemplate;
-		this.tracer = tracerProvider.getIfAvailable();
 	}
 
 	@Override
@@ -33,7 +27,7 @@ public class JdbcTransferRepository implements TransferRepository {
 				SELECT transfer_id, idempotency_key, source_digital_account_id, source_account,
 				       destination_digital_account_id, destination_account, amount_minor,
 				       currency, description, hold_id, psp_payment_id, status, failure_reason,
-				       created_at, updated_at, traceparent, tracestate
+				       created_at, updated_at
 				FROM transfers
 				WHERE idempotency_key = ?
 				""", this::mapTransfer, idempotencyKey);
@@ -46,7 +40,7 @@ public class JdbcTransferRepository implements TransferRepository {
 				SELECT transfer_id, idempotency_key, source_digital_account_id, source_account,
 				       destination_digital_account_id, destination_account, amount_minor,
 				       currency, description, hold_id, psp_payment_id, status, failure_reason,
-				       created_at, updated_at, traceparent, tracestate
+				       created_at, updated_at, traceparent
 				FROM transfers
 				WHERE transfer_id = ?
 				""", this::mapTransfer, transferId);
@@ -59,7 +53,7 @@ public class JdbcTransferRepository implements TransferRepository {
 				SELECT transfer_id, idempotency_key, source_digital_account_id, source_account,
 				       destination_digital_account_id, destination_account, amount_minor,
 				       currency, description, hold_id, psp_payment_id, status, failure_reason,
-				       created_at, updated_at, traceparent, tracestate
+				       created_at, updated_at, traceparent
 				FROM transfers
 				WHERE psp_payment_id = ?
 				""", this::mapTransfer, pspPaymentId);
@@ -87,14 +81,19 @@ public class JdbcTransferRepository implements TransferRepository {
 	}
 
 	@Override
-	public Transfer create(UUID transferId, CreateTransferCommand command, String sourceAccount, String destinationAccount, long now) {
+	public Transfer create(
+            UUID transferId,
+            CreateTransferCommand command,
+            String sourceAccount,
+            String destinationAccount,
+            long now) {
 		jdbcTemplate.update("""
 				INSERT INTO transfers (
 					transfer_id, idempotency_key, source_digital_account_id, source_account,
 					source_account_id, destination_digital_account_id, destination_account,
 					destination_account_id, amount_minor,
-					currency, description, status, created_at, updated_at, traceparent, tracestate
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					currency, description, status, created_at, updated_at
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				""",
 				transferId,
 				command.idempotencyKey(),
@@ -109,9 +108,7 @@ public class JdbcTransferRepository implements TransferRepository {
 				command.description(),
 				TransferStatus.RECEIVED.name(),
 				now,
-				now,
-				currentTraceparent(),
-				null
+				now
 		);
 		return findByTransferId(transferId).orElseThrow();
 	}
@@ -168,22 +165,7 @@ public class JdbcTransferRepository implements TransferRepository {
 				TransferStatus.valueOf(rs.getString("status")),
 				rs.getString("failure_reason"),
 				rs.getLong("created_at"),
-				rs.getLong("updated_at"),
-				rs.getString("traceparent"),
-				rs.getString("tracestate")
-		);
-	}
-
-	private String currentTraceparent() {
-		Span span = tracer == null ? null : tracer.currentSpan();
-		if (span == null) {
-			return null;
-		}
-		TraceContext context = span.context();
-		return "00-%s-%s-%s".formatted(
-				context.traceId(),
-				context.spanId(),
-				Boolean.TRUE.equals(context.sampled()) ? "01" : "00"
+				rs.getLong("updated_at")
 		);
 	}
 }

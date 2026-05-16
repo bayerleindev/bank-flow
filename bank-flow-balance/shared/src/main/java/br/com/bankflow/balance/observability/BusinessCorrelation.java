@@ -11,7 +11,6 @@ public final class BusinessCorrelation {
 
 	public static Scope ledgerPosting(String externalId, long entryId) {
 		Map<String, String> values = new LinkedHashMap<>();
-		put(values, "transaction_id", externalId);
 		put(values, "transfer_id", externalId);
 		put(values, "external_id", externalId);
 		put(values, "entry_id", entryId);

@@ -1,0 +1,97 @@
+spring:
+  kafka:
+    producer:
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:bank-flow-ledger}
+      enable-auto-commit: 'false'
+      auto-offset-reset: ${KAFKA_AUTO_OFFSET_RESET:latest}
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      concurrency: ${KAFKA_LISTENER_CONCURRENCY:3}
+      observation-enabled: 'true'
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    template:
+      observation-enabled: 'false'
+  application:
+    name: bank-flow-ledger
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http:
+          server:
+            requests: 'true'
+      percentiles:
+        http:
+          server:
+            requests: 0.5,0.95,0.99
+    tags:
+      application: ${spring.application.name}
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState
+        liveness:
+          include: livenessState,ping
+      probes:
+        enabled: 'true'
+      show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS:when_authorized}
+  opentelemetry:
+    resource-attributes:
+      service:
+        name: ${spring.application.name}
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+      sampler: always-on
+  otlp:
+    metrics:
+      export:
+        enabled: 'false'
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+    enabled: true
+    baggage:
+      remote-fields:
+        - transfer_id
+      correlation:
+        fields:
+          - transfer_id
+bank-flow:
+  kafka:
+    topics:
+      ledger-reversals: ledger-reversals
+      yield-accruals: yield-accruals
+      account-created: account-created
+      ledger-movements: ledger-movements
+      ledger-posting-created: ledger-posting-created
+    retry:
+      max-attempts: ${KAFKA_RETRY_MAX_ATTEMPTS:3}
+      interval-ms: ${KAFKA_RETRY_INTERVAL_MS:1000}
+  immudb:
+    port: ${IMMUDB_PORT:3322}
+    enabled: ${IMMUDB_ENABLED:true}
+    database: ${IMMUDB_DATABASE:ledger}
+    password: ${IMMUDB_PASSWORD:immudb}
+    host: ${IMMUDB_HOST:localhost}
+    username: ${IMMUDB_USERNAME:immudb}
+  id-generator:
+    worker-id: ${ID_GENERATOR_WORKER_ID:0}
+  ledger:
+    accounts:
+      interest-expense-digital-account-id: ${INTEREST_EXPENSE_DIGITAL_ACCOUNT_ID:00000000-0000-0000-0000-000000000200}
+server:
+  port: ${SERVER_PORT:8085}
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},trace_id=%X{traceId:-},span_id=%X{spanId:-},transfer_id=%X{transfer_id:-}]"

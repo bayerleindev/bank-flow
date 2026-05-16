@@ -1,9 +1,10 @@
 package br.com.bankflow.transfer.consumers;
 
 import br.com.bankflow.transfer.domain.LedgerPostingCreatedEvent;
-import br.com.bankflow.transfer.observability.KafkaConsumerTracing;
 import br.com.bankflow.transfer.observability.TransferBusinessMetrics;
+import br.com.bankflow.transfer.observability.TransferTracing;
 import br.com.bankflow.transfer.services.TransferOrchestrationService;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -11,24 +12,25 @@ import org.springframework.kafka.support.Acknowledgment;
 import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
+import java.util.UUID;
 
 @Component
 public class LedgerPostingCreatedConsumer {
 	private final ObjectMapper objectMapper;
 	private final TransferOrchestrationService transferOrchestrationService;
 	private final TransferBusinessMetrics transferBusinessMetrics;
-	private final KafkaConsumerTracing kafkaConsumerTracing;
+    private final TransferTracing transferTracing;
 
 	public LedgerPostingCreatedConsumer(
-			ObjectMapper objectMapper,
-			TransferOrchestrationService transferOrchestrationService,
-			TransferBusinessMetrics transferBusinessMetrics,
-			KafkaConsumerTracing kafkaConsumerTracing
-	) {
+            ObjectMapper objectMapper,
+            TransferOrchestrationService transferOrchestrationService,
+            TransferBusinessMetrics transferBusinessMetrics,
+            TransferTracing transferTracing
+    ) {
 		this.objectMapper = objectMapper;
 		this.transferOrchestrationService = transferOrchestrationService;
 		this.transferBusinessMetrics = transferBusinessMetrics;
-		this.kafkaConsumerTracing = kafkaConsumerTracing;
+        this.transferTracing = transferTracing;
 	}
 
 	@KafkaListener(
@@ -37,28 +39,33 @@ public class LedgerPostingCreatedConsumer {
 			containerFactory = "ledgerPostingCreatedKafkaListenerContainerFactory",
 			autoStartup = "${spring.kafka.listener.auto-startup:true}"
 	)
-	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) throws Exception {
-		kafkaConsumerTracing.consume(record, "ledger.posting_created", () -> {
-			transferBusinessMetrics.recordTraceContext("ledger_posting_consume", traceContextLabel(record));
-			LedgerPostingCreatedEvent event = objectMapper.readValue(record.value(), LedgerPostingCreatedEvent.class);
-			event.validate();
-			if (!event.isTransferPosting()) {
-				acknowledgment.acknowledge();
-				return;
-			}
-			validatePartitionKey(record.key(), event);
-			transferOrchestrationService.completeAfterLedgerPosting(event);
-			acknowledgment.acknowledge();
+	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
+
+        transferTracing.withTransferId(UUID.fromString(transferIdLabel(record)), () -> {
+			transferBusinessMetrics.recordTransferIdContext("ledger_posting_consume", transferIdLabel(record));
+            try {
+                LedgerPostingCreatedEvent event = objectMapper.readValue(record.value(), LedgerPostingCreatedEvent.class);
+                event.validate();
+                if (!event.isTransferPosting()) {
+                    acknowledgment.acknowledge();
+                    return;
+                }
+                validatePartitionKey(record.key(), event);
+                transferOrchestrationService.completeAfterLedgerPosting(event);
+                acknowledgment.acknowledge();
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            }
 		});
 	}
 
-	private String traceContextLabel(ConsumerRecord<String, String> record) {
-		var header = record.headers().lastHeader("traceparent");
+	private String transferIdLabel(ConsumerRecord<String, String> record) {
+		var header = record.headers().lastHeader("transfer_id");
 		if (header == null || header.value() == null || header.value().length == 0) {
-			return "missing_trace";
+			return "missing_transfer_id";
 		}
-		String traceparent = new String(header.value(), StandardCharsets.UTF_8);
-		return traceparent.isBlank() ? "missing_trace" : "with_trace";
+		String transferId = new String(header.value(), StandardCharsets.UTF_8);
+		return transferId.isBlank() ? "missing_transfer_id" : "with_transfer_id";
 	}
 
 	private void validatePartitionKey(String key, LedgerPostingCreatedEvent event) {

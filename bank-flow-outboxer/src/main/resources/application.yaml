@@ -1,0 +1,88 @@
+spring:
+  kafka:
+    producer:
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      properties:
+        max:
+          block:
+            ms: ${KAFKA_PRODUCER_MAX_BLOCK_MS:30000}
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    template:
+      observation-enabled: 'false'
+  flyway:
+    enabled: 'true'
+    schemas: outboxer
+    baseline-on-migrate: 'false'
+    locations: classpath:db/migration
+    default-schema: outboxer
+    create-schemas: 'true'
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      idle-timeout: ${HIKARI_IDLE_TIMEOUT_MS:600000}
+      maximum-pool-size: ${HIKARI_MAXIMUM_POOL_SIZE:4}
+      connection-timeout: ${HIKARI_CONNECTION_TIMEOUT_MS:2000}
+      max-lifetime: ${HIKARI_MAX_LIFETIME_MS:1500000}
+      minimum-idle: ${HIKARI_MINIMUM_IDLE:1}
+    password: ${POSTGRES_PASSWORD:mysecretpassword}
+    username: ${POSTGRES_USER:myuser}
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/bank_flow?currentSchema=outboxer,public}
+  application:
+    name: bank-flow-outboxer
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      group:
+        readiness:
+          include: readinessState,db
+        liveness:
+          include: livenessState,ping
+      probes:
+        enabled: 'true'
+      show-details: ${MANAGEMENT_HEALTH_SHOW_DETAILS:when_authorized}
+  opentelemetry:
+    resource-attributes:
+      service:
+        name: ${spring.application.name}
+    tracing:
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:http://localhost:4318/v1/traces}
+      sampler: always-on
+  metrics:
+    tags:
+      application: ${spring.application.name}
+    enable:
+      hikaricp: 'true'
+  otlp:
+    metrics:
+      export:
+        enabled: 'false'
+  tracing:
+    sampling:
+      probability: ${TRACING_SAMPLING_PROBABILITY:1.0}
+    enabled: true
+    baggage:
+      remote-fields:
+        - transfer_id
+      correlation:
+        fields:
+          - transfer_id
+bank-flow:
+  outbox:
+    publisher:
+      fixed-delay-ms: ${OUTBOX_PUBLISHER_FIXED_DELAY_MS:1000}
+      lock-lease-ms: ${OUTBOX_PUBLISHER_LOCK_LEASE_MS:60000}
+      batch-size: ${OUTBOX_PUBLISHER_BATCH_SIZE:50}
+      max-attempts: ${OUTBOX_PUBLISHER_MAX_ATTEMPTS:10}
+      send-timeout-ms: ${OUTBOX_PUBLISHER_SEND_TIMEOUT_MS:30000}
+server:
+  port: ${SERVER_PORT:8088}
+logging:
+  pattern:
+    level: "%5p [${spring.application.name:},trace_id=%X{traceId:-},span_id=%X{spanId:-},transfer_id=%X{transfer_id:-}]"

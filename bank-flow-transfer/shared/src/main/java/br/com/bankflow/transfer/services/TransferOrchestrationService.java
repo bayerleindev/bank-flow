@@ -17,20 +17,15 @@ import br.com.bankflow.transfer.domain.PspWebhookStatus;
 import br.com.bankflow.transfer.domain.Transfer;
 import br.com.bankflow.transfer.domain.TransferPostedCommand;
 import br.com.bankflow.transfer.domain.TransferStatus;
-import br.com.bankflow.transfer.observability.BusinessCorrelation;
 import br.com.bankflow.transfer.observability.TransferBusinessMetrics;
+import br.com.bankflow.transfer.observability.TransferTracing;
 import br.com.bankflow.transfer.repositories.OutboxEventRepository;
 import br.com.bankflow.transfer.repositories.TransferRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.TraceContext;
-import io.micrometer.tracing.Tracer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,72 +49,23 @@ public class TransferOrchestrationService {
 	private final PspClient pspClient;
 	private final ObjectMapper objectMapper;
 	private final TransferBusinessMetrics transferBusinessMetrics;
-	private final Tracer tracer;
 	private final Clock clock;
 	private final String ledgerMovementsTopic;
-
-	public TransferOrchestrationService(
-			TransferRepository transferRepository,
-			OutboxEventRepository outboxEventRepository,
-			AccountClient accountClient,
-			BalanceClient balanceClient,
-			PspClient pspClient,
-			ObjectMapper objectMapper,
-			Clock clock,
-			String ledgerMovementsTopic
-	) {
-		this(
-				transferRepository,
-				outboxEventRepository,
-				accountClient,
-				balanceClient,
-				pspClient,
-				objectMapper,
-				new TransferBusinessMetrics(new SimpleMeterRegistry(), outboxEventRepository, transferRepository, clock, "bank-flow-transfer", true),
-				null,
-				clock,
-				ledgerMovementsTopic
-		);
-	}
-
-	public TransferOrchestrationService(
-			TransferRepository transferRepository,
-			OutboxEventRepository outboxEventRepository,
-			AccountClient accountClient,
-			BalanceClient balanceClient,
-			PspClient pspClient,
-			ObjectMapper objectMapper,
-			TransferBusinessMetrics transferBusinessMetrics,
-			Clock clock,
-			String ledgerMovementsTopic
-	) {
-		this(
-				transferRepository,
-				outboxEventRepository,
-				accountClient,
-				balanceClient,
-				pspClient,
-				objectMapper,
-				transferBusinessMetrics,
-				null,
-				clock,
-				ledgerMovementsTopic
-		);
-	}
+    private final TransferTracing transferTracing;
 
 	@Autowired
 	public TransferOrchestrationService(
-			TransferRepository transferRepository,
-			OutboxEventRepository outboxEventRepository,
-			AccountClient accountClient,
-			BalanceClient balanceClient,
-			PspClient pspClient,
-			ObjectMapper objectMapper,
-			TransferBusinessMetrics transferBusinessMetrics,
-			ObjectProvider<Tracer> tracerProvider,
-			Clock clock,
-			@Value("${bank-flow.kafka.topics.ledger-movements}") String ledgerMovementsTopic
-	) {
+            TransferRepository transferRepository,
+            OutboxEventRepository outboxEventRepository,
+            AccountClient accountClient,
+            BalanceClient balanceClient,
+            PspClient pspClient,
+            ObjectMapper objectMapper,
+            TransferBusinessMetrics transferBusinessMetrics,
+            Clock clock,
+            @Value("${bank-flow.kafka.topics.ledger-movements}") String ledgerMovementsTopic,
+            TransferTracing transferTracing
+    ) {
 		this.transferRepository = transferRepository;
 		this.outboxEventRepository = outboxEventRepository;
 		this.accountClient = accountClient;
@@ -127,16 +73,16 @@ public class TransferOrchestrationService {
 		this.pspClient = pspClient;
 		this.objectMapper = objectMapper;
 		this.transferBusinessMetrics = transferBusinessMetrics;
-		this.tracer = tracerProvider == null ? null : tracerProvider.getIfAvailable();
 		this.clock = clock;
 		this.ledgerMovementsTopic = ledgerMovementsTopic;
-	}
+        this.transferTracing = transferTracing;
+    }
 
-	public Transfer createTransfer(CreateTransferCommand command) {
+	public Transfer createTransfer(CreateTransferCommand command, UUID transferId) {
 		command.validate();
 		return transferRepository.findByIdempotencyKey(command.idempotencyKey())
-				.orElseGet(() -> orchestrateNewTransfer(command));
-	}
+				.orElseGet(() -> orchestrateNewTransfer(command, transferId));
+    }
 
 	public Transfer receiveExternalInboundTransfer(ExternalInboundTransferCommand command) {
 		command.validate();
@@ -149,7 +95,11 @@ public class TransferOrchestrationService {
 		command.validate();
 		Transfer transfer = transferRepository.findByPspPaymentId(command.pspPaymentId())
 				.orElseThrow(() -> new TransferNotFoundException(command.pspPaymentId()));
-		return resumeTransferTrace(transfer, () -> handlePspWebhook(command, transfer));
+
+        return transferTracing.withTransferId(
+                transfer.transferId(),
+                () -> handlePspWebhook(command, transfer)
+        );
 	}
 
 	private Transfer handlePspWebhook(PspWebhookCommand command, Transfer transfer) {
@@ -185,53 +135,50 @@ public class TransferOrchestrationService {
 	}
 
 	public Transfer getTransfer(UUID transferId) {
-		try (BusinessCorrelation.Scope ignored = BusinessCorrelation.transfer(tracer, transferId.toString())) {
-			return transferRepository.findByTransferId(transferId)
-					.orElseThrow(() -> new TransferNotFoundException(transferId.toString()));
-		}
+        return transferRepository.findByTransferId(transferId)
+                .orElseThrow(() -> new TransferNotFoundException(transferId.toString()));
 	}
 
 	@Transactional
 	public Transfer completeAfterLedgerPosting(LedgerPostingCreatedEvent event) {
 		event.validate();
-		try (BusinessCorrelation.Scope ignored = BusinessCorrelation.transfer(tracer, event.externalId())) {
-			UUID transferId = UUID.fromString(event.externalId());
-			Transfer transfer = transferRepository.findByTransferId(transferId)
-					.orElseThrow(() -> new TransferNotFoundException(event.externalId()));
-			if (transfer.status() == TransferStatus.COMPLETED) {
-				return transfer;
-			}
-			if (transfer.status().isTerminal()) {
-				return transfer;
-			}
-			if (transfer.status() != TransferStatus.POSTING_REQUESTED) {
-				throw new IllegalStateException("transfer must be POSTING_REQUESTED before completion");
-			}
-			captureHoldIfPresent(transfer);
-			Transfer completed = transferRepository.updateStatus(
-					transfer.transferId(),
-					TransferStatus.COMPLETED,
-					null,
-					clock.millis()
-			);
-			transferBusinessMetrics.recordTransferCompleted();
-			transferBusinessMetrics.recordTransferEndToEndLatency(completed.updatedAt() - completed.createdAt());
-			return completed;
-		}
+        UUID transferId = UUID.fromString(event.externalId());
+        Transfer transfer = transferRepository.findByTransferId(transferId)
+                .orElseThrow(() -> new TransferNotFoundException(event.externalId()));
+        if (transfer.status() == TransferStatus.COMPLETED) {
+            return transfer;
+        }
+        if (transfer.status().isTerminal()) {
+            return transfer;
+        }
+        if (transfer.status() != TransferStatus.POSTING_REQUESTED) {
+            throw new IllegalStateException("transfer must be POSTING_REQUESTED before completion");
+        }
+        captureHoldIfPresent(transfer);
+        Transfer completed = transferRepository.updateStatus(
+                transfer.transferId(),
+                TransferStatus.COMPLETED,
+                null,
+                clock.millis()
+        );
+        transferBusinessMetrics.recordTransferCompleted();
+        transferBusinessMetrics.recordTransferEndToEndLatency(completed.updatedAt() - completed.createdAt());
+        return completed;
 	}
 
-	private Transfer orchestrateNewTransfer(CreateTransferCommand command) {
-		AccountResponse sourceAccount = accountClient.getAccount(command.sourceDigitalAccountId());
-		sourceAccount.validateActive("source");
-		AccountResponse destinationAccount = accountClient.getAccount(command.destinationDigitalAccountId());
-		destinationAccount.validateActive("destination");
-		Transfer transfer = createReceivedTransfer(command, sourceAccount.account(), destinationAccount.account());
-		try (BusinessCorrelation.Scope ignored = BusinessCorrelation.transfer(
-				tracer,
-				transfer.transferId(),
-				transfer.sourceDigitalAccountId(),
-				transfer.destinationDigitalAccountId()
-		)) {
+	private Transfer orchestrateNewTransfer(CreateTransferCommand command, UUID transferId) {
+        Transfer transfer = null;
+        try {
+            AccountResponse sourceAccount = accountClient.getAccount(command.sourceDigitalAccountId());
+			sourceAccount.validateActive("source");
+			AccountResponse destinationAccount = accountClient.getAccount(command.destinationDigitalAccountId());
+			destinationAccount.validateActive("destination");
+			transfer = createReceivedTransfer(
+                    transferId,
+                    command,
+                    sourceAccount.account(),
+                    destinationAccount.account()
+            );
 			BalanceHoldResponse hold = balanceClient.createHold(new CreateBalanceHoldRequest(
 					transfer.transferId().toString(),
 					command.sourceDigitalAccountId(),
@@ -257,37 +204,60 @@ public class TransferOrchestrationService {
 							: TransferStatus.PSP_PENDING
 			);
 		} catch (RuntimeException exception) {
-			releaseHoldIfPresent(transfer);
-			updateFailed(transfer.transferId(), exception.getClass().getSimpleName());
+			if (transfer != null) {
+				releaseHoldIfPresent(transfer);
+				updateFailed(transfer.transferId(), exception.getClass().getSimpleName());
+			}
 			transferBusinessMetrics.recordTransferFailed(exception.getClass().getSimpleName());
 			throw exception;
 		}
 	}
 
 	@Transactional
-	protected Transfer createReceivedTransfer(CreateTransferCommand command, String sourceAccount, String destinationAccount) {
-		Transfer transfer = transferRepository.create(UUID.randomUUID(), command, sourceAccount, destinationAccount, clock.millis());
+	protected Transfer createReceivedTransfer(
+            UUID transferId,
+            CreateTransferCommand command,
+            String sourceAccount,
+            String destinationAccount
+    ) {
+		Transfer transfer = transferRepository.create(
+                transferId,
+                command,
+                sourceAccount,
+                destinationAccount,
+                clock.millis());
+
 		transferBusinessMetrics.recordTransferCreated();
-		transferBusinessMetrics.recordTraceContext("create", hasTraceContext(transfer.traceparent()));
 		return transfer;
 	}
 
 	@Transactional
 	protected Transfer createExternalInboundTransfer(ExternalInboundTransferCommand command) {
-		AccountResponse destinationAccount = accountClient.getAccount(command.destinationDigitalAccountId());
-		destinationAccount.validateActive("destination");
-		CreateTransferCommand transferCommand = new CreateTransferCommand(
-				command.idempotencyKey(),
-				EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID,
-				command.destinationDigitalAccountId(),
-				command.amountMinor(),
-				command.currency(),
-				command.description()
-		);
-		Transfer transfer = transferRepository.create(UUID.randomUUID(), transferCommand, EXTERNAL_INBOUND_SETTLEMENT_ACCOUNT, destinationAccount.account(), clock.millis());
-		transferBusinessMetrics.recordExternalInboundTransferCreated();
-		transferBusinessMetrics.recordTraceContext("external_inbound_create", hasTraceContext(transfer.traceparent()));
-		return transfer;
+        UUID transferId = UUID.randomUUID();
+        return transferTracing.withTransferId(
+                transferId,
+                () -> {
+                    AccountResponse destinationAccount = accountClient.getAccount(command.destinationDigitalAccountId());
+                    destinationAccount.validateActive("destination");
+                    CreateTransferCommand transferCommand = new CreateTransferCommand(
+                            command.idempotencyKey(),
+                            EXTERNAL_INBOUND_SETTLEMENT_DIGITAL_ACCOUNT_ID,
+                            command.destinationDigitalAccountId(),
+                            command.amountMinor(),
+                            command.currency(),
+                            command.description()
+                    );
+                    Transfer transfer = transferRepository.create(
+                            transferId,
+                            transferCommand,
+                            EXTERNAL_INBOUND_SETTLEMENT_ACCOUNT,
+                            destinationAccount.account(),
+                            clock.millis());
+                    transferBusinessMetrics.recordExternalInboundTransferCreated();
+                    return transfer;
+                }
+        );
+
 	}
 
 	@Transactional
@@ -306,12 +276,7 @@ public class TransferOrchestrationService {
 	}
 
 	private Transfer requestLedgerPosting(Transfer transfer) {
-		try (BusinessCorrelation.Scope ignored = BusinessCorrelation.transfer(
-				tracer,
-				transfer.transferId(),
-				transfer.sourceDigitalAccountId(),
-				transfer.destinationDigitalAccountId()
-		)) {
+		try {
 			long now = clock.millis();
 			TransferPostedCommand command = TransferPostedCommand.from(transfer);
 			outboxEventRepository.createIfAbsent(new OutboxEvent(
@@ -354,75 +319,5 @@ public class TransferOrchestrationService {
 					exception
 			);
 		}
-	}
-
-	private Transfer resumeTransferTrace(Transfer transfer, java.util.function.Supplier<Transfer> operation) {
-		Span span = resumedSpan(transfer);
-		if (span == null) {
-			transferBusinessMetrics.recordTraceContext("psp_webhook_resume", hasTraceContext(transfer.traceparent()));
-			try (BusinessCorrelation.Scope ignored = BusinessCorrelation.transfer(
-					tracer,
-					transfer.transferId(),
-					transfer.sourceDigitalAccountId(),
-					transfer.destinationDigitalAccountId()
-			)) {
-				return operation.get();
-			}
-		}
-		transferBusinessMetrics.recordTraceContext("psp_webhook_resume", "resumed");
-		try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
-			try (BusinessCorrelation.Scope correlation = BusinessCorrelation.transfer(
-					tracer,
-					transfer.transferId(),
-					transfer.sourceDigitalAccountId(),
-					transfer.destinationDigitalAccountId()
-			)) {
-				return operation.get();
-			}
-		} catch (RuntimeException exception) {
-			span.error(exception);
-			throw exception;
-		} finally {
-			span.end();
-		}
-	}
-
-	private Span resumedSpan(Transfer transfer) {
-		if (tracer == null) {
-			return null;
-		}
-		TraceContext parent = traceContext(transfer.traceparent());
-		if (parent == null) {
-			return null;
-		}
-		Span currentSpan = tracer.currentSpan();
-		if (currentSpan != null && currentSpan.context().traceId().equals(parent.traceId())) {
-			return null;
-		}
-		return tracer.spanBuilder()
-				.setParent(parent)
-				.name("psp webhook resume")
-				.tag("transfer.id", transfer.transferId().toString())
-				.tag("psp.payment_id", transfer.pspPaymentId())
-				.start();
-	}
-
-	private TraceContext traceContext(String traceparent) {
-		if (traceparent == null || traceparent.isBlank()) {
-			return null;
-		}
-		String[] parts = traceparent.split("-");
-		if (parts.length != 4 || parts[1].length() != 32 || parts[2].length() != 16) {
-			return null;
-		}
-		return tracer.traceContextBuilder()
-				.traceId(parts[1])
-				.spanId(parts[2])
-				.sampled("01".equals(parts[3]))
-				.build();
-	}
-
-	private String hasTraceContext(String traceparent) {
-		return traceparent == null || traceparent.isBlank() ? "missing_trace" : "with_trace";
 	}
 }

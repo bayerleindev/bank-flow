@@ -2,9 +2,9 @@ import http from 'k6/http';
 import { check, fail, sleep } from 'k6';
 import exec from 'k6/execution';
 
-const accountsUrl = __ENV.ACCOUNTS_URL || 'http://localhost/accounts';
-const transferUrl = __ENV.TRANSFER_URL || 'http://localhost/transfer';
-const balanceUrl = __ENV.BALANCE_URL || 'http://localhost/balance';
+const accountsUrl = __ENV.ACCOUNTS_URL || 'http://localhost:8084';
+const transferUrl = __ENV.TRANSFER_URL || 'http://localhost:8083';
+const balanceUrl = __ENV.BALANCE_URL || 'http://localhost:8082';
 
 const seedAccounts = intEnv('SEED_ACCOUNTS', 50);
 const setupFundingMinor = intEnv('SETUP_FUNDING_MINOR', 100000000);

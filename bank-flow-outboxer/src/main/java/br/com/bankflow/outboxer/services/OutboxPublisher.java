@@ -1,11 +1,9 @@
 package br.com.bankflow.outboxer.services;
 
 import br.com.bankflow.outboxer.domain.OutboxEvent;
-import br.com.bankflow.outboxer.observability.BusinessCorrelation;
 import br.com.bankflow.outboxer.observability.OutboxerMetrics;
+import br.com.bankflow.outboxer.observability.TransferTracing;
 import br.com.bankflow.outboxer.repositories.OutboxEventRepository;
-import io.micrometer.tracing.Span;
-import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.internals.RecordHeader;
@@ -17,6 +15,8 @@ import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -33,19 +33,20 @@ public class OutboxPublisher {
 	private final long lockLeaseMillis;
 	private final long sendTimeoutMillis;
 	private final int maxAttempts;
+    private final TransferTracing transferTracing;
 
 	public OutboxPublisher(
-			OutboxEventRepository outboxEventRepository,
-			KafkaTemplate<String, String> kafkaTemplate,
-			OutboxerMetrics metrics,
-			ObjectProvider<Tracer> tracerProvider,
-			Clock clock,
-			@Value("${bank-flow.outbox.publisher.batch-size}") int batchSize,
-			@Value("${bank-flow.outbox.publisher.instance-id:${HOSTNAME:local}}") String instanceId,
-			@Value("${bank-flow.outbox.publisher.lock-lease-ms:60000}") long lockLeaseMillis,
-			@Value("${bank-flow.outbox.publisher.send-timeout-ms:30000}") long sendTimeoutMillis,
-			@Value("${bank-flow.outbox.publisher.max-attempts:10}") int maxAttempts
-	) {
+            OutboxEventRepository outboxEventRepository,
+            KafkaTemplate<String, String> kafkaTemplate,
+            OutboxerMetrics metrics,
+            ObjectProvider<Tracer> tracerProvider,
+            Clock clock,
+            @Value("${bank-flow.outbox.publisher.batch-size}") int batchSize,
+            @Value("${bank-flow.outbox.publisher.instance-id:${HOSTNAME:local}}") String instanceId,
+            @Value("${bank-flow.outbox.publisher.lock-lease-ms:60000}") long lockLeaseMillis,
+            @Value("${bank-flow.outbox.publisher.send-timeout-ms:30000}") long sendTimeoutMillis,
+            @Value("${bank-flow.outbox.publisher.max-attempts:10}") int maxAttempts, TransferTracing transferTracing
+    ) {
 		this.outboxEventRepository = outboxEventRepository;
 		this.kafkaTemplate = kafkaTemplate;
 		this.metrics = metrics;
@@ -56,7 +57,8 @@ public class OutboxPublisher {
 		this.lockLeaseMillis = lockLeaseMillis;
 		this.sendTimeoutMillis = sendTimeoutMillis;
 		this.maxAttempts = maxAttempts;
-	}
+        this.transferTracing = transferTracing;
+    }
 
 	@Scheduled(fixedDelayString = "${bank-flow.outbox.publisher.fixed-delay-ms}")
 	public void publishPending() {
@@ -68,102 +70,29 @@ public class OutboxPublisher {
 				now + lockLeaseMillis,
 				maxAttempts
 		)) {
-			publish(event);
+            publishRecord(event);
 		}
 	}
 
-	private void publish(OutboxEvent event) {
-        Span span = publisherSpan(event);
-        if (span == null) {
-            publishRecord(event, null);
-            return;
-        }
-
-        try (Tracer.SpanInScope ignored2 = tracer.withSpan(span)) {
-            try (BusinessCorrelation.Scope ignored3 = BusinessCorrelation.outboxEvent(
-                    tracer,
-                    event.aggregateType(),
-                    event.aggregateId(),
-                    event.eventType(),
-                    event.eventKey()
-            )) {
-                publishRecord(event, traceparent(span.context()));
+	private void publishRecord(OutboxEvent event) {
+        transferTracing.withTransferId(UUID.fromString(Objects.requireNonNull(transactionId(event))), () -> {
+            ProducerRecord<String, String> record = new ProducerRecord<>(event.topic(), event.eventKey(), event.payload());
+            record.headers().add(new RecordHeader("event_name", event.eventType().getBytes(StandardCharsets.UTF_8)));
+            record.headers().add(new RecordHeader("content_type", "application/json".getBytes(StandardCharsets.UTF_8)));
+            record.headers().add(new RecordHeader("producer_service", event.producerService().getBytes(StandardCharsets.UTF_8)));
+            addBusinessHeaders(record, event);
+            try {
+                kafkaTemplate.send(record).get(sendTimeoutMillis, TimeUnit.MILLISECONDS);
+                outboxEventRepository.markPublished(event.eventId(), clock.millis(), instanceId);
+                metrics.recordPublished(event.producerService(), event.topic(), event.eventType(), transferIdLabel(event));
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                markFailed(event, exception);
+                throw new IllegalStateException("interrupted while publishing outbox event", exception);
+            } catch (ExecutionException | TimeoutException exception) {
+                markFailed(event, exception);
             }
-        } catch (RuntimeException exception) {
-            span.error(exception);
-            throw exception;
-        } finally {
-            span.end();
-        }
-	}
-
-	private void publishRecord(OutboxEvent event, String traceparent) {
-		ProducerRecord<String, String> record = new ProducerRecord<>(event.topic(), event.eventKey(), event.payload());
-		record.headers().add(new RecordHeader("event_name", event.eventType().getBytes(StandardCharsets.UTF_8)));
-		record.headers().add(new RecordHeader("content_type", "application/json".getBytes(StandardCharsets.UTF_8)));
-		record.headers().add(new RecordHeader("producer_service", event.producerService().getBytes(StandardCharsets.UTF_8)));
-		addBusinessHeaders(record, event);
-		addHeaderIfPresent(record, "traceparent", firstNonBlank(traceparent, event.traceparent()));
-		addHeaderIfPresent(record, "tracestate", event.tracestate());
-		try {
-			kafkaTemplate.send(record).get(sendTimeoutMillis, TimeUnit.MILLISECONDS);
-			outboxEventRepository.markPublished(event.eventId(), clock.millis(), instanceId);
-			metrics.recordPublished(event.producerService(), event.topic(), event.eventType(), traceContextLabel(firstNonBlank(traceparent, event.traceparent())));
-		} catch (InterruptedException exception) {
-			Thread.currentThread().interrupt();
-			markFailed(event, exception);
-			throw new IllegalStateException("interrupted while publishing outbox event", exception);
-		} catch (ExecutionException | TimeoutException exception) {
-			markFailed(event, exception);
-		}
-	}
-
-	private Span publisherSpan(OutboxEvent event) {
-		if (tracer == null) {
-			return null;
-		}
-		TraceContext parent = traceContext(event.traceparent());
-		if (parent == null) {
-			return null;
-		}
-		return tracer.spanBuilder()
-				.setParent(parent)
-				.name("%s publish %s".formatted(event.topic(), event.eventType()))
-				.kind(Span.Kind.PRODUCER)
-				.tag("messaging.system", "kafka")
-				.tag("messaging.operation", "publish")
-				.tag("messaging.destination.name", event.topic())
-				.tag("messaging.kafka.message.key", firstNonBlank(event.eventKey(), "none"))
-				.tag("event.name", event.eventType())
-				.tag("outbox.producer_service", event.producerService())
-				.tag("business.transaction_id", firstNonBlank(transactionId(event), "none"))
-				.tag("transaction.id", firstNonBlank(transactionId(event), "none"))
-				.tag("transfer.id", firstNonBlank(transactionId(event), "none"))
-				.tag("account.id", firstNonBlank(event.eventKey(), "none"))
-				.start();
-	}
-
-	private TraceContext traceContext(String traceparent) {
-		if (traceparent == null || traceparent.isBlank()) {
-			return null;
-		}
-		String[] parts = traceparent.split("-");
-		if (parts.length != 4 || parts[1].length() != 32 || parts[2].length() != 16) {
-			return null;
-		}
-		return tracer.traceContextBuilder()
-				.traceId(parts[1])
-				.spanId(parts[2])
-				.sampled("01".equals(parts[3]))
-				.build();
-	}
-
-	private String traceparent(TraceContext context) {
-		return "00-%s-%s-%s".formatted(
-				context.traceId(),
-				context.spanId(),
-				Boolean.TRUE.equals(context.sampled()) ? "01" : "00"
-		);
+        });
 	}
 
 	private void markFailed(OutboxEvent event, Exception exception) {
@@ -171,12 +100,8 @@ public class OutboxPublisher {
 		metrics.recordPublishFailure(event.producerService(), event.topic(), event.eventType());
 	}
 
-	private String firstNonBlank(String primary, String fallback) {
-		return primary != null && !primary.isBlank() ? primary : fallback;
-	}
-
-	private String traceContextLabel(String traceparent) {
-		return traceparent == null || traceparent.isBlank() ? "missing_trace" : "with_trace";
+	private String transferIdLabel(OutboxEvent event) {
+		return transactionId(event) == null ? "missing_transfer_id" : "with_transfer_id";
 	}
 
 	private void addHeaderIfPresent(ProducerRecord<String, String> record, String name, String value) {
@@ -186,10 +111,15 @@ public class OutboxPublisher {
 	}
 
 	private void addBusinessHeaders(ProducerRecord<String, String> record, OutboxEvent event) {
-		String transactionId = transactionId(event);
-		addHeaderIfPresent(record, "transaction_id", transactionId);
-		addHeaderIfPresent(record, "transfer_id", transactionId);
-		addHeaderIfPresent(record, "account_id", event.eventKey());
+		String transferId = transactionId(event);
+        addHeaderIfPresent(record, "event_id", event.eventId().toString());
+        addHeaderIfPresent(record, "event_type", event.eventType());
+        addHeaderIfPresent(record, "aggregate_type", event.aggregateType());
+        addHeaderIfPresent(record, "aggregate_id", event.aggregateId());
+        addHeaderIfPresent(record, "producer_service", event.producerService());
+
+        addHeaderIfPresent(record, "transfer_id", transferId);
+        addHeaderIfPresent(record, "account_id", event.eventKey());
 	}
 
 	private String transactionId(OutboxEvent event) {

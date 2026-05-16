@@ -13,15 +13,11 @@ datasources:
     type: loki
     access: proxy
     url: http://loki:3100
-    jsonData:
-      manageAlerts: false
-      derivedFields:
-        - name: trace_id
-          matcherRegex: '"traceId":"([a-f0-9]+)"'
-          datasourceUid: tempo
-          url: "$${__value.raw}"
-        - name: span_id
-          matcherRegex: '"spanId":"([a-f0-9]+)"'
+      jsonData:
+        manageAlerts: false
+        derivedFields:
+        - name: transfer_id
+          matcherRegex: '"transfer_id":"([^"]+)"'
 
   - name: Tempo
     uid: tempo

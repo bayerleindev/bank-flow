@@ -7,6 +7,8 @@ import org.apache.kafka.clients.admin.ListOffsetsResult;
 import org.apache.kafka.clients.admin.OffsetSpec;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -17,13 +19,16 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 @Component
 @ConditionalOnProperty(name = "bank-flow.kafka.lag.enabled", havingValue = "true", matchIfMissing = true)
 public class KafkaConsumerLagMetrics implements DisposableBean {
+    private static final Logger logger = LoggerFactory.getLogger(KafkaConsumerLagMetrics.class);
 	private final AdminClient adminClient;
 	private final String groupId;
 	private final List<String> topics;
@@ -75,9 +80,9 @@ public class KafkaConsumerLagMetrics implements DisposableBean {
 					})
 					.sum();
 			lag.set(totalLag);
-		} catch (Exception ignored) {
-			// Keep the last observed value when Kafka is temporarily unavailable.
-		}
+		} catch (ExecutionException | InterruptedException | TimeoutException e) {
+            logger.error("Error refreshing lag metrics");
+        }
 	}
 
 	@Override

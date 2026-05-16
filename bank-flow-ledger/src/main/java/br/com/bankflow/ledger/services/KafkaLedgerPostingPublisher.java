@@ -4,12 +4,12 @@ import br.com.bankflow.ledger.domain.LedgerEntry;
 import br.com.bankflow.ledger.domain.LedgerEntryLine;
 import br.com.bankflow.ledger.domain.LedgerPosting;
 import br.com.bankflow.ledger.observability.BusinessCorrelation;
-import br.com.bankflow.ledger.observability.KafkaTraceContext;
 import br.com.bankflow.ledger.observability.LedgerBusinessMetrics;
+import br.com.bankflow.ledger.observability.TransferTraceContext;
+import br.com.bankflow.ledger.observability.TransferTracing;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.tracing.Span;
-import io.micrometer.tracing.TraceContext;
 import io.micrometer.tracing.Tracer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.header.internals.RecordHeader;
@@ -22,6 +22,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 @Component
@@ -32,81 +34,58 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 	private final Clock clock;
 	private final String topic;
 	private final Tracer tracer;
+    private final TransferTracing transferTracing;
 
 	public KafkaLedgerPostingPublisher(
-			KafkaTemplate<String, String> kafkaTemplate,
-			ObjectMapper objectMapper,
-			LedgerBusinessMetrics ledgerBusinessMetrics,
-			Clock clock,
-			ObjectProvider<Tracer> tracerProvider,
-			@Value("${bank-flow.kafka.topics.ledger-posting-created}") String topic
-	) {
+            KafkaTemplate<String, String> kafkaTemplate,
+            ObjectMapper objectMapper,
+            LedgerBusinessMetrics ledgerBusinessMetrics,
+            Clock clock,
+            ObjectProvider<Tracer> tracerProvider,
+            @Value("${bank-flow.kafka.topics.ledger-posting-created}") String topic, TransferTracing transferTracing
+    ) {
 		this.kafkaTemplate = kafkaTemplate;
 		this.objectMapper = objectMapper;
 		this.ledgerBusinessMetrics = ledgerBusinessMetrics;
 		this.clock = clock;
 		this.topic = topic;
 		this.tracer = tracerProvider.getIfAvailable();
-	}
+        this.transferTracing = transferTracing;
+    }
 
 	@Override
 	public void publish(LedgerPosting posting) throws JsonProcessingException {
-		try (BusinessCorrelation.Scope correlation = BusinessCorrelation.posting(
-				tracer,
-				posting.entry().externalId(),
-				posting.entry().entryId()
-		)) {
-			Span span = publisherSpan(posting);
-			if (span == null) {
-				publishRecord(posting);
-				return;
-			}
-			try (Tracer.SpanInScope ignored = tracer.withSpan(span)) {
-				try (BusinessCorrelation.Scope publishCorrelation = BusinessCorrelation.posting(
-						tracer,
-						posting.entry().externalId(),
-						posting.entry().entryId()
-				)) {
-					publishRecord(posting);
-				}
-			} catch (JsonProcessingException exception) {
-				span.error(exception);
-				throw exception;
-			} catch (RuntimeException exception) {
-				span.error(exception);
-				throw exception;
-			} finally {
-				span.end();
-			}
-		}
-	}
+        publishRecord(posting);
+    }
 
 	private void publishRecord(LedgerPosting posting) throws JsonProcessingException {
-		String key = posting.entry().externalId();
-		String value = objectMapper.writeValueAsString(toEvent(posting));
-		ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, value);
-		record.headers().add(new RecordHeader("event_name", "ledger.posting_created".getBytes(StandardCharsets.UTF_8)));
-		record.headers().add(new RecordHeader("content_type", "application/json".getBytes(StandardCharsets.UTF_8)));
-		record.headers().add(new RecordHeader("entry_type", posting.entry().entryType().getBytes(StandardCharsets.UTF_8)));
-		record.headers().add(new RecordHeader("transaction_id", posting.entry().externalId().getBytes(StandardCharsets.UTF_8)));
-		record.headers().add(new RecordHeader("transfer_id", posting.entry().externalId().getBytes(StandardCharsets.UTF_8)));
-		addCurrentTraceHeaders(record);
+        String transferIdValue = new String(posting.entry().externalId().getBytes(StandardCharsets.UTF_8), StandardCharsets.UTF_8);
+        transferTracing.withTransferId(UUID.fromString(transferIdValue), () -> {
+            try {
+                String key = posting.entry().externalId();
+                String value = objectMapper.writeValueAsString(toEvent(posting));
+                ProducerRecord<String, String> record = new ProducerRecord<>(topic, key, value);
+                record.headers().add(new RecordHeader("event_name", "ledger.posting_created".getBytes(StandardCharsets.UTF_8)));
+                record.headers().add(new RecordHeader("content_type", "application/json".getBytes(StandardCharsets.UTF_8)));
+                record.headers().add(new RecordHeader("entry_type", posting.entry().entryType().getBytes(StandardCharsets.UTF_8)));
+                record.headers().add(new RecordHeader("transfer_id", posting.entry().externalId().getBytes(StandardCharsets.UTF_8)));
 
-		try {
-			kafkaTemplate.send(record).get();
-			ledgerBusinessMetrics.recordLedgerPostingCreated(posting.entry().entryType());
-			ledgerBusinessMetrics.recordLedgerPostingLatency(
-					clock.millis() - posting.entry().occurredAt(),
-					posting.entry().entryType()
-			);
-		} catch (InterruptedException exception) {
-			Thread.currentThread().interrupt();
-			ledgerBusinessMetrics.recordLedgerPublishFailure(topic, posting.entry().entryType(), exception.getClass().getSimpleName());
-			throw new IllegalStateException("interrupted while publishing ledger posting event", exception);
-		} catch (ExecutionException exception) {
-			ledgerBusinessMetrics.recordLedgerPublishFailure(topic, posting.entry().entryType(), rootCauseName(exception));
-			throw new IllegalStateException("failed to publish ledger posting event", exception);
-		}
+
+                kafkaTemplate.send(record).get();
+                ledgerBusinessMetrics.recordLedgerPostingCreated(posting.entry().entryType());
+                ledgerBusinessMetrics.recordLedgerPostingLatency(
+                        clock.millis() - posting.entry().occurredAt(),
+                        posting.entry().entryType()
+                );
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                ledgerBusinessMetrics.recordLedgerPublishFailure(topic, posting.entry().entryType(), exception.getClass().getSimpleName());
+                throw new IllegalStateException("interrupted while publishing ledger posting event", exception);
+            } catch (ExecutionException | JsonProcessingException exception) {
+                ledgerBusinessMetrics.recordLedgerPublishFailure(topic, posting.entry().entryType(), rootCauseName(exception));
+                throw new IllegalStateException("failed to publish ledger posting event", exception);
+            }
+        });
 	}
 
 	private Span publisherSpan(LedgerPosting posting) {
@@ -114,10 +93,6 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 			return null;
 		}
 		Span.Builder builder = tracer.spanBuilder();
-		TraceContext parent = traceContext(KafkaTraceContext.traceparent());
-		if (parent != null && tracer.currentSpan() == null) {
-			builder.setParent(parent);
-		}
 		return builder
 				.name("%s publish ledger.posting_created".formatted(topic))
 				.kind(Span.Kind.PRODUCER)
@@ -127,8 +102,6 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 				.tag("messaging.kafka.message.key", posting.entry().externalId())
 				.tag("event.name", "ledger.posting_created")
 				.tag("ledger.entry_type", posting.entry().entryType())
-				.tag("business.transaction_id", posting.entry().externalId())
-				.tag("transaction.id", posting.entry().externalId())
 				.tag("transfer.id", posting.entry().externalId())
 				.tag("ledger.external_id", posting.entry().externalId())
 				.tag("ledger.entry_id", String.valueOf(posting.entry().entryId()))
@@ -141,53 +114,6 @@ public class KafkaLedgerPostingPublisher implements LedgerPostingPublisher {
 			current = current.getCause();
 		}
 		return current.getClass().getSimpleName();
-	}
-
-	private void addCurrentTraceHeaders(ProducerRecord<String, String> record) {
-		Span currentSpan = tracer == null ? null : tracer.currentSpan();
-		if (currentSpan != null) {
-			TraceContext context = currentSpan.context();
-			addHeader(record, "traceparent", traceparent(context));
-			return;
-		}
-		addPropagatedTraceHeaders(record);
-	}
-
-	private void addPropagatedTraceHeaders(ProducerRecord<String, String> record) {
-		String traceparent = KafkaTraceContext.traceparent();
-		if (traceparent == null || traceparent.isBlank()) {
-			return;
-		}
-		addHeader(record, "traceparent", traceparent);
-		String tracestate = KafkaTraceContext.tracestate();
-		if (tracestate != null && !tracestate.isBlank()) {
-			addHeader(record, "tracestate", tracestate);
-		}
-	}
-
-	private String traceparent(TraceContext context) {
-		String flags = Boolean.TRUE.equals(context.sampled()) ? "01" : "00";
-		return "00-%s-%s-%s".formatted(context.traceId(), context.spanId(), flags);
-	}
-
-	private TraceContext traceContext(String traceparent) {
-		if (traceparent == null || traceparent.isBlank()) {
-			return null;
-		}
-		String[] parts = traceparent.split("-");
-		if (parts.length != 4 || parts[1].length() != 32 || parts[2].length() != 16) {
-			return null;
-		}
-		return tracer.traceContextBuilder()
-				.traceId(parts[1])
-				.spanId(parts[2])
-				.sampled("01".equals(parts[3]))
-				.build();
-	}
-
-	private void addHeader(ProducerRecord<String, String> record, String name, String value) {
-		record.headers().remove(name);
-		record.headers().add(new RecordHeader(name, value.getBytes(StandardCharsets.UTF_8)));
 	}
 
 	private Map<String, Object> toEvent(LedgerPosting posting) {

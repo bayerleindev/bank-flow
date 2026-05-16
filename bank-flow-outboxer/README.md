@@ -41,8 +41,6 @@ Important columns:
 | `topic` | Kafka topic. |
 | `event_key` | Kafka message key. |
 | `payload` | JSON payload. |
-| `traceparent` | W3C trace context propagated from the producer service. |
-| `tracestate` | Optional W3C trace state propagated from the producer service. |
 | `status` | `PENDING`, `PROCESSING`, `PUBLISHED` or `FAILED`. |
 | `attempts` | Publish attempt count. |
 | `last_error` | Last publish error, truncated. |
@@ -67,8 +65,7 @@ For each claimed event, the outboxer publishes:
 - Header `event_name`: `event_type`
 - Header `content_type`: `application/json`
 - Header `producer_service`: `producer_service`
-- Header `traceparent`: stored trace context, when present
-- Header `tracestate`: stored trace state, when present
+- Header `transfer_id`: `aggregate_id` when `aggregate_type=Transfer`
 
 Failed sends are retried until `OUTBOX_PUBLISHER_MAX_ATTEMPTS` is reached.
 
@@ -86,6 +83,7 @@ Important span attributes include:
 - `messaging.operation`
 - `messaging.kafka.message.key`
 - `event.name`
+- `transfer.id`, when the event belongs to a transfer
 
 Outbox metrics used by dashboards include pending events, oldest pending event age, published events and publish failures.
 
