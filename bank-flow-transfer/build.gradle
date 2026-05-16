@@ -59,6 +59,23 @@ subprojects {
     apply plugin: 'com.github.spotbugs'
     apply plugin: 'org.openrewrite.rewrite'
     apply plugin: 'com.autonomousapps.dependency-analysis'
+    apply plugin: 'jacoco'
+
+    jacoco {
+        toolVersion = "0.8.12"
+    }
+
+    jacocoTestReport {
+        dependsOn test
+        reports {
+            xml.required = true
+            html.required = true
+        }
+    }
+
+    test {
+        finalizedBy jacocoTestReport
+    }
 
     spotbugs {
         toolVersion = '4.9.1'
@@ -101,6 +118,10 @@ project(':shared') {
         implementation 'io.micrometer:micrometer-tracing-bridge-otel'
         implementation 'io.opentelemetry:opentelemetry-exporter-otlp'
         implementation 'org.springframework.boot:spring-boot-starter-aop:3.5.14'
+
+        testImplementation 'org.testcontainers:jdbc:1.21.3'
+        testImplementation 'org.testcontainers:junit-jupiter:1.21.3'
+        testImplementation 'org.testcontainers:postgresql:1.21.3'
 	}
 }
 
@@ -118,9 +139,14 @@ configure([project(':api'), project(':worker')]) {
 		implementation 'io.github.resilience4j:resilience4j-retry:2.3.0'
 		runtimeOnly 'org.postgresql:postgresql'
 		testImplementation 'org.springframework.boot:spring-boot-starter-flyway-test'
-		testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testImplementation 'org.springframework.boot:spring-boot-test-autoconfigure'
 		testRuntimeOnly 'com.h2database:h2'
 		testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+        testImplementation 'org.testcontainers:jdbc:1.21.3'
+        testImplementation 'org.testcontainers:junit-jupiter:1.21.3'
+        testImplementation 'org.testcontainers:postgresql:1.21.3'
 	}
 }
 
@@ -128,5 +154,6 @@ project(':worker') {
 	dependencies {
 		implementation 'org.springframework.boot:spring-boot-starter-kafka'
 		testImplementation 'org.springframework.boot:spring-boot-starter-kafka-test'
+        testImplementation 'org.testcontainers:kafka:1.21.3'
 	}
 }

@@ -40,9 +40,11 @@ public class LedgerPostingCreatedConsumer {
 			autoStartup = "${spring.kafka.listener.auto-startup:true}"
 	)
 	public void consume(ConsumerRecord<String, String> record, Acknowledgment acknowledgment) {
+        UUID transferId = extractTransferId(record);
+        String label = transferId != null ? "with_transfer_id" : "missing_transfer_id";
 
-        transferTracing.withTransferId(UUID.fromString(transferIdLabel(record)), () -> {
-			transferBusinessMetrics.recordTransferIdContext("ledger_posting_consume", transferIdLabel(record));
+        transferTracing.withTransferId(transferId, () -> {
+			transferBusinessMetrics.recordTransferIdContext("ledger_posting_consume", label);
             try {
                 LedgerPostingCreatedEvent event = objectMapper.readValue(record.value(), LedgerPostingCreatedEvent.class);
                 event.validate();
@@ -59,13 +61,17 @@ public class LedgerPostingCreatedConsumer {
 		});
 	}
 
-	private String transferIdLabel(ConsumerRecord<String, String> record) {
+	private UUID extractTransferId(ConsumerRecord<String, String> record) {
 		var header = record.headers().lastHeader("transfer_id");
 		if (header == null || header.value() == null || header.value().length == 0) {
-			return "missing_transfer_id";
+			return null;
 		}
-		String transferId = new String(header.value(), StandardCharsets.UTF_8);
-		return transferId.isBlank() ? "missing_transfer_id" : "with_transfer_id";
+		String transferIdStr = new String(header.value(), StandardCharsets.UTF_8);
+        try {
+            return UUID.fromString(transferIdStr);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
 	}
 
 	private void validatePartitionKey(String key, LedgerPostingCreatedEvent event) {
