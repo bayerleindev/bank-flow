@@ -1,3 +1,0 @@
-rootProject.name = 'bank-flow-transfer'
-
-include 'shared', 'api', 'worker'

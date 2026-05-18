@@ -1,6 +1,0 @@
-apiVersion: v2
-name: bank-flow-outboxer
-description: Central transactional outbox publisher for Bank Flow
-type: application
-version: 0.1.0
-appVersion: "1.0.0"

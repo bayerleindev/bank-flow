@@ -1,5 +1,0 @@
-ALTER TABLE transfers
-    ADD COLUMN IF NOT EXISTS traceparent VARCHAR(128);
-
-ALTER TABLE transfers
-    ADD COLUMN IF NOT EXISTS tracestate TEXT;
