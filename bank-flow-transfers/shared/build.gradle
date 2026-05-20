@@ -1,0 +1,12 @@
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-jdbc'
+	runtimeOnly 'org.postgresql:postgresql'
+}
+
+bootJar {
+	enabled = false
+}
+
+jar {
+	enabled = true
+}

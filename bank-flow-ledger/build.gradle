@@ -1,0 +1,115 @@
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.0.6'
+	id 'io.spring.dependency-management' version '1.1.7'
+	id 'checkstyle'
+	id 'pmd'
+	id 'com.diffplug.spotless' version '7.2.1'
+	id 'com.github.spotbugs' version '6.1.13'
+}
+
+group = 'br.com'
+version = '0.0.1-SNAPSHOT'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+configurations.configureEach {
+	exclude group: 'io.netty', module: 'netty-tcnative-classes'
+
+	resolutionStrategy.eachDependency { details ->
+		if (details.requested.group == 'io.netty' && details.requested.name.startsWith('netty-')) {
+			details.useVersion '4.1.72.Final'
+			details.because 'immudb4j 1.0.1 uses grpc-netty 1.44.1, which is not compatible with Netty 4.2.x'
+		}
+	}
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-actuator'
+	implementation 'org.springframework.boot:spring-boot-starter-kafka'
+	implementation 'org.springframework.boot:spring-boot-starter-opentelemetry'
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.kafka:spring-kafka'
+	implementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+	implementation 'io.codenotary:immudb4j:1.0.1'
+	implementation 'io.github.resilience4j:resilience4j-spring-boot3:2.3.0'
+	implementation 'org.aspectj:aspectjweaver'
+	implementation 'io.micrometer:micrometer-registry-prometheus'
+
+	testImplementation 'org.springframework.boot:spring-boot-starter-kafka-test'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+checkstyle {
+	toolVersion = '10.21.4'
+	configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+}
+
+pmd {
+	toolVersion = '7.10.0'
+	consoleOutput = true
+	ruleSets = []
+	ruleSetFiles = files(rootProject.file('config/pmd-ruleset.xml'))
+}
+
+spotbugs {
+	toolVersion = '4.9.3'
+	effort = 'max'
+	reportLevel = 'medium'
+	excludeFilter = rootProject.file('config/spotbugs/exclude.xml')
+}
+
+spotless {
+	java {
+		target 'src/**/*.java'
+		removeUnusedImports()
+		googleJavaFormat('1.25.2').aosp()
+		formatAnnotations()
+		trimTrailingWhitespace()
+		endWithNewline()
+	}
+	groovyGradle {
+		target '*.gradle'
+		greclipse()
+		trimTrailingWhitespace()
+		endWithNewline()
+	}
+}
+
+tasks.withType(Checkstyle).configureEach {
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}
+
+tasks.withType(Pmd).configureEach {
+	reports {
+		xml.required = true
+		html.required = true
+	}
+}
+
+tasks.withType(com.github.spotbugs.snom.SpotBugsTask).configureEach {
+	reports {
+		xml.required = false
+		html.required = true
+	}
+}
+
+tasks.named('check') {
+	dependsOn 'spotlessCheck'
+}

@@ -1,0 +1,48 @@
+{
+  "keys": {
+    "joao@example.com": {
+      "account": {
+        "bank": "341",
+        "account": "123456-7",
+        "branch": "0001"
+      },
+      "owner": {
+        "name": "Joao Silva",
+        "maskedDocument": "***.123.456-**"
+      }
+    },
+    "11999999999": {
+      "account": {
+        "bank": "260",
+        "account": "987654-3",
+        "branch": "0002"
+      },
+      "owner": {
+        "name": "Maria Oliveira",
+        "maskedDocument": "***.987.654-**"
+      }
+    },
+    "23579141066": {
+      "account": {
+        "bank": "001",
+        "account": "456789-0",
+        "branch": "1234"
+      },
+      "owner": {
+        "name": "Carlos Santos",
+        "maskedDocument": "***.791.410-**"
+      }
+    },
+    "random-key": {
+      "account": {
+        "bank": "077",
+        "account": "102030-4",
+        "branch": "4321"
+      },
+      "owner": {
+        "name": "Ana Costa",
+        "maskedDocument": "***.456.789-**"
+      }
+    }
+  }
+}

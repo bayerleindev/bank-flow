@@ -1,0 +1,5 @@
+rootProject.name = 'bank-flow-transfers'
+
+include 'api'
+include 'shared'
+include 'worker'

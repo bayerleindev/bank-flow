@@ -1,0 +1,106 @@
+{
+  "uid": "accounts-business",
+  "title": "Accounts - Business",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["accounts", "business"],
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Creation Requests",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(accounts_creation_requested_total[1h]))",
+          "legendFormat": "requested"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Pending BaaS",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(accounts_pending_baas_total[1h]))",
+          "legendFormat": "pending"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Activated",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(accounts_webhook_active_total[1h]))",
+          "legendFormat": "active"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Rejected",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(accounts_webhook_rejected_total[1h]))",
+          "legendFormat": "rejected"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Account Funnel",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 6},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(accounts_creation_requested_total[5m]))", "legendFormat": "requested"},
+        {"refId": "B", "expr": "sum(rate(accounts_pending_baas_total[5m]))", "legendFormat": "pending_baas"},
+        {"refId": "C", "expr": "sum(rate(accounts_webhook_active_total[5m]))", "legendFormat": "active"},
+        {"refId": "D", "expr": "sum(rate(accounts_webhook_rejected_total[5m]))", "legendFormat": "rejected"}
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Kafka Account Events",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(accounts_kafka_requested_published_total[5m]))", "legendFormat": "requested published"},
+        {"refId": "B", "expr": "sum(rate(accounts_kafka_requested_consumed_total[5m]))", "legendFormat": "requested consumed"},
+        {"refId": "C", "expr": "sum(rate(accounts_kafka_created_published_total[5m]))", "legendFormat": "created published"}
+      ]
+    },
+    {
+      "id": 7,
+      "title": "BaaS Requests",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(accounts_baas_creation_requests_total[5m]))",
+          "legendFormat": "baas creation requests"
+        }
+      ]
+    }
+  ]
+}

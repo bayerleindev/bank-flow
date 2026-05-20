@@ -1,0 +1,5 @@
+rootProject.name = 'bank-flow-balance'
+
+include 'api'
+include 'shared'
+include 'worker'
