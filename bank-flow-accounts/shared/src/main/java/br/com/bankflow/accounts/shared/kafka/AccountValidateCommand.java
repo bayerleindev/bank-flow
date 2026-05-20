@@ -5,7 +5,7 @@ import java.util.UUID;
 
 public record AccountValidateCommand(
         UUID transferId,
-        TransferParty debitParty,
+        UUID debitAccountId,
         TransferParty creditParty,
         String idempotencyKey,
         Instant requestedAt) {}

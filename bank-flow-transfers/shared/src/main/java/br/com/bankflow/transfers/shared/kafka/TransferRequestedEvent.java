@@ -7,7 +7,7 @@ import java.util.UUID;
 
 public record TransferRequestedEvent(
         UUID id,
-        TransferParty debitParty,
+        UUID debitAccountId,
         TransferParty creditParty,
         String idempotencyKey,
         long amountMinor,

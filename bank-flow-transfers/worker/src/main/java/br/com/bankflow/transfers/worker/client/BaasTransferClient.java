@@ -41,6 +41,7 @@ public class BaasTransferClient {
 
     private record BaasPixPaymentRequest(
             UUID transferId,
+            UUID debitAccountId,
             PartyRequest debitParty,
             PartyRequest creditParty,
             long amountMinor,
@@ -51,7 +52,8 @@ public class BaasTransferClient {
         private static BaasPixPaymentRequest from(Transfer transfer, Instant requestedAt) {
             return new BaasPixPaymentRequest(
                     transfer.id(),
-                    PartyRequest.from(transfer.debitParty()),
+                    transfer.debitAccountId(),
+                    null,
                     PartyRequest.from(transfer.creditParty()),
                     transfer.amountMinor(),
                     transfer.currency(),

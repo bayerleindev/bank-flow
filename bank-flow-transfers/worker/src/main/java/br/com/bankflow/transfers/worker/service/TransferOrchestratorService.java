@@ -13,7 +13,6 @@ import br.com.bankflow.transfers.shared.repository.TransferRepository;
 import br.com.bankflow.transfers.worker.client.BaasTransferClient;
 import br.com.bankflow.transfers.worker.producer.MovementEventProducer;
 import br.com.bankflow.transfers.worker.producer.TransferCommandProducer;
-import io.github.resilience4j.circuitbreaker.annotation.CircuitBreaker;
 import io.github.resilience4j.retry.annotation.Retry;
 import java.time.Clock;
 import java.time.Instant;
@@ -57,7 +56,6 @@ public class TransferOrchestratorService {
     }
 
     @Retry(name = "transferRequestedConsumer")
-    @CircuitBreaker(name = "transferRequestedConsumer")
     @Transactional
     public void startProcessing(TransferRequestedEvent event) {
         Instant now = Instant.now(clock);
@@ -76,7 +74,6 @@ public class TransferOrchestratorService {
     }
 
     @Retry(name = "transferRequestedConsumer")
-    @CircuitBreaker(name = "transferRequestedConsumer")
     @Transactional
     public void handleAccountValidated(AccountValidatedEvent event) {
         if (event.status() == AccountValidationStatus.REJECTED) {
@@ -88,7 +85,6 @@ public class TransferOrchestratorService {
     }
 
     @Retry(name = "transferRequestedConsumer")
-    @CircuitBreaker(name = "transferRequestedConsumer")
     @Transactional
     public void handleBalanceHeld(BalanceHeldEvent event) {
         if (event.status() == BalanceHoldStatus.REJECTED) {
@@ -299,7 +295,7 @@ public class TransferOrchestratorService {
             TransferRequestedEvent event, Instant requestedAt) {
         return new AccountValidateCommand(
                 event.id(),
-                event.debitParty(),
+                event.debitAccountId(),
                 event.creditParty(),
                 event.idempotencyKey(),
                 requestedAt);

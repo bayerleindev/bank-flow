@@ -85,7 +85,7 @@ class BaasSimulatorHandler(BaseHTTPRequestHandler):
         try:
             payload = self.read_json()
             transfer_id = payload["transferId"]
-            payload["debitParty"]
+            payload["debitAccountId"]
             payload["creditParty"]
             payload["amountMinor"]
             payload["currency"]

@@ -8,20 +8,18 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import java.util.UUID;
 
 public record CreateTransferRequest(
-        @Valid @NotNull TransferPartyRequest debitParty,
         @Valid @NotNull TransferPartyRequest creditParty,
         @Positive long amountMinor,
         @Size(max = 255) String description,
         @NotBlank @Size(min = 3, max = 3) String currency,
         @NotNull TransferType type) {
 
-    private static final String BANK_FLOW_ISPB = "13935893";
-
-    public CreateTransferCommand toCommand(String idempotencyKey) {
+    public CreateTransferCommand toCommand(String idempotencyKey, UUID debitAccountId) {
         return new CreateTransferCommand(
-                debitParty.toDebitPartyDomain(),
+                debitAccountId,
                 creditParty.toDomain(),
                 idempotencyKey,
                 amountMinor,
@@ -37,10 +35,6 @@ public record CreateTransferRequest(
 
         public TransferParty toDomain() {
             return new TransferParty(bank, account, branch);
-        }
-
-        public TransferParty toDebitPartyDomain() {
-            return new TransferParty(BANK_FLOW_ISPB, account, branch);
         }
     }
 }

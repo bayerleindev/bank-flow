@@ -16,6 +16,10 @@ public class PixKeyTransferValidator {
     }
 
     public void validate(CreateTransferCommand command) {
+        if (command.debitAccountId() == null) {
+            throw new PixKeyValidationException("missing_debit_account_id");
+        }
+
         PixKeyResponse pixKeyResponse =
                 pixKeyCacheService
                         .findByEndToEndId(command.idempotencyKey())

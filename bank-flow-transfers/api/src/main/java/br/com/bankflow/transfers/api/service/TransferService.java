@@ -37,7 +37,7 @@ public class TransferService {
         Transfer transfer =
                 new Transfer(
                         UUID.randomUUID(),
-                        command.debitParty(),
+                        null,
                         command.creditParty(),
                         command.idempotencyKey(),
                         command.amountMinor(),
@@ -46,7 +46,7 @@ public class TransferService {
                         command.type(),
                         command.type().requestedStatus(),
                         null,
-                        null,
+                        command.debitAccountId(),
                         null,
                         now,
                         now);

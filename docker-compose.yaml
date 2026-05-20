@@ -115,8 +115,26 @@ services:
     volumes:
       - redis-data:/data
 
+  bank-flow-auth:
+    image: eclipse-temurin:21-jdk
+    working_dir: /app
+    command: ["./gradlew", "bootRun"]
+    environment:
+      SERVER_PORT: 8090
+      AUTH_ISSUER_KEY: ${AUTH_ISSUER_KEY:-local-dev-issuer-key}
+      AUTH_JWT_ISSUER: ${AUTH_JWT_ISSUER:-http://localhost:8090}
+      AUTH_JWT_KEY_ID: ${AUTH_JWT_KEY_ID:-bank-flow-auth-dev}
+      AUTH_JWT_PRIVATE_KEY: ${AUTH_JWT_PRIVATE_KEY:-}
+      AUTH_JWT_TTL: ${AUTH_JWT_TTL:-15m}
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./bank-flow-auth:/app
+      - gradle-cache:/root/.gradle
+
 volumes:
   postgres-data:
   kafka-data:
   immudb-data:
   redis-data:
+  gradle-cache:

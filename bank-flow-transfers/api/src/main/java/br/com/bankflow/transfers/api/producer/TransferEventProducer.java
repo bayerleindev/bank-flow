@@ -32,7 +32,7 @@ public class TransferEventProducer {
     private static TransferRequestedEvent toEvent(Transfer transfer) {
         return new TransferRequestedEvent(
                 transfer.id(),
-                transfer.debitParty(),
+                transfer.debitAccountId(),
                 transfer.creditParty(),
                 transfer.idempotencyKey(),
                 transfer.amountMinor(),

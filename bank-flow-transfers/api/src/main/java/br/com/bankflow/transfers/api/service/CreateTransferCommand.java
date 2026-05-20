@@ -2,9 +2,10 @@ package br.com.bankflow.transfers.api.service;
 
 import br.com.bankflow.transfers.shared.domain.TransferParty;
 import br.com.bankflow.transfers.shared.domain.TransferType;
+import java.util.UUID;
 
 public record CreateTransferCommand(
-        TransferParty debitParty,
+        UUID debitAccountId,
         TransferParty creditParty,
         String idempotencyKey,
         long amountMinor,

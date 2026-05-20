@@ -7,6 +7,7 @@ import java.util.UUID;
 
 public record TransferResponse(
         UUID id,
+        UUID debitAccountId,
         TransferPartyResponse debitParty,
         TransferPartyResponse creditParty,
         String idempotencyKey,
@@ -22,7 +23,10 @@ public record TransferResponse(
     public static TransferResponse from(Transfer transfer) {
         return new TransferResponse(
                 transfer.id(),
-                TransferPartyResponse.from(transfer.debitParty()),
+                transfer.debitAccountId(),
+                transfer.debitParty() == null
+                        ? null
+                        : TransferPartyResponse.from(transfer.debitParty()),
                 TransferPartyResponse.from(transfer.creditParty()),
                 transfer.idempotencyKey(),
                 transfer.amountMinor(),

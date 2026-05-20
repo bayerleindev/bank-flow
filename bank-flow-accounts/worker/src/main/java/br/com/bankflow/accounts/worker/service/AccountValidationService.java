@@ -1,6 +1,7 @@
 package br.com.bankflow.accounts.worker.service;
 
 import br.com.bankflow.accounts.shared.domain.Account;
+import br.com.bankflow.accounts.shared.domain.AccountStatus;
 import br.com.bankflow.accounts.shared.kafka.AccountValidateCommand;
 import br.com.bankflow.accounts.shared.kafka.AccountValidatedEvent;
 import br.com.bankflow.accounts.shared.kafka.AccountValidationStatus;
@@ -33,12 +34,11 @@ public class AccountValidationService {
     }
 
     private AccountValidatedEvent validateCommand(AccountValidateCommand command) {
-        Optional<AccountReference> debitReference = parse(command.debitParty());
-        if (debitReference.isEmpty()) {
-            return rejected(command.transferId(), "invalid_debit_account_format");
+        if (command.debitAccountId() == null) {
+            return rejected(command.transferId(), "missing_debit_account_id");
         }
 
-        Optional<Account> debitAccount = findActiveAccount(debitReference.orElseThrow());
+        Optional<Account> debitAccount = findActiveAccount(command.debitAccountId());
         if (debitAccount.isEmpty()) {
             return rejected(command.transferId(), "debit_account_not_found_or_inactive");
         }
@@ -61,6 +61,12 @@ public class AccountValidationService {
                 command.transferId(),
                 debitAccount.orElseThrow().id(),
                 creditAccount.orElseThrow().id());
+    }
+
+    private Optional<Account> findActiveAccount(UUID accountId) {
+        return accountRepository
+                .findById(accountId)
+                .filter(account -> account.status() == AccountStatus.ACTIVE);
     }
 
     private Optional<Account> findActiveAccount(AccountReference reference) {

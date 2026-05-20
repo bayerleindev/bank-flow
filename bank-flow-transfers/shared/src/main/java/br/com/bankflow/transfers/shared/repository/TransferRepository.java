@@ -13,16 +13,14 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 @Repository
+@SuppressWarnings("PMD.TooManyMethods")
 public class TransferRepository {
 
     private static final RowMapper<Transfer> TRANSFER_ROW_MAPPER =
             (resultSet, rowNumber) ->
                     new Transfer(
                             resultSet.getObject("id", UUID.class),
-                            new TransferParty(
-                                    resultSet.getString("debit_bank"),
-                                    resultSet.getString("debit_account"),
-                                    resultSet.getString("debit_branch")),
+                            transferParty(resultSet, "debit_bank", "debit_account", "debit_branch"),
                             new TransferParty(
                                     resultSet.getString("credit_bank"),
                                     resultSet.getString("credit_account"),
@@ -74,9 +72,9 @@ public class TransferRepository {
 					) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 					""",
                 transfer.id(),
-                transfer.debitParty().bank(),
-                transfer.debitParty().account(),
-                transfer.debitParty().branch(),
+                bank(transfer.debitParty()),
+                account(transfer.debitParty()),
+                branch(transfer.debitParty()),
                 transfer.creditParty().bank(),
                 transfer.creditParty().account(),
                 transfer.creditParty().branch(),
@@ -210,5 +208,32 @@ public class TransferRepository {
                         id,
                         currentStatus);
         return updatedRows == 1;
+    }
+
+    private static TransferParty transferParty(
+            java.sql.ResultSet resultSet,
+            String bankColumn,
+            String accountColumn,
+            String branchColumn)
+            throws java.sql.SQLException {
+        String bank = resultSet.getString(bankColumn);
+        String account = resultSet.getString(accountColumn);
+        String branch = resultSet.getString(branchColumn);
+        if (bank == null && account == null && branch == null) {
+            return null;
+        }
+        return new TransferParty(bank, account, branch);
+    }
+
+    private static String bank(TransferParty transferParty) {
+        return transferParty == null ? null : transferParty.bank();
+    }
+
+    private static String account(TransferParty transferParty) {
+        return transferParty == null ? null : transferParty.account();
+    }
+
+    private static String branch(TransferParty transferParty) {
+        return transferParty == null ? null : transferParty.branch();
     }
 }
