@@ -1,0 +1,224 @@
+groups:
+  - name: tempo-service-graph-kafka-topics
+    interval: 10s
+    rules:
+      - record: traces_service_graph_kafka_topic_request_total
+        expr: |
+          (
+            sum by (client, server, connection_type, messaging_topic_direction) (
+              label_replace(
+                label_replace(
+                  label_replace(
+                    sum by (client, messaging_destination_name) (
+                      traces_service_graph_request_total{
+                        messaging_system="kafka",
+                        messaging_operation=~"publish|send",
+                        messaging_destination_name!=""
+                      }
+                    ),
+                    "server", "topic:$1", "messaging_destination_name", "(.+)"
+                  ),
+                  "connection_type", "messaging_topic", "messaging_destination_name", "(.+)"
+                ),
+                "messaging_topic_direction", "producer", "messaging_destination_name", "(.+)"
+              )
+            )
+          )
+          or
+          (
+            sum by (client, server, connection_type, messaging_topic_direction) (
+              label_replace(
+                label_replace(
+                  label_replace(
+                    sum by (server, messaging_source_name) (
+                      traces_service_graph_request_total{
+                        messaging_system="kafka",
+                        messaging_operation=~"process|receive",
+                        messaging_source_name!=""
+                      }
+                    ),
+                    "client", "topic:$1", "messaging_source_name", "(.+)"
+                  ),
+                  "connection_type", "messaging_topic", "messaging_source_name", "(.+)"
+                ),
+                "messaging_topic_direction", "consumer", "messaging_source_name", "(.+)"
+              )
+            )
+          )
+
+      - record: traces_service_graph_kafka_topic_request_failed_total
+        expr: |
+          (
+            sum by (client, server, connection_type, messaging_topic_direction) (
+              label_replace(
+                label_replace(
+                  label_replace(
+                    sum by (client, messaging_destination_name) (
+                      traces_service_graph_request_failed_total{
+                        messaging_system="kafka",
+                        messaging_operation=~"publish|send",
+                        messaging_destination_name!=""
+                      }
+                    ),
+                    "server", "topic:$1", "messaging_destination_name", "(.+)"
+                  ),
+                  "connection_type", "messaging_topic", "messaging_destination_name", "(.+)"
+                ),
+                "messaging_topic_direction", "producer", "messaging_destination_name", "(.+)"
+              )
+            )
+          )
+          or
+          (
+            sum by (client, server, connection_type, messaging_topic_direction) (
+              label_replace(
+                label_replace(
+                  label_replace(
+                    sum by (server, messaging_source_name) (
+                      traces_service_graph_request_failed_total{
+                        messaging_system="kafka",
+                        messaging_operation=~"process|receive",
+                        messaging_source_name!=""
+                      }
+                    ),
+                    "client", "topic:$1", "messaging_source_name", "(.+)"
+                  ),
+                  "connection_type", "messaging_topic", "messaging_source_name", "(.+)"
+                ),
+                "messaging_topic_direction", "consumer", "messaging_source_name", "(.+)"
+              )
+            )
+          )
+
+      - record: traces_service_graph_kafka_topic_request_server_seconds_count
+        expr: |
+          (
+            sum by (client, server, connection_type, messaging_topic_direction) (
+              label_replace(
+                label_replace(
+                  label_replace(
+                    sum by (client, messaging_destination_name) (
+                      traces_service_graph_request_server_seconds_count{
+                        messaging_system="kafka",
+                        messaging_operation=~"publish|send",
+                        messaging_destination_name!=""
+                      }
+                    ),
+                    "server", "topic:$1", "messaging_destination_name", "(.+)"
+                  ),
+                  "connection_type", "messaging_topic", "messaging_destination_name", "(.+)"
+                ),
+                "messaging_topic_direction", "producer", "messaging_destination_name", "(.+)"
+              )
+            )
+          )
+          or
+          (
+            sum by (client, server, connection_type, messaging_topic_direction) (
+              label_replace(
+                label_replace(
+                  label_replace(
+                    sum by (server, messaging_source_name) (
+                      traces_service_graph_request_server_seconds_count{
+                        messaging_system="kafka",
+                        messaging_operation=~"process|receive",
+                        messaging_source_name!=""
+                      }
+                    ),
+                    "client", "topic:$1", "messaging_source_name", "(.+)"
+                  ),
+                  "connection_type", "messaging_topic", "messaging_source_name", "(.+)"
+                ),
+                "messaging_topic_direction", "consumer", "messaging_source_name", "(.+)"
+              )
+            )
+          )
+
+      - record: traces_service_graph_kafka_topic_request_server_seconds_sum
+        expr: |
+          (
+            sum by (client, server, connection_type, messaging_topic_direction) (
+              label_replace(
+                label_replace(
+                  label_replace(
+                    sum by (client, messaging_destination_name) (
+                      traces_service_graph_request_server_seconds_sum{
+                        messaging_system="kafka",
+                        messaging_operation=~"publish|send",
+                        messaging_destination_name!=""
+                      }
+                    ),
+                    "server", "topic:$1", "messaging_destination_name", "(.+)"
+                  ),
+                  "connection_type", "messaging_topic", "messaging_destination_name", "(.+)"
+                ),
+                "messaging_topic_direction", "producer", "messaging_destination_name", "(.+)"
+              )
+            )
+          )
+          or
+          (
+            sum by (client, server, connection_type, messaging_topic_direction) (
+              label_replace(
+                label_replace(
+                  label_replace(
+                    sum by (server, messaging_source_name) (
+                      traces_service_graph_request_server_seconds_sum{
+                        messaging_system="kafka",
+                        messaging_operation=~"process|receive",
+                        messaging_source_name!=""
+                      }
+                    ),
+                    "client", "topic:$1", "messaging_source_name", "(.+)"
+                  ),
+                  "connection_type", "messaging_topic", "messaging_source_name", "(.+)"
+                ),
+                "messaging_topic_direction", "consumer", "messaging_source_name", "(.+)"
+              )
+            )
+          )
+
+      - record: traces_service_graph_kafka_topic_request_server_seconds_bucket
+        expr: |
+          (
+            sum by (client, server, connection_type, messaging_topic_direction, le) (
+              label_replace(
+                label_replace(
+                  label_replace(
+                    sum by (client, messaging_destination_name, le) (
+                      traces_service_graph_request_server_seconds_bucket{
+                        messaging_system="kafka",
+                        messaging_operation=~"publish|send",
+                        messaging_destination_name!=""
+                      }
+                    ),
+                    "server", "topic:$1", "messaging_destination_name", "(.+)"
+                  ),
+                  "connection_type", "messaging_topic", "messaging_destination_name", "(.+)"
+                ),
+                "messaging_topic_direction", "producer", "messaging_destination_name", "(.+)"
+              )
+            )
+          )
+          or
+          (
+            sum by (client, server, connection_type, messaging_topic_direction, le) (
+              label_replace(
+                label_replace(
+                  label_replace(
+                    sum by (server, messaging_source_name, le) (
+                      traces_service_graph_request_server_seconds_bucket{
+                        messaging_system="kafka",
+                        messaging_operation=~"process|receive",
+                        messaging_source_name!=""
+                      }
+                    ),
+                    "client", "topic:$1", "messaging_source_name", "(.+)"
+                  ),
+                  "connection_type", "messaging_topic", "messaging_source_name", "(.+)"
+                ),
+                "messaging_topic_direction", "consumer", "messaging_source_name", "(.+)"
+              )
+            )
+          )
+

@@ -1,0 +1,114 @@
+{
+  "uid": "balance-business",
+  "title": "Balance - Business",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["balance", "business"],
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Balance Lookups",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(balance_lookup_requested_total[1h]))",
+          "legendFormat": "lookups"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Holds Approved",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(balance_hold_approved_total[1h]))",
+          "legendFormat": "approved"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Holds Rejected",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(balance_hold_rejected_total[1h]))",
+          "legendFormat": "rejected"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Journal Entries Applied",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(balance_ledger_journal_entry_applied_total[1h]))",
+          "legendFormat": "applied"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Balance Flow",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 6},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(balance_kafka_hold_command_consumed_total[5m]))", "legendFormat": "hold command consumed"},
+        {"refId": "B", "expr": "sum(rate(balance_kafka_held_event_published_total[5m]))", "legendFormat": "held event published"},
+        {"refId": "C", "expr": "sum(rate(balance_kafka_capture_command_consumed_total[5m]))", "legendFormat": "capture command consumed"},
+        {"refId": "D", "expr": "sum(rate(balance_kafka_release_command_consumed_total[5m]))", "legendFormat": "release command consumed"},
+        {"refId": "E", "expr": "sum(rate(balance_kafka_ledger_journal_consumed_total[5m]))", "legendFormat": "ledger journal consumed"}
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Hold Outcomes",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(balance_hold_approved_total[5m]))", "legendFormat": "approved"},
+        {"refId": "B", "expr": "sum(rate(balance_hold_rejected_total[5m]))", "legendFormat": "rejected"}
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Journal Projection",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(balance_ledger_journal_entry_applied_total[5m]))", "legendFormat": "applied"},
+        {"refId": "B", "expr": "sum(rate(balance_ledger_journal_entry_ignored_total[5m]))", "legendFormat": "ignored"}
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Lookup Outcomes",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 22},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(balance_lookup_found_total[5m]))", "legendFormat": "found"},
+        {"refId": "B", "expr": "sum(rate(balance_lookup_empty_total[5m]))", "legendFormat": "empty"}
+      ]
+    }
+  ]
+}

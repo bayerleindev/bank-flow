@@ -15,19 +15,24 @@ public class TransferService {
 
     private final TransferRepository transferRepository;
     private final TransferEventProducer transferEventProducer;
+    private final PixKeyTransferValidator pixKeyTransferValidator;
     private final Clock clock;
 
     public TransferService(
             TransferRepository transferRepository,
             TransferEventProducer transferEventProducer,
+            PixKeyTransferValidator pixKeyTransferValidator,
             Clock clock) {
         this.transferRepository = transferRepository;
         this.transferEventProducer = transferEventProducer;
+        this.pixKeyTransferValidator = pixKeyTransferValidator;
         this.clock = clock;
     }
 
     @Transactional
     public Transfer create(CreateTransferCommand command) {
+        pixKeyTransferValidator.validate(command);
+
         Instant now = Instant.now(clock);
         Transfer transfer =
                 new Transfer(

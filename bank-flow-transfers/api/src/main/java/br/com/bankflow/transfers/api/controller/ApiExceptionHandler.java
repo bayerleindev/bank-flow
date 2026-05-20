@@ -1,6 +1,7 @@
 package br.com.bankflow.transfers.api.controller;
 
 import br.com.bankflow.transfers.api.dto.response.ApiErrorResponse;
+import br.com.bankflow.transfers.api.service.PixKeyValidationException;
 import br.com.bankflow.transfers.api.service.TransferNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -23,6 +24,12 @@ public class ApiExceptionHandler {
     public ResponseEntity<ApiErrorResponse> handleTransferNotFound() {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(new ApiErrorResponse("transfer_not_found"));
+    }
+
+    @ExceptionHandler(PixKeyValidationException.class)
+    public ResponseEntity<ApiErrorResponse> handlePixKeyValidation(
+            PixKeyValidationException exception) {
+        return ResponseEntity.unprocessableEntity().body(new ApiErrorResponse(exception.code()));
     }
 
     @ExceptionHandler({WebClientRequestException.class, WebClientResponseException.class})

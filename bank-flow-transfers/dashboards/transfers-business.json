@@ -1,0 +1,120 @@
+{
+  "uid": "transfers-business",
+  "title": "Transfers - Business",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["transfers", "business"],
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Transfer Requests",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(transfers_creation_requested_total[1h]))",
+          "legendFormat": "requested"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "BaaS Completed",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(transfers_webhook_completed_total[1h]))",
+          "legendFormat": "completed"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "BaaS Rejected",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(transfers_webhook_rejected_total[1h]))",
+          "legendFormat": "rejected"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "BaaS Pix Requests",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(transfers_baas_pix_payment_requests_total[1h]))",
+          "legendFormat": "pix requests"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Transfer Funnel",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 6},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(transfers_creation_requested_total[5m]))", "legendFormat": "api requested"},
+        {"refId": "B", "expr": "sum(rate(transfers_kafka_requested_consumed_total[5m]))", "legendFormat": "worker requested consumed"},
+        {"refId": "C", "expr": "sum(rate(transfers_kafka_account_validated_consumed_total[5m]))", "legendFormat": "account validated"},
+        {"refId": "D", "expr": "sum(rate(transfers_kafka_balance_held_consumed_total[5m]))", "legendFormat": "balance held"},
+        {"refId": "E", "expr": "sum(rate(transfers_webhook_completed_total[5m]))", "legendFormat": "baas completed"},
+        {"refId": "F", "expr": "sum(rate(transfers_webhook_rejected_total[5m]))", "legendFormat": "baas rejected"}
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Kafka Transfer Flow",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(transfers_kafka_requested_published_total[5m]))", "legendFormat": "transfer requested published"},
+        {"refId": "B", "expr": "sum(rate(transfers_kafka_requested_consumed_total[5m]))", "legendFormat": "transfer requested consumed"},
+        {"refId": "C", "expr": "sum(rate(transfers_kafka_account_validate_published_total[5m]))", "legendFormat": "account validate published"},
+        {"refId": "D", "expr": "sum(rate(transfers_kafka_account_validated_consumed_total[5m]))", "legendFormat": "account validated consumed"},
+        {"refId": "E", "expr": "sum(rate(transfers_kafka_balance_hold_published_total[5m]))", "legendFormat": "balance hold published"},
+        {"refId": "F", "expr": "sum(rate(transfers_kafka_balance_held_consumed_total[5m]))", "legendFormat": "balance held consumed"}
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Settlement Publications",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(transfers_kafka_movement_created_published_total[5m]))", "legendFormat": "movement created"},
+        {"refId": "B", "expr": "sum(rate(transfers_kafka_balance_capture_published_total[5m]))", "legendFormat": "balance capture"},
+        {"refId": "C", "expr": "sum(rate(transfers_kafka_balance_release_published_total[5m]))", "legendFormat": "balance release"}
+      ]
+    },
+    {
+      "id": 8,
+      "title": "BaaS Calls",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 22},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(transfers_baas_dict_lookup_total[5m]))", "legendFormat": "dict lookup"},
+        {"refId": "B", "expr": "sum(rate(transfers_baas_pix_payment_requests_total[5m]))", "legendFormat": "pix payment"}
+      ]
+    }
+  ]
+}

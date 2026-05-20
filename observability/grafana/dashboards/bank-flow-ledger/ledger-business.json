@@ -1,0 +1,103 @@
+{
+  "uid": "ledger-business",
+  "title": "Ledger - Business",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["ledger", "business"],
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Bootstrap Runs",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(ledger_bootstrap_completed_total[1h]))",
+          "legendFormat": "bootstrap"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Accounts Represented",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(ledger_account_representation_saved_total[1h]))",
+          "legendFormat": "accounts"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Movements Consumed",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(ledger_kafka_movement_created_consumed_total[1h]))",
+          "legendFormat": "movements"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Journals Saved",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(ledger_journal_saved_total[1h]))",
+          "legendFormat": "journals"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Ledger Flow",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 6},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(ledger_kafka_account_created_consumed_total[5m]))", "legendFormat": "account created consumed"},
+        {"refId": "B", "expr": "sum(rate(ledger_account_representation_saved_total[5m]))", "legendFormat": "account represented"},
+        {"refId": "C", "expr": "sum(rate(ledger_kafka_movement_created_consumed_total[5m]))", "legendFormat": "movement consumed"},
+        {"refId": "D", "expr": "sum(rate(ledger_journal_saved_total[5m]))", "legendFormat": "journal saved"},
+        {"refId": "E", "expr": "sum(rate(ledger_kafka_journal_created_published_total[5m]))", "legendFormat": "journal event published"}
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Kafka Ledger Events",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(ledger_kafka_account_created_consumed_total[5m]))", "legendFormat": "account.created consumed"},
+        {"refId": "B", "expr": "sum(rate(ledger_kafka_movement_created_consumed_total[5m]))", "legendFormat": "movement.created consumed"},
+        {"refId": "C", "expr": "sum(rate(ledger_kafka_journal_created_published_total[5m]))", "legendFormat": "ledger.journal.created published"}
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Journal Persistence",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(ledger_journal_saved_total[5m]))", "legendFormat": "journal saved"}
+      ]
+    }
+  ]
+}

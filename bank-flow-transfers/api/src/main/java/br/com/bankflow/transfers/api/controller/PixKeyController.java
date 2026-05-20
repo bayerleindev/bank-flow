@@ -20,6 +20,6 @@ public class PixKeyController {
 
     @GetMapping("/{key}")
     public ResponseEntity<PixKeyResponse> findByKey(@PathVariable String key) {
-        return ResponseEntity.ok(PixKeyResponse.from(pixKeyService.findByKey(key)));
+        return ResponseEntity.ok(pixKeyService.findByKey(key));
     }
 }
