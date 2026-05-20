@@ -154,18 +154,28 @@ public class TransferRepository {
         return updatedRows == 1;
     }
 
-    public boolean updateValidatedAccountIds(
-            UUID id, UUID debitAccountId, UUID creditAccountId, Instant updatedAt) {
+    public boolean updateValidatedAccounts(
+            UUID id,
+            UUID debitAccountId,
+            TransferParty debitParty,
+            UUID creditAccountId,
+            Instant updatedAt) {
         int updatedRows =
                 jdbcTemplate.update(
                         """
 						update transfers.transfers
 						set debit_account_id = ?,
+							debit_bank = ?,
+							debit_account = ?,
+							debit_branch = ?,
 							credit_account_id = ?,
 							updated_at = ?
 						where id = ?
 						""",
                         debitAccountId,
+                        bank(debitParty),
+                        account(debitParty),
+                        branch(debitParty),
                         creditAccountId,
                         Timestamp.from(updatedAt),
                         id);

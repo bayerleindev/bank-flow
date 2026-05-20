@@ -8,5 +8,6 @@ public record AccountValidatedEvent(
         AccountValidationStatus status,
         String reason,
         UUID debitAccountId,
+        TransferParty debitParty,
         UUID creditAccountId,
         Instant validatedAt) {}

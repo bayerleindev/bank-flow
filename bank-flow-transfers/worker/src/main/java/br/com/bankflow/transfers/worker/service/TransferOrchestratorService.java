@@ -115,8 +115,12 @@ public class TransferOrchestratorService {
         }
 
         boolean accountIdsUpdated =
-                transferRepository.updateValidatedAccountIds(
-                        event.transferId(), event.debitAccountId(), event.creditAccountId(), now);
+                transferRepository.updateValidatedAccounts(
+                        event.transferId(),
+                        event.debitAccountId(),
+                        event.debitParty(),
+                        event.creditAccountId(),
+                        now);
 
         if (!accountIdsUpdated) {
             throw new IllegalStateException("Transfer account ids could not be updated");

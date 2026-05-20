@@ -44,7 +44,7 @@ public class AccountValidationService {
         }
 
         if (!BANK_FLOW_ISPB.equals(command.creditParty().bank())) {
-            return approved(command.transferId(), debitAccount.orElseThrow().id(), null);
+            return approved(command.transferId(), debitAccount.orElseThrow(), null);
         }
 
         Optional<AccountReference> creditReference = parse(command.creditParty());
@@ -58,9 +58,7 @@ public class AccountValidationService {
         }
 
         return approved(
-                command.transferId(),
-                debitAccount.orElseThrow().id(),
-                creditAccount.orElseThrow().id());
+                command.transferId(), debitAccount.orElseThrow(), creditAccount.orElseThrow().id());
     }
 
     private Optional<Account> findActiveAccount(UUID accountId) {
@@ -84,19 +82,33 @@ public class AccountValidationService {
     }
 
     private AccountValidatedEvent approved(
-            UUID transferId, UUID debitAccountId, UUID creditAccountId) {
+            UUID transferId, Account debitAccount, UUID creditAccountId) {
         return new AccountValidatedEvent(
                 transferId,
                 AccountValidationStatus.APPROVED,
                 null,
-                debitAccountId,
+                debitAccount.id(),
+                toTransferParty(debitAccount),
                 creditAccountId,
                 Instant.now());
     }
 
     private AccountValidatedEvent rejected(UUID transferId, String reason) {
         return new AccountValidatedEvent(
-                transferId, AccountValidationStatus.REJECTED, reason, null, null, Instant.now());
+                transferId,
+                AccountValidationStatus.REJECTED,
+                reason,
+                null,
+                null,
+                null,
+                Instant.now());
+    }
+
+    private static TransferParty toTransferParty(Account account) {
+        return new TransferParty(
+                BANK_FLOW_ISPB,
+                account.accountNumber() + "-" + account.accountDigit(),
+                account.branchNumber());
     }
 
     private record AccountReference(

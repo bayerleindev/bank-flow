@@ -53,7 +53,7 @@ public class BaasTransferClient {
             return new BaasPixPaymentRequest(
                     transfer.id(),
                     transfer.debitAccountId(),
-                    null,
+                    PartyRequest.from(transfer.debitParty()),
                     PartyRequest.from(transfer.creditParty()),
                     transfer.amountMinor(),
                     transfer.currency(),
