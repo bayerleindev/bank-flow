@@ -5,10 +5,12 @@ import br.com.bankflow.transfers.api.dto.response.CreateTransferResponse;
 import br.com.bankflow.transfers.api.dto.response.TransferResponse;
 import br.com.bankflow.transfers.api.service.TransferAuthenticationException;
 import br.com.bankflow.transfers.api.service.TransferService;
+import br.com.bankflow.transfers.shared.domain.Transfer;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.net.URI;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @Validated
 @RestController
@@ -47,8 +50,15 @@ public class TransferController {
     }
 
     @GetMapping("/{transferId}")
-    public ResponseEntity<TransferResponse> findById(@PathVariable UUID transferId) {
-        return ResponseEntity.ok(TransferResponse.from(transferService.findById(transferId)));
+    public ResponseEntity<TransferResponse> findById(
+            @AuthenticationPrincipal Jwt jwt, @PathVariable UUID transferId) {
+        UUID accountId = accountId(jwt);
+        Transfer transfer = transferService.findById(transferId);
+        if (!accountId.equals(transfer.debitAccountId())
+                && !accountId.equals(transfer.creditAccountId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "account_forbidden");
+        }
+        return ResponseEntity.ok(TransferResponse.from(transfer));
     }
 
     private static UUID accountId(Jwt jwt) {

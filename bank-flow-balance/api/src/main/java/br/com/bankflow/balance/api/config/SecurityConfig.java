@@ -1,8 +1,8 @@
-package br.com.bankflow.transfers.api.config;
+package br.com.bankflow.balance.api.config;
 
-import br.com.bankflow.transfers.api.dto.response.ApiErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,7 +26,7 @@ public class SecurityConfig {
         http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(
                         requests ->
-                                requests.requestMatchers("/actuator/**", "/baas/webhooks/transfers")
+                                requests.requestMatchers("/actuator/**")
                                         .permitAll()
                                         .anyRequest()
                                         .authenticated())
@@ -58,7 +58,7 @@ public class SecurityConfig {
         try {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            objectMapper.writeValue(response.getWriter(), new ApiErrorResponse("invalid_token"));
+            objectMapper.writeValue(response.getWriter(), Map.of("code", "invalid_token"));
         } catch (java.io.IOException exception) {
             throw new IllegalStateException(
                     "Could not write authentication error response", exception);

@@ -237,7 +237,7 @@ class TransferApiIntegrationTest {
 
     @Test
     void shouldStorePixKeyResponseInRedisWhenKeyLookupSucceeds() throws Exception {
-        HttpResponse<String> response = get("/keys/user@example.com");
+        HttpResponse<String> response = get("/keys/user@example.com", token());
 
         assertThat(response.statusCode()).isEqualTo(200);
         JsonNode body = json(response);
@@ -411,7 +411,15 @@ class TransferApiIntegrationTest {
     }
 
     private HttpResponse<String> get(String path) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url(path))).GET().build();
+        return get(path, null);
+    }
+
+    private HttpResponse<String> get(String path, String token) throws Exception {
+        HttpRequest.Builder builder = HttpRequest.newBuilder(URI.create(url(path))).GET();
+        if (token != null) {
+            builder.header("Authorization", "Bearer " + token);
+        }
+        HttpRequest request = builder.build();
         return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
     }
 
