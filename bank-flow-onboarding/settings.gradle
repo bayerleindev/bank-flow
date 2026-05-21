@@ -1,0 +1,3 @@
+rootProject.name = 'bank-flow-onboarding'
+
+include 'api'

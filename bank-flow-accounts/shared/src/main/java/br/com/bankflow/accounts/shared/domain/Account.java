@@ -20,5 +20,7 @@ public record Account(
         String accountNumber,
         String accountDigit,
         String rejectionReason,
+        UUID onboardingApplicationId,
+        UUID credentialsId,
         Instant createdAt,
         Instant updatedAt) {}

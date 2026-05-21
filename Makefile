@@ -1,6 +1,11 @@
 SERVICE ?= bank-flow-accounts
 DASHBOARDS_DIR ?= $(SERVICE)/dashboards
+DASHBOARD_SERVICES ?= $(shell find bank-flow-* -maxdepth 1 -type d -name dashboards -print | sed 's|/dashboards||' | sort)
 GRAFANA_DASHBOARDS_DIR ?= observability/grafana/dashboards
+K8S_MONITORING_NAMESPACE ?= monitoring
+DOCKER_NAMESPACE ?= gbcamargo
+LEDGER_IMAGE_NAME ?= bank-flow-ledger
+IMAGE_TAG ?= dev
 GRADLEW := cd $(SERVICE) && ./gradlew
 
 ACCOUNTS_API_PORT ?= 8080
@@ -13,6 +18,8 @@ BALANCE_API_PORT ?= 8087
 BALANCE_WORKER_PORT ?= 8088
 BAAS_PORT ?= 8089
 AUTH_PORT ?= 8090
+ONBOARDING_API_PORT ?= 8091
+AUTH_WORKER_PORT ?= 8092
 
 BAAS_BASE_URL ?= http://localhost:$(BAAS_PORT)
 ACCOUNTS_WEBHOOK_URL ?= http://localhost:$(ACCOUNTS_API_PORT)/webhooks/baas/accounts
@@ -31,8 +38,10 @@ AUTH_JWKS_URI ?= http://localhost:$(AUTH_PORT)/.well-known/jwks.json
 	accounts-api accounts-worker \
 	transfers-api transfers-worker \
 	balance-api balance-worker \
-	auth baas \
-	dashboards-deploy observability-deploy observability-up observability-down observability-logs deploy-observability
+	auth auth-worker onboarding-api baas \
+	ledger-docker-publish \
+	dashboards-deploy dashboards-k8s-deploy \
+	observability-deploy observability-up observability-down observability-logs deploy-observability
 
 up:
 	docker compose -f docker-compose.yaml up -d
@@ -100,16 +109,41 @@ balance-worker:
 ledger:
 	cd bank-flow-ledger && SERVER_PORT=$(LEDGER_PORT) LEDGER_EXTERNAL_SETTLEMENT_ACCOUNT_ID=$(LEDGER_EXTERNAL_SETTLEMENT_ACCOUNT_ID) ./gradlew bootRun
 
+ledger-docker-publish:
+	docker build -t $(LEDGER_IMAGE_NAME):$(IMAGE_TAG) bank-flow-ledger
+	docker tag $(LEDGER_IMAGE_NAME):$(IMAGE_TAG) $(DOCKER_NAMESPACE)/$(LEDGER_IMAGE_NAME):$(IMAGE_TAG)
+	docker push $(DOCKER_NAMESPACE)/$(LEDGER_IMAGE_NAME):$(IMAGE_TAG)
+
 auth:
-	cd bank-flow-auth && SERVER_PORT=$(AUTH_PORT) AUTH_ISSUER_KEY=$(AUTH_ISSUER_KEY) AUTH_JWT_ISSUER=$(AUTH_JWT_ISSUER_URI) ./gradlew bootRun
+	cd bank-flow-auth && SERVER_PORT=$(AUTH_PORT) AUTH_ISSUER_KEY=$(AUTH_ISSUER_KEY) AUTH_JWT_ISSUER=$(AUTH_JWT_ISSUER_URI) ./gradlew :api:bootRun
+
+auth-worker:
+	cd bank-flow-auth && SERVER_PORT=$(AUTH_WORKER_PORT) ./gradlew :worker:bootRun
+
+onboarding-api:
+	cd bank-flow-onboarding && SERVER_PORT=$(ONBOARDING_API_PORT) AUTH_BASE_URL=http://localhost:$(AUTH_PORT) AUTH_ISSUER_KEY=$(AUTH_ISSUER_KEY) ./gradlew :api:bootRun
 
 baas:
 	BAAS_PORT=$(BAAS_PORT) ACCOUNTS_WEBHOOK_URL=$(ACCOUNTS_WEBHOOK_URL) TRANSFERS_WEBHOOK_URL=$(TRANSFERS_WEBHOOK_URL) TRANSFERS_WEBHOOK_DELAY_SECONDS=$(TRANSFERS_WEBHOOK_DELAY_SECONDS) TRANSFERS_WEBHOOK_SUCCESS_RATE=$(TRANSFERS_WEBHOOK_SUCCESS_RATE) python3 baas-simulator/app.py
 
 dashboards-deploy:
-	test -d $(DASHBOARDS_DIR)
-	mkdir -p $(GRAFANA_DASHBOARDS_DIR)/$(SERVICE)
-	cp $(DASHBOARDS_DIR)/*.json $(GRAFANA_DASHBOARDS_DIR)/$(SERVICE)/
+	@for service in $(DASHBOARD_SERVICES); do \
+		test -d $$service/dashboards; \
+		mkdir -p $(GRAFANA_DASHBOARDS_DIR)/$$service; \
+		cp $$service/dashboards/*.json $(GRAFANA_DASHBOARDS_DIR)/$$service/; \
+		echo "deployed dashboards for $$service"; \
+	done
+
+dashboards-k8s-deploy:
+	@for service in bank-flow-*/dashboards; do \
+		name="$$(dirname "$$service")"; \
+		kubectl create configmap "$${name}-dashboards" \
+			--namespace $(K8S_MONITORING_NAMESPACE) \
+			--from-file="$$service" \
+			--dry-run=client -o yaml \
+			| kubectl label --local -f - grafana_dashboard=1 -o yaml \
+			| kubectl apply -f -; \
+	done
 
 observability-deploy: dashboards-deploy
 	docker compose -f observability/docker-compose.yaml up -d

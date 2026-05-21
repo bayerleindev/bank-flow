@@ -95,6 +95,20 @@ services:
           --topic movement.created \
           --partitions 3 \
           --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka:29092 \
+          --create \
+          --if-not-exists \
+          --topic onboarding.application.approved \
+          --partitions 3 \
+          --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh \
+          --bootstrap-server kafka:29092 \
+          --create \
+          --if-not-exists \
+          --topic account.creation.requested \
+          --partitions 3 \
+          --replication-factor 1
 
   immudb:
     image: codenotary/immudb:latest
@@ -115,26 +129,50 @@ services:
     volumes:
       - redis-data:/data
 
-  bank-flow-auth:
-    image: eclipse-temurin:21-jdk
-    working_dir: /app
-    command: ["./gradlew", "bootRun"]
-    environment:
-      SERVER_PORT: 8090
-      AUTH_ISSUER_KEY: ${AUTH_ISSUER_KEY:-local-dev-issuer-key}
-      AUTH_JWT_ISSUER: ${AUTH_JWT_ISSUER:-http://localhost:8090}
-      AUTH_JWT_KEY_ID: ${AUTH_JWT_KEY_ID:-bank-flow-auth-dev}
-      AUTH_JWT_PRIVATE_KEY: ${AUTH_JWT_PRIVATE_KEY:-}
-      AUTH_JWT_TTL: ${AUTH_JWT_TTL:-15m}
-    ports:
-      - "8090:8090"
+  rustfs-perms:
+    image: alpine:3.20
+    user: root
     volumes:
-      - ./bank-flow-auth:/app
-      - gradle-cache:/root/.gradle
+      - rustfs-data:/data
+    command: ["sh", "-c", "chown -R 10001:10001 /data"]
+
+  rustfs:
+    image: rustfs/rustfs:latest
+    depends_on:
+      rustfs-perms:
+        condition: service_completed_successfully
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs123}
+      RUSTFS_CONSOLE_ENABLE: "true"
+    command: ["/data"]
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - rustfs-data:/data
+
+  rustfs-init:
+    image: minio/mc:latest
+    depends_on:
+      - rustfs
+    environment:
+      RUSTFS_ACCESS_KEY: ${RUSTFS_ACCESS_KEY:-rustfs}
+      RUSTFS_SECRET_KEY: ${RUSTFS_SECRET_KEY:-rustfs123}
+      RUSTFS_BUCKET: ${RUSTFS_BUCKET:-bank-flow-onboarding-documents}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        until mc alias set rustfs http://rustfs:9000 "$$RUSTFS_ACCESS_KEY" "$$RUSTFS_SECRET_KEY"; do
+          sleep 2
+        done
+        mc mb --ignore-existing rustfs/$$RUSTFS_BUCKET
+
 
 volumes:
   postgres-data:
   kafka-data:
   immudb-data:
   redis-data:
+  rustfs-data:
   gradle-cache:

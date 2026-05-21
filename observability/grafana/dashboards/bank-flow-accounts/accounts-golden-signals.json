@@ -83,7 +83,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (application, area) (jvm_memory_used_bytes{application=~\"$application\"})",
+          "expr": "100 * sum by (application, area) (jvm_memory_used_bytes{application=~\"$application\"}) / sum by (application, area) (jvm_memory_max_bytes{application=~\"$application\"} > 0)",
           "legendFormat": "{{application}} {{area}}"
         }
       ]
@@ -97,7 +97,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "process_cpu_usage{application=~\"$application\"}",
+          "expr": "100 * avg by (application) (process_cpu_usage{application=~\"$application\"})",
           "legendFormat": "{{application}}"
         }
       ]
@@ -118,9 +118,23 @@
     },
     {
       "id": 7,
-      "title": "Trace Duration p95",
+      "title": "Errors - Traces",
       "type": "timeseries",
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (service, span_name) (rate(traces_spanmetrics_calls_total{service=~\"$application\", status_code=\"ERROR\"}[5m]))",
+          "legendFormat": "{{service}} {{span_name}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "Trace Duration p95",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {
@@ -131,10 +145,10 @@
       ]
     },
     {
-      "id": 8,
+      "id": 9,
       "title": "Resilience4j Calls",
       "type": "timeseries",
-      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
         {

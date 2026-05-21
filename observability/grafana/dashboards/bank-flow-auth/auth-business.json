@@ -1,0 +1,86 @@
+{
+  "uid": "auth-business",
+  "title": "Auth - Business",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["auth", "business"],
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Tokens Issued",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(increase(auth_token_issued_total[1h]))", "legendFormat": "issued"}
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Token Rejections",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(increase(auth_token_rejected_total[1h]))", "legendFormat": "rejected"}
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Credentials Created",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(increase(auth_credentials_created_total[1h]))", "legendFormat": "created"}
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Accounts Linked",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(increase(auth_account_link_upserted_total[1h]))", "legendFormat": "linked"}
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Auth Funnel",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 6},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(auth_credentials_created_total[5m]))", "legendFormat": "credentials created"},
+        {"refId": "B", "expr": "sum(rate(auth_kafka_account_created_consumed_total[5m]))", "legendFormat": "account.created consumed"},
+        {"refId": "C", "expr": "sum(rate(auth_account_link_upserted_total[5m]))", "legendFormat": "account linked"},
+        {"refId": "D", "expr": "sum(rate(auth_token_issued_total[5m]))", "legendFormat": "token issued"},
+        {"refId": "E", "expr": "sum(rate(auth_token_rejected_total[5m]))", "legendFormat": "token rejected"}
+      ]
+    },
+    {
+      "id": 6,
+      "title": "HTTP Auth Endpoints",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum by (uri, status) (rate(http_server_requests_seconds_count{application=~\"bank-flow-auth.*\", uri=~\"/tokens|/credentials\"}[5m]))", "legendFormat": "{{uri}} {{status}}"}
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Account Link Flow",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(auth_kafka_account_created_consumed_total[5m]))", "legendFormat": "account.created consumed"},
+        {"refId": "B", "expr": "sum(rate(auth_account_link_upserted_total[5m]))", "legendFormat": "account link upserted"}
+      ]
+    }
+  ]
+}

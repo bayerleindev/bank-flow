@@ -20,7 +20,9 @@ public record AccountResponse(
         String branchNumber,
         String accountNumber,
         String accountDigit,
-        String rejectionReason) {
+        String rejectionReason,
+        UUID onboardingApplicationId,
+        UUID credentialsId) {
 
     public static AccountResponse from(Account account) {
         return new AccountResponse(
@@ -38,6 +40,8 @@ public record AccountResponse(
                 account.branchNumber(),
                 account.accountNumber(),
                 account.accountDigit(),
-                account.rejectionReason());
+                account.rejectionReason(),
+                account.onboardingApplicationId(),
+                account.credentialsId());
     }
 }

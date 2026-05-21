@@ -1,5 +1,6 @@
 package br.com.bankflow.accounts.worker.config;
 
+import br.com.bankflow.accounts.shared.kafka.AccountCreationRequestedEvent;
 import br.com.bankflow.accounts.shared.kafka.AccountRequestedEvent;
 import br.com.bankflow.accounts.shared.kafka.AccountValidateCommand;
 import java.util.Map;
@@ -38,6 +39,25 @@ public class KafkaConsumerConfig {
         factory.getContainerProperties().setDeliveryAttemptHeader(true);
         factory.getContainerProperties().setObservationEnabled(true);
         factory.setContainerCustomizer(this::customizeContainer);
+        return factory;
+    }
+
+    @Bean
+    ConcurrentKafkaListenerContainerFactory<String, AccountCreationRequestedEvent>
+            accountCreationRequestedKafkaListenerContainerFactory(
+                    @Value("${spring.kafka.bootstrap-servers}") String bootstrapServers,
+                    DefaultErrorHandler accountRequestedErrorHandler,
+                    @Value("${app.kafka.consumer.account-creation-requested.concurrency}")
+                            int concurrency) {
+        ConcurrentKafkaListenerContainerFactory<String, AccountCreationRequestedEvent> factory =
+                new ConcurrentKafkaListenerContainerFactory<>();
+        factory.setConsumerFactory(accountCreationRequestedConsumerFactory(bootstrapServers));
+        factory.setConcurrency(concurrency);
+        factory.setCommonErrorHandler(accountRequestedErrorHandler);
+        factory.getContainerProperties().setAckMode(ContainerProperties.AckMode.RECORD);
+        factory.getContainerProperties().setDeliveryAttemptHeader(true);
+        factory.getContainerProperties().setObservationEnabled(true);
+        factory.setContainerCustomizer(this::customizeAccountCreationRequestedContainer);
         return factory;
     }
 
@@ -107,6 +127,36 @@ public class KafkaConsumerConfig {
                         JsonDeserializer.USE_TYPE_INFO_HEADERS,
                         false);
         return new DefaultKafkaConsumerFactory<>(properties);
+    }
+
+    private ConsumerFactory<String, AccountCreationRequestedEvent>
+            accountCreationRequestedConsumerFactory(String bootstrapServers) {
+        Map<String, Object> properties =
+                Map.of(
+                        ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG,
+                        bootstrapServers,
+                        ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG,
+                        StringDeserializer.class,
+                        ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG,
+                        JsonDeserializer.class,
+                        JsonDeserializer.TRUSTED_PACKAGES,
+                        "br.com.bankflow.accounts.shared.kafka",
+                        JsonDeserializer.VALUE_DEFAULT_TYPE,
+                        AccountCreationRequestedEvent.class,
+                        JsonDeserializer.USE_TYPE_INFO_HEADERS,
+                        false);
+        return new DefaultKafkaConsumerFactory<>(properties);
+    }
+
+    private void customizeAccountCreationRequestedContainer(
+            ConcurrentMessageListenerContainer<String, AccountCreationRequestedEvent> container) {
+        container
+                .getContainerProperties()
+                .setCommitLogLevel(org.springframework.kafka.support.LogIfLevelEnabled.Level.INFO);
+        container
+                .getContainerProperties()
+                .getKafkaConsumerProperties()
+                .put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, "50");
     }
 
     private void customizeAccountValidateContainer(

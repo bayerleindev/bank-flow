@@ -117,6 +117,28 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "id": 9,
+      "targets": [
+        {
+          "expr": "sum by (service, span_name) (rate(traces_spanmetrics_calls_total{service=~\"$application\", status_code=\"ERROR\"}[5m]))",
+          "legendFormat": "{{service}} {{span_name}}",
+          "refId": "A"
+        }
+      ],
+      "title": "Errors - Traces",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -636,7 +658,7 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 0,
+        "x": 12,
         "y": 24
       },
       "id": 7,
@@ -727,8 +749,8 @@
       "gridPos": {
         "h": 8,
         "w": 12,
-        "x": 12,
-        "y": 24
+        "x": 0,
+        "y": 32
       },
       "id": 8,
       "options": {

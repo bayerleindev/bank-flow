@@ -52,6 +52,7 @@ import org.springframework.test.web.servlet.MockMvc;
             "spring.security.oauth2.resourceserver.jwt.issuer-uri=http://localhost:8090",
             "spring.security.oauth2.resourceserver.jwt.jwk-set-uri=http://localhost:8090/.well-known/jwks.json"
         })
+@SuppressWarnings({"PMD.TooManyStaticImports", "PMD.UnitTestShouldIncludeAssert"})
 class AccountSecurityTest {
 
     private static final UUID ACCOUNT_ID = UUID.fromString("00000000-0000-0000-0000-000000000101");
@@ -155,6 +156,8 @@ class AccountSecurityTest {
                 "Rua Um",
                 false,
                 AccountStatus.CREATION_REQUESTED,
+                null,
+                null,
                 null,
                 null,
                 null,

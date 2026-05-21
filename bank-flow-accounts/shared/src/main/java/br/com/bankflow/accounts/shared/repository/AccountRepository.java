@@ -14,6 +14,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
 @Repository
+@SuppressWarnings("PMD.TooManyMethods")
 public class AccountRepository {
 
     private final JdbcTemplate jdbcTemplate;
@@ -29,8 +30,8 @@ public class AccountRepository {
 				insert into accounts.accounts (
 					id, full_name, document_number, email, mother_name, social_name,
 					phone_number, birth_date, address, is_politically_exposed, status,
-					created_at, updated_at
-				) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::accounts.account_status, ?, ?)
+					onboarding_application_id, credentials_id, created_at, updated_at
+				) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?::accounts.account_status, ?, ?, ?, ?)
 				""",
                 account.id(),
                 account.fullName(),
@@ -43,6 +44,8 @@ public class AccountRepository {
                 account.address(),
                 account.politicallyExposed(),
                 account.status().name(),
+                account.onboardingApplicationId(),
+                account.credentialsId(),
                 Timestamp.from(now),
                 Timestamp.from(now));
 
@@ -56,6 +59,7 @@ public class AccountRepository {
 				select id, full_name, document_number, email, mother_name, social_name,
 					phone_number, birth_date, address, is_politically_exposed, status,
 					branch_number, account_number, account_digit, rejection_reason,
+					onboarding_application_id, credentials_id,
 					created_at, updated_at
 				from accounts.accounts
 				where id = ?
@@ -74,6 +78,7 @@ public class AccountRepository {
 					select id, full_name, document_number, email, mother_name, social_name,
 						phone_number, birth_date, address, is_politically_exposed, status,
 						branch_number, account_number, account_digit, rejection_reason,
+						onboarding_application_id, credentials_id,
 						created_at, updated_at
 					from accounts.accounts
 					where branch_number = ?
@@ -86,6 +91,42 @@ public class AccountRepository {
                         accountNumber,
                         accountDigit,
                         AccountStatus.ACTIVE.name())
+                .stream()
+                .findFirst();
+    }
+
+    public Optional<Account> findByDocumentNumber(String documentNumber) {
+        return jdbcTemplate
+                .query(
+                        """
+				select id, full_name, document_number, email, mother_name, social_name,
+					phone_number, birth_date, address, is_politically_exposed, status,
+					branch_number, account_number, account_digit, rejection_reason,
+					onboarding_application_id, credentials_id,
+					created_at, updated_at
+				from accounts.accounts
+				where document_number = ?
+				""",
+                        rowMapper(),
+                        documentNumber)
+                .stream()
+                .findFirst();
+    }
+
+    public Optional<Account> findByOnboardingApplicationId(UUID onboardingApplicationId) {
+        return jdbcTemplate
+                .query(
+                        """
+				select id, full_name, document_number, email, mother_name, social_name,
+					phone_number, birth_date, address, is_politically_exposed, status,
+					branch_number, account_number, account_digit, rejection_reason,
+					onboarding_application_id, credentials_id,
+					created_at, updated_at
+				from accounts.accounts
+				where onboarding_application_id = ?
+				""",
+                        rowMapper(),
+                        onboardingApplicationId)
                 .stream()
                 .findFirst();
     }
@@ -160,6 +201,8 @@ public class AccountRepository {
                         rs.getString("account_number"),
                         rs.getString("account_digit"),
                         rs.getString("rejection_reason"),
+                        rs.getObject("onboarding_application_id", UUID.class),
+                        rs.getObject("credentials_id", UUID.class),
                         instant(rs, "created_at"),
                         instant(rs, "updated_at"));
     }

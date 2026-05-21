@@ -1,0 +1,88 @@
+{
+  "uid": "onboarding-business",
+  "title": "Onboarding - Business",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "tags": ["onboarding", "business"],
+  "time": {"from": "now-1h", "to": "now"},
+  "panels": [
+    {
+      "id": 1,
+      "title": "Applications Created",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(increase(onboarding_application_created_total[1h]))", "legendFormat": "created"}
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Submitted",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(increase(onboarding_application_submitted_total[1h]))", "legendFormat": "submitted"}
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Approved",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(increase(onboarding_application_approved_total[1h]))", "legendFormat": "approved"}
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Rejected",
+      "type": "stat",
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 0},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(increase(onboarding_application_rejected_total[1h]))", "legendFormat": "rejected"}
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Onboarding Funnel",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 6},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(onboarding_application_created_total[5m]))", "legendFormat": "created"},
+        {"refId": "B", "expr": "sum(rate(onboarding_document_uploaded_total[5m]))", "legendFormat": "documents uploaded"},
+        {"refId": "C", "expr": "sum(rate(onboarding_credentials_created_total[5m]))", "legendFormat": "credentials created"},
+        {"refId": "D", "expr": "sum(rate(onboarding_application_submitted_total[5m]))", "legendFormat": "submitted"},
+        {"refId": "E", "expr": "sum(rate(onboarding_application_approved_total[5m]))", "legendFormat": "approved"},
+        {"refId": "F", "expr": "sum(rate(onboarding_application_rejected_total[5m]))", "legendFormat": "rejected"}
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Document Flow",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(onboarding_document_upload_requested_total[5m]))", "legendFormat": "upload requested"},
+        {"refId": "B", "expr": "sum(rate(onboarding_document_uploaded_total[5m]))", "legendFormat": "uploaded"}
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Published Events",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 14},
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "targets": [
+        {"refId": "A", "expr": "sum(rate(onboarding_kafka_approved_published_total[5m]))", "legendFormat": "onboarding approved"},
+        {"refId": "B", "expr": "sum(rate(onboarding_kafka_account_creation_requested_published_total[5m]))", "legendFormat": "account creation requested"}
+      ]
+    }
+  ]
+}

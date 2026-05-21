@@ -83,9 +83,10 @@
       "gridPos": {"h": 8, "w": 12, "x": 0, "y": 14},
       "datasource": {"type": "prometheus", "uid": "prometheus"},
       "targets": [
-        {"refId": "A", "expr": "sum(rate(accounts_kafka_requested_published_total[5m]))", "legendFormat": "requested published"},
-        {"refId": "B", "expr": "sum(rate(accounts_kafka_requested_consumed_total[5m]))", "legendFormat": "requested consumed"},
-        {"refId": "C", "expr": "sum(rate(accounts_kafka_created_published_total[5m]))", "legendFormat": "created published"}
+        {"refId": "A", "expr": "sum(rate(accounts_kafka_creation_requested_consumed_total[5m]))", "legendFormat": "creation requested consumed"},
+        {"refId": "B", "expr": "sum(rate(accounts_kafka_requested_published_total[5m]))", "legendFormat": "requested published"},
+        {"refId": "C", "expr": "sum(rate(accounts_kafka_requested_consumed_total[5m]))", "legendFormat": "requested consumed"},
+        {"refId": "D", "expr": "sum(rate(accounts_kafka_created_published_total[5m]))", "legendFormat": "created published"}
       ]
     },
     {

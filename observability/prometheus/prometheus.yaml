@@ -57,3 +57,21 @@ scrape_configs:
     static_configs:
       - targets:
           - host.docker.internal:8088
+
+  - job_name: auth-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8090
+
+  - job_name: onboarding-api
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8091
+
+  - job_name: auth-worker
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - host.docker.internal:8092

@@ -1,8 +1,6 @@
 package br.com.bankflow.accounts.api.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
-import java.util.Map;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -22,8 +20,7 @@ public class SecurityConfig {
 
     @Bean
     @SuppressWarnings("PMD.SignatureDeclareThrowsException")
-    SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper)
-            throws Exception {
+    SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(
                         requests ->
@@ -42,7 +39,7 @@ public class SecurityConfig {
                                                 })
                                         .authenticationEntryPoint(
                                                 (request, response, authException) ->
-                                                        writeUnauthorized(response, objectMapper)));
+                                                        writeUnauthorized(response)));
         return http.build();
     }
 
@@ -57,11 +54,11 @@ public class SecurityConfig {
         return jwtDecoder;
     }
 
-    private static void writeUnauthorized(HttpServletResponse response, ObjectMapper objectMapper) {
+    private static void writeUnauthorized(HttpServletResponse response) {
         try {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            objectMapper.writeValue(response.getWriter(), Map.of("code", "invalid_token"));
+            response.getWriter().write("{\"code\":\"invalid_token\"}");
         } catch (java.io.IOException exception) {
             throw new IllegalStateException(
                     "Could not write authentication error response", exception);
